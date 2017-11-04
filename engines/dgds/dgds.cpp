@@ -46,14 +46,10 @@ DgdsEngine::~DgdsEngine() {
 	delete _console;
 }
 
-Common::Error DgdsEngine::run() {
-	initGraphics(320, 200);
-
-	debug("DgdsEngine::init");
-
+static void explode(const char *index, bool save) {
 	Common::File f, f2;
 
-	if (f.open("volume.vga")) {
+	if (f.open(index)) {
 		uint32 version;
 		uint16 nvolumes;
 
@@ -94,6 +90,23 @@ Common::Error DgdsEngine::run() {
 					continue;
 				}
 
+				if (save) {
+					Common::DumpFile out;
+					char *buf;
+
+					buf = new char[inSize];
+
+					if (!out.open(name)) {
+						debug("Couldn't write to %s", name);
+					} else {
+						f2.read(buf, inSize);
+						out.write(buf, inSize);
+						out.close();
+						f2.seek(offset + 13 + 4);
+					}
+					delete [] buf;
+				}
+				
 				const char *ext;
 				bool chunky, packed;
 				uint32 k;
@@ -202,24 +215,6 @@ Common::Error DgdsEngine::run() {
 						k += chunkSize;
 						outSize += chunkSize;*/
 						debug("    %s %d%c", type, chunkSize, (chunky ? '+' : ' '));
-/*
-						if (strcmp(ext, "BMP") == 0) {
-							Common::DumpFile out;
-							char *buf;
-							
-							buf = new char[chunkSize];
-
-							if (!out.open(name)) {
-								debug("!DUMP %s", name);
-							} else {
-								debug("DUMP %s", name);
-								f2.read(buf, chunkSize);
-								out.write(buf, chunkSize);
-								out.close();
-								continue;
-							}
-							delete [] buf;
-						}*/
 					}
 
 					if (!chunky) {
@@ -233,8 +228,15 @@ Common::Error DgdsEngine::run() {
 			}
 			f2.close();
 		}
-	}
+	}	
+}
 
+Common::Error DgdsEngine::run() {
+	initGraphics(320, 200);
+
+	debug("DgdsEngine::init");
+
+	explode("volume.vga", true);
 
 	return Common::kNoError;
 }
