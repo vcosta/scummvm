@@ -78,7 +78,7 @@ Common::Error DgdsEngine::run() {
 			debug("--\n%s %u", name, nfiles);
 			for (int j=0; j<nfiles; j++) {
 				uint32 hash, offset;
-				int32 inSize, outSize;
+				uint32 inSize, outSize;
 
 				hash = f.readUint32LE();
 				offset = f.readUint32LE();
@@ -87,32 +87,29 @@ Common::Error DgdsEngine::run() {
 				f2.seek(offset);
 				f2.read(name, sizeof(name));
 				name[12] = '\0';
-				inSize = f2.readSint32LE();
+				inSize = f2.readUint32LE();
 				debug("  %s %d\n  --", name, inSize);
 				
-				if (inSize == -1) {
+				if (inSize == 0xFFFFFFFF) {
 					continue;
 				}
 
 				const char *ext;
 				bool chunky, packed;
-				int32 k;
+				uint32 k;
 
 				ext = name + strlen(name) - 3;
 
 				k = 0;
 				outSize = 0;
-				chunky = true;
 				while (k < inSize) {
 					char type[4+1];
-					int32 chunkSize;
-					uint8 marker;
+					uint32 chunkSize;
 					
 					f2.read(type, 4);
 					type[4] = '\0';
 					
 					if (type[3] != ':') {
-						chunky = false;
 						outSize = inSize;
 						debug("    binary");
 						break;
@@ -121,13 +118,13 @@ Common::Error DgdsEngine::run() {
 					k += 4;
 					outSize += 4;
 
-					chunkSize = f2.readSint32LE();
-					if (chunkSize < 0) {
-						chunkSize = -chunkSize;
-						debug("    MULTI");
+					chunkSize = f2.readUint32LE();
+					if (chunkSize & 0xF0000000) {
+						chunkSize &= ~0xF0000000;
+						chunky = true;
+					} else {
+						chunky = false;
 					}
-					marker = (chunkSize & 0xff);
-					chunkSize >>= 8;
 
 					k += 4;
 					outSize += 4;
@@ -176,39 +173,59 @@ Common::Error DgdsEngine::run() {
 					else if (strcmp(ext, "SNG") == 0) {
 						if (strcmp(type, "SNG:") == 0) packed = true;
 					}
-					else if( strcmp( ext, "TDS" ) == 0 ) {
-						if( strcmp( type, "TDS:" ) == 0 ) packed = true;
+					else if (strcmp(ext, "TDS") == 0 ) {
+						if (strcmp( type, "TDS:") == 0) packed = true;
 					}
 
-					else if( strcmp( ext, "TTM" ) == 0 ) {
-						if( strcmp( type, "TT3:" ) == 0 ) packed = true;
+					else if (strcmp(ext, "TTM") == 0) {
+						if(strcmp( type, "TT3:") == 0) packed = true;
 					}
 
 					if (packed) {
 						uint8 method; /* 0=None, 1=RLE, 2=LZW */
 						const char *descr[] = {"None", "RLE", "LZW"};
-						int32 unpackSize;
+						uint32 unpackSize;
 						
 						method = f2.readByte();
 						unpackSize = f2.readSint32LE();
 						chunkSize -= (1 + 4);
 						
+						k += (1 + 4);
+						outSize += (1 + 4);/*
 						k += (1 + 4 + chunkSize);
-						outSize += (1 + 4 + unpackSize);
-						debug("    %s %u %d %s %d",
-							type, marker, chunkSize,
+						outSize += (1 + 4 + unpackSize);*/
+						debug("    %s %d %s %d%c",
+							type, chunkSize,
 							descr[method],
-							unpackSize);
-					} else if (marker == 0x80) {
-						chunkSize = 0;
-						debug("    %s %u %d", type, marker, chunkSize);
-					} else {
+							unpackSize, (chunky ? '+' : ' '));
+					} else {/*
 						k += chunkSize;
-						outSize += chunkSize;
-						debug("    %s %u %d*", type, marker, chunkSize);
+						outSize += chunkSize;*/
+						debug("    %s %d%c", type, chunkSize, (chunky ? '+' : ' '));
+/*
+						if (strcmp(ext, "BMP") == 0) {
+							Common::DumpFile out;
+							char *buf;
+							
+							buf = new char[chunkSize];
+
+							if (!out.open(name)) {
+								debug("!DUMP %s", name);
+							} else {
+								debug("DUMP %s", name);
+								f2.read(buf, chunkSize);
+								out.write(buf, chunkSize);
+								out.close();
+								continue;
+							}
+							delete [] buf;
+						}*/
 					}
-					
-					f2.seek(chunkSize, SEEK_CUR);
+
+					if (!chunky) {
+						f2.seek(chunkSize, SEEK_CUR);
+						k += chunkSize;
+					}
 				}
 				debug("  [%u] --", outSize);
 
