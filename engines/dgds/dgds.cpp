@@ -65,7 +65,7 @@ void DgdsFileCtx::init(uint32 size) {
 struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
 	uint32 chunkSize;
-	bool chunky;
+	bool container;
 	
 	bool readHeader(DgdsFileCtx& ctx, Common::File& archive);
 	bool isPacked(const Common::String& ext);
@@ -154,9 +154,9 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive) {
 	chunkSize = archive.readUint32LE();
 	if (chunkSize & 0xF0000000) {
 		chunkSize &= ~0xF0000000;
-		chunky = true;
+		container = true;
 	} else {
-		chunky = false;
+		container = false;
 	}
 
 	ctx.bytesRead += 4;
@@ -177,7 +177,7 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 	ctx.bytesRead += (1 + 4);
 	ctx.outSize += (1 + 4);
 
-	if (!chunky) {
+	if (!container) {
 		Common::SeekableReadStream *istream;
 		istream = archive.readStream(chunkSize);
 		ctx.bytesRead += chunkSize;
@@ -190,20 +190,20 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 	debug("    %s %u %s %u%c",
 		type, chunkSize,
 		descr[method],
-		unpackSize, (chunky ? '+' : ' '));
+		unpackSize, (container ? '+' : ' '));
 	return ostream;
 }
 
 Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::File& archive) {
 	Common::SeekableReadStream *ostream = 0;
 
-	if (!chunky) {
+	if (!container) {
 		ostream = archive.readStream(chunkSize);
 		ctx.bytesRead += chunkSize;
 		ctx.outSize += chunkSize;
 	}
 
-	debug("    %s %u%c", type, chunkSize, (chunky ? '+' : ' '));
+	debug("    %s %u%c", type, chunkSize, (container ? '+' : ' '));
 	return ostream;
 }
 
