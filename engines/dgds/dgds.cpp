@@ -63,81 +63,87 @@ void DgdsFileCtx::init(uint32 inSize_) {
 }
 
 struct DgdsChunk {
-	char type[DGDS_TYPENAME_MAX+1];
+	char name[DGDS_TYPENAME_MAX+1];
 	uint32 chunkSize;
 	bool chunky, packed;
 	
 	bool readHeader(DgdsFileCtx& ctx, Common::File& archive);
-	bool isPacked(const char *ext);
+	bool isPacked(const Common::String& ext);
+	bool isSection(const Common::String& section);
 	Common::SeekableReadStream* readData(DgdsFileCtx& ctx, Common::File& archive);
 };
 
-bool DgdsChunk::isPacked(const char *ext) {
+bool DgdsChunk::isSection(const Common::String& section) {
+       return section.equals(name);
+}
+
+
+bool DgdsChunk::isPacked(const Common::String& ext) {
 	packed = false;
 
 	if (0) {
 	}
-	else if (strcmp(ext, "ADS") == 0) {
+	else if (ext.equals("ADS")) {
 		if (0) {
-		} else if (strcmp(type, "SCR:") == 0) packed = true;
+		} else if (strcmp(name, "SCR:") == 0) packed = true;
 	}
-	else if (strcmp(ext, "BMP") == 0) {
+	else if (ext.equals("BMP")) {
 		if (0) {
-		} else if (strcmp(type, "BIN:") == 0) packed = true;
-		else if (strcmp(type, "VGA:") == 0) packed = true;
+		} else if (strcmp(name, "BIN:") == 0) packed = true;
+		else if (strcmp(name, "VGA:") == 0) packed = true;
 	}
-	else if (strcmp(ext, "DDS") == 0) {
-		if (strcmp(type, "DDS:") == 0) packed = true;
+	else if (ext.equals("DDS")) {
+		if (strcmp(name, "DDS:") == 0) packed = true;
 	}
-	else if (strcmp(ext, "OVL") == 0) {
+	else if (ext.equals("OVL")) {
 		if (0) {
-		} else if (strcmp(type, "ADL:") == 0) packed = true;
-		else if (strcmp(type, "ADS:") == 0) packed = true;
-		else if (strcmp(type, "APA:") == 0) packed = true;
-		else if (strcmp(type, "ASB:") == 0) packed = true;
-		else if (strcmp(type, "GMD:") == 0) packed = true;
-		else if (strcmp(type, "M32:") == 0) packed = true;
-		else if (strcmp(type, "NLD:") == 0) packed = true;
-		else if (strcmp(type, "PRO:") == 0) packed = true;
-		else if (strcmp(type, "PS1:") == 0) packed = true;
-		else if (strcmp(type, "SBL:") == 0) packed = true;
-		else if (strcmp(type, "SBP:") == 0) packed = true;
-		else if (strcmp(type, "STD:") == 0) packed = true;
-		else if (strcmp(type, "TAN:") == 0) packed = true;
-		else if (strcmp(type, "001:") == 0) packed = true;
-		else if (strcmp(type, "003:") == 0) packed = true;
-		else if (strcmp(type, "004:") == 0) packed = true;
-		else if (strcmp(type, "101:") == 0) packed = true;
+		} else if (strcmp(name, "ADL:") == 0) packed = true;
+		else if (strcmp(name, "ADS:") == 0) packed = true;
+		else if (strcmp(name, "APA:") == 0) packed = true;
+		else if (strcmp(name, "ASB:") == 0) packed = true;
+		else if (strcmp(name, "GMD:") == 0) packed = true;
+		else if (strcmp(name, "M32:") == 0) packed = true;
+		else if (strcmp(name, "NLD:") == 0) packed = true;
+		else if (strcmp(name, "PRO:") == 0) packed = true;
+		else if (strcmp(name, "PS1:") == 0) packed = true;
+		else if (strcmp(name, "SBL:") == 0) packed = true;
+		else if (strcmp(name, "SBP:") == 0) packed = true;
+		else if (strcmp(name, "STD:") == 0) packed = true;
+		else if (strcmp(name, "TAN:") == 0) packed = true;
+		else if (strcmp(name, "001:") == 0) packed = true;
+		else if (strcmp(name, "003:") == 0) packed = true;
+		else if (strcmp(name, "004:") == 0) packed = true;
+		else if (strcmp(name, "101:") == 0) packed = true;
 
-		else if (strcmp(type, "VGA:") == 0) packed = true;
+		else if (strcmp(name, "VGA:") == 0) packed = true;
 	}
-	else if (strcmp(ext, "SDS") == 0) {
-		if (strcmp(type, "SDS:") == 0) packed = true;
+	else if (ext.equals("SDS")) {
+		if (strcmp(name, "SDS:") == 0) packed = true;
 	}
-	else if (strcmp(ext, "SNG") == 0) {
-		if (strcmp(type, "SNG:") == 0) packed = true;
+	else if (ext.equals("SNG")) {
+		if (strcmp(name, "SNG:") == 0) packed = true;
 	}
-	else if (strcmp(ext, "TDS") == 0 ) {
-		if (strcmp(type, "TDS:") == 0) packed = true;
+	else if (ext.equals("TDS")) {
+		if (strcmp(name, "TDS:") == 0) packed = true;
 	}
 
-	else if (strcmp(ext, "TTM") == 0) {
-		if (strcmp(type, "TT3:") == 0) packed = true;
+	else if (ext.equals("TTM")) {
+		if (strcmp(name, "TT3:") == 0) packed = true;
 	}
 	return packed;
 }
 
 bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive) {
-	archive.read(type, DGDS_TYPENAME_MAX);
-	type[DGDS_TYPENAME_MAX] = '\0';
+	archive.read(name, DGDS_TYPENAME_MAX);
+	name[DGDS_TYPENAME_MAX] = '\0';
 
-	if (type[DGDS_TYPENAME_MAX-1] != ':') {
+	if (name[DGDS_TYPENAME_MAX-1] != ':') {
 		ctx.outSize = ctx.inSize;
 		return false;
 	}
 
-	ctx.k += sizeof(type);
-	ctx.outSize += sizeof(type);
+	ctx.k += sizeof(name);
+	ctx.outSize += sizeof(name);
 
 	chunkSize = archive.readUint32LE();
 	if (chunkSize & 0xF0000000) {
@@ -178,7 +184,7 @@ Common::SeekableReadStream* DgdsChunk::readData(DgdsFileCtx& ctx, Common::File& 
 		outSize += (1 + 4 + unpackSize);*/
 
 		debug("    %s %u %s %u%c",
-			type, chunkSize,
+			name, chunkSize,
 			descr[method],
 			unpackSize, (chunky ? '+' : ' '));
 	} else {
@@ -188,7 +194,7 @@ Common::SeekableReadStream* DgdsChunk::readData(DgdsFileCtx& ctx, Common::File& 
 			ctx.outSize += chunkSize;
 		}
 
-		debug("    %s %u%c", type, chunkSize, (chunky ? '+' : ' '));
+		debug("    %s %u%c", name, chunkSize, (chunky ? '+' : ' '));
 	}
 
 	return ostream;
