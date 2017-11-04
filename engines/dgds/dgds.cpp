@@ -46,45 +46,193 @@ DgdsEngine::~DgdsEngine() {
 	delete _console;
 }
 
-static void explode(const char *index, bool save) {
-	Common::File f, f2;
 
-	if (f.open(index)) {
+#define DGDS_FILENAME_MAX 12
+#define DGDS_TYPENAME_MAX 4
+
+struct DgdsFileCtx {
+	uint32 k, inSize, outSize;
+	
+	void init(uint32 inSize_);
+};
+
+void DgdsFileCtx::init(uint32 inSize_) {
+	inSize = inSize_;
+	k = 0;
+	outSize = 0;
+}
+
+struct DgdsChunk {
+	char type[DGDS_TYPENAME_MAX+1];
+	uint32 chunkSize;
+	bool chunky, packed;
+	
+	bool readHeader(DgdsFileCtx& ctx, Common::File& archive);
+	bool isPacked(const char *ext);
+	Common::SeekableReadStream* readData(DgdsFileCtx& ctx, Common::File& archive);
+};
+
+bool DgdsChunk::isPacked(const char *ext) {
+	packed = false;
+
+	if (0) {
+	}
+	else if (strcmp(ext, "ADS") == 0) {
+		if (0) {
+		} else if (strcmp(type, "SCR:") == 0) packed = true;
+	}
+	else if (strcmp(ext, "BMP") == 0) {
+		if (0) {
+		} else if (strcmp(type, "BIN:") == 0) packed = true;
+		else if (strcmp(type, "VGA:") == 0) packed = true;
+	}
+	else if (strcmp(ext, "DDS") == 0) {
+		if (strcmp(type, "DDS:") == 0) packed = true;
+	}
+	else if (strcmp(ext, "OVL") == 0) {
+		if (0) {
+		} else if (strcmp(type, "ADL:") == 0) packed = true;
+		else if (strcmp(type, "ADS:") == 0) packed = true;
+		else if (strcmp(type, "APA:") == 0) packed = true;
+		else if (strcmp(type, "ASB:") == 0) packed = true;
+		else if (strcmp(type, "GMD:") == 0) packed = true;
+		else if (strcmp(type, "M32:") == 0) packed = true;
+		else if (strcmp(type, "NLD:") == 0) packed = true;
+		else if (strcmp(type, "PRO:") == 0) packed = true;
+		else if (strcmp(type, "PS1:") == 0) packed = true;
+		else if (strcmp(type, "SBL:") == 0) packed = true;
+		else if (strcmp(type, "SBP:") == 0) packed = true;
+		else if (strcmp(type, "STD:") == 0) packed = true;
+		else if (strcmp(type, "TAN:") == 0) packed = true;
+		else if (strcmp(type, "001:") == 0) packed = true;
+		else if (strcmp(type, "003:") == 0) packed = true;
+		else if (strcmp(type, "004:") == 0) packed = true;
+		else if (strcmp(type, "101:") == 0) packed = true;
+
+		else if (strcmp(type, "VGA:") == 0) packed = true;
+	}
+	else if (strcmp(ext, "SDS") == 0) {
+		if (strcmp(type, "SDS:") == 0) packed = true;
+	}
+	else if (strcmp(ext, "SNG") == 0) {
+		if (strcmp(type, "SNG:") == 0) packed = true;
+	}
+	else if (strcmp(ext, "TDS") == 0 ) {
+		if (strcmp(type, "TDS:") == 0) packed = true;
+	}
+
+	else if (strcmp(ext, "TTM") == 0) {
+		if (strcmp(type, "TT3:") == 0) packed = true;
+	}
+	return packed;
+}
+
+bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive) {
+	archive.read(type, DGDS_TYPENAME_MAX);
+	type[DGDS_TYPENAME_MAX] = '\0';
+
+	if (type[DGDS_TYPENAME_MAX-1] != ':') {
+		ctx.outSize = ctx.inSize;
+		return false;
+	}
+
+	ctx.k += sizeof(type);
+	ctx.outSize += sizeof(type);
+
+	chunkSize = archive.readUint32LE();
+	if (chunkSize & 0xF0000000) {
+		chunkSize &= ~0xF0000000;
+		chunky = true;
+	} else {
+		chunky = false;
+	}
+
+	ctx.k += 4;
+	ctx.outSize += 4;
+	return true;
+}
+ 
+Common::SeekableReadStream* DgdsChunk::readData(DgdsFileCtx& ctx, Common::File& archive) {
+	Common::SeekableReadStream *ostream = 0;
+
+	if (packed) {
+		uint8 method; /* 0=None, 1=RLE, 2=LZW */
+		const char *descr[] = {"None", "RLE", "LZW"};
+		uint32 unpackSize;
+
+		method = archive.readByte();
+		unpackSize = archive.readSint32LE();
+		chunkSize -= (1 + 4);
+
+		ctx.k += (1 + 4);
+		ctx.outSize += (1 + 4);
+
+		if (!chunky) {
+			Common::SeekableReadStream *istream;
+			istream = archive.readStream(chunkSize);
+			ctx.k += chunkSize;
+			// TODO: decompress
+			delete istream;
+		}
+		/*
+		outSize += (1 + 4 + unpackSize);*/
+
+		debug("    %s %u %s %u%c",
+			type, chunkSize,
+			descr[method],
+			unpackSize, (chunky ? '+' : ' '));
+	} else {
+		if (!chunky) {
+			ostream = archive.readStream(chunkSize);
+			ctx.k += chunkSize;
+			ctx.outSize += chunkSize;
+		}
+
+		debug("    %s %u%c", type, chunkSize, (chunky ? '+' : ' '));
+	}
+
+	return ostream;
+} 
+
+static void explode(const char *indexName, bool save) {
+	Common::File index, archive;
+
+	if (index.open(indexName)) {
 		uint32 version;
 		uint16 nvolumes;
 
-		debug("DgdsEngine::VGA");
-
-		version = f.readUint32LE();
-		nvolumes = f.readUint16LE();
+		version = index.readUint32LE();
+		nvolumes = index.readUint16LE();
 
 		debug("%u %u", version, nvolumes);
 
-		for (int i=0; i<nvolumes; i++) {
-			char name[13];
+		for (uint i=0; i<nvolumes; i++) {
+			char name[DGDS_FILENAME_MAX+1];
 			uint16 nfiles;
 
-			f.read(name, sizeof(name));
-			name[12] = '\0';
+			index.read(name, sizeof(name));
+			name[DGDS_FILENAME_MAX] = '\0';
 			
-			nfiles = f.readUint16LE();
+			nfiles = index.readUint16LE();
 			
-			f2.open(name);
+			archive.open(name);
 
-			debug("--\n%s %u", name, nfiles);
-			for (int j=0; j<nfiles; j++) {
+			debug("--\n#%u %s %u", i, name, nfiles);
+			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
-				uint32 inSize, outSize;
+				struct DgdsFileCtx ctx;
+				uint32 inSize;
 
-				hash = f.readUint32LE();
-				offset = f.readUint32LE();
+				hash = index.readUint32LE();
+				offset = index.readUint32LE();
 				debug("  %u %u", hash, offset);
 				
-				f2.seek(offset);
-				f2.read(name, sizeof(name));
-				name[12] = '\0';
-				inSize = f2.readUint32LE();
-				debug("  %s %d\n  --", name, inSize);
+				archive.seek(offset);
+				archive.read(name, sizeof(name));
+				name[DGDS_FILENAME_MAX] = '\0';
+				inSize = archive.readUint32LE();
+				ctx.init(inSize);
+				debug("  #%u %s %u\n  --", j, name, ctx.inSize);
 				
 				if (inSize == 0xFFFFFFFF) {
 					continue;
@@ -99,134 +247,37 @@ static void explode(const char *index, bool save) {
 					if (!out.open(name)) {
 						debug("Couldn't write to %s", name);
 					} else {
-						f2.read(buf, inSize);
+						archive.read(buf, inSize);
 						out.write(buf, inSize);
 						out.close();
-						f2.seek(offset + 13 + 4);
+						archive.seek(offset + 13 + 4);
 					}
 					delete [] buf;
 				}
 				
 				const char *ext;
-				bool chunky, packed;
-				uint32 k;
 
 				ext = name + strlen(name) - 3;
 
-				k = 0;
-				outSize = 0;
-				while (k < inSize) {
-					char type[4+1];
-					uint32 chunkSize;
+				while (ctx.k < ctx.inSize) {
+					struct DgdsChunk chunk;
 					
-					f2.read(type, 4);
-					type[4] = '\0';
-					
-					if (type[3] != ':') {
-						outSize = inSize;
+					if (!chunk.readHeader(ctx, archive)) {
 						debug("    binary");
 						break;
 					}
 
-					k += 4;
-					outSize += 4;
+					chunk.isPacked(ext);
 
-					chunkSize = f2.readUint32LE();
-					if (chunkSize & 0xF0000000) {
-						chunkSize &= ~0xF0000000;
-						chunky = true;
-					} else {
-						chunky = false;
-					}
-
-					k += 4;
-					outSize += 4;
-					
-					packed = false;
-
-					if (0) {
-					}
-					else if (strcmp(ext, "ADS") == 0) {
-						if (0) {
-						} else if (strcmp(type, "SCR:") == 0) packed = true;
-					}
-					else if (strcmp(ext, "BMP") == 0) {
-						if (0) {
-						} else if (strcmp(type, "BIN:") == 0) packed = true;
-						else if (strcmp(type, "VGA:") == 0) packed = true;
-					}
-					else if (strcmp(ext, "DDS") == 0) {
-						if (strcmp(type, "DDS:") == 0) packed = true;
-					}
-					else if (strcmp(ext, "OVL") == 0) {
-						if (0) {
-						} else if (strcmp(type, "ADL:") == 0) packed = true;
-						else if (strcmp(type, "ADS:") == 0) packed = true;
-						else if (strcmp(type, "APA:") == 0) packed = true;
-						else if (strcmp(type, "ASB:") == 0) packed = true;
-						else if (strcmp(type, "GMD:") == 0) packed = true;
-						else if (strcmp(type, "M32:") == 0) packed = true;
-						else if (strcmp(type, "NLD:") == 0) packed = true;
-						else if (strcmp(type, "PRO:") == 0) packed = true;
-						else if (strcmp(type, "PS1:") == 0) packed = true;
-						else if (strcmp(type, "SBL:") == 0) packed = true;
-						else if (strcmp(type, "SBP:") == 0) packed = true;
-						else if (strcmp(type, "STD:") == 0) packed = true;
-						else if (strcmp(type, "TAN:") == 0) packed = true;
-						else if (strcmp(type, "001:") == 0) packed = true;
-						else if (strcmp(type, "003:") == 0) packed = true;
-						else if (strcmp(type, "004:") == 0) packed = true;
-						else if (strcmp(type, "101:") == 0) packed = true;
-
-						else if (strcmp(type, "VGA:") == 0) packed = true;
-					}
-					else if (strcmp(ext, "SDS") == 0) {
-						if (strcmp(type, "SDS:") == 0) packed = true;
-					}
-					else if (strcmp(ext, "SNG") == 0) {
-						if (strcmp(type, "SNG:") == 0) packed = true;
-					}
-					else if (strcmp(ext, "TDS") == 0 ) {
-						if (strcmp( type, "TDS:") == 0) packed = true;
-					}
-
-					else if (strcmp(ext, "TTM") == 0) {
-						if(strcmp( type, "TT3:") == 0) packed = true;
-					}
-
-					if (packed) {
-						uint8 method; /* 0=None, 1=RLE, 2=LZW */
-						const char *descr[] = {"None", "RLE", "LZW"};
-						uint32 unpackSize;
-						
-						method = f2.readByte();
-						unpackSize = f2.readSint32LE();
-						chunkSize -= (1 + 4);
-						
-						k += (1 + 4);
-						outSize += (1 + 4);/*
-						k += (1 + 4 + chunkSize);
-						outSize += (1 + 4 + unpackSize);*/
-						debug("    %s %d %s %d%c",
-							type, chunkSize,
-							descr[method],
-							unpackSize, (chunky ? '+' : ' '));
-					} else {/*
-						k += chunkSize;
-						outSize += chunkSize;*/
-						debug("    %s %d%c", type, chunkSize, (chunky ? '+' : ' '));
-					}
-
-					if (!chunky) {
-						f2.seek(chunkSize, SEEK_CUR);
-						k += chunkSize;
-					}
+					Common::SeekableReadStream *stream;
+					stream = chunk.readData(ctx, archive);
+					delete stream;
 				}
-				debug("  [%u] --", outSize);
+				debug("  [%u] --", ctx.outSize);
 
-				f2.seek(offset + 13 + 4);
+				archive.seek(offset + 13 + 4);
 			}
-			f2.close();
+			archive.close();
 		}
 	}	
 }
@@ -236,7 +287,7 @@ Common::Error DgdsEngine::run() {
 
 	debug("DgdsEngine::init");
 
-	explode("volume.vga", true);
+	explode("volume.vga", false);
 
 	return Common::kNoError;
 }
