@@ -185,22 +185,29 @@ Common::Error DgdsEngine::run() {
 					}
 
 					if (packed) {
-						uint8 method;
+						uint8 method; /* 0=None, 1=RLE, 2=LZW */
+						const char *descr[] = {"None", "RLE", "LZW"};
 						int32 unpackSize;
+						
 						method = f2.readByte();
 						unpackSize = f2.readSint32LE();
 						chunkSize -= (1 + 4);
 						
 						k += (1 + 4 + chunkSize);
 						outSize += (1 + 4 + unpackSize);
+						debug("    %s %u %d %s %d",
+							type, marker, chunkSize,
+							descr[method],
+							unpackSize);
 					} else if (marker == 0x80) {
 						chunkSize = 0;
+						debug("    %s %u %d", type, marker, chunkSize);
 					} else {
 						k += chunkSize;
 						outSize += chunkSize;
+						debug("    %s %u %d*", type, marker, chunkSize);
 					}
 					
-					debug("    %s %d %u", type, chunkSize, marker);
 					f2.seek(chunkSize, SEEK_CUR);
 				}
 				debug("  [%u] --", outSize);
