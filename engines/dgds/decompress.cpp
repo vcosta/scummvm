@@ -37,7 +37,7 @@ uint32 RleDecompressor::decompress(byte *dest, uint32 sz, Common::ReadStream &in
 		if (lenR == 128) {
 			lenW = 0;
 		} else if (lenR <= 127) {
-			lenW = MIN(lenR & 0x7F, left);
+			lenW = MIN(lenR, left);
 			for (uint32 j = 0; j < lenW; j++) {
 				*dest++ = input.readByte();
 			}
