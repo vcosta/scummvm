@@ -68,17 +68,52 @@ struct DgdsChunk {
 	bool container;
 	
 	bool readHeader(DgdsFileCtx& ctx, Common::File& archive);
-	bool isPacked(const Common::String& ext);
 	bool isSection(const Common::String& section);
-	
+
+	bool isPacked(const Common::String& ext);	
 	Common::SeekableReadStream* decode(DgdsFileCtx& ctx, Common::File& archive);
 	Common::SeekableReadStream* copy(DgdsFileCtx& ctx, Common::File& archive);
+
+	uint32 readRLE(void *dataPtr, uint32 dataSize, Common::File& archive);
 };
 
 bool DgdsChunk::isSection(const Common::String& section) {
        return section.equals(type);
 }
 
+uint32 DgdsChunk::readRLE(void *dataPtr, uint32 dataSize, Common::File& archive) {
+	byte *out = (byte *)dataPtr;
+	uint32 left = dataSize;
+
+	uint32 lenR = 0, lenW = 0;
+	while (left > 0 && !archive.eos()) {
+		lenR = archive.readByte();
+
+		if (lenR == 128) {
+			// no-op
+			lenW = 0;
+		} else if (lenR <= 127) {
+			// literal run
+			lenW = MIN(lenR & 0x7F, left);
+			for (uint32 j = 0; j < lenW; j++) {
+				*out++ = archive.readByte();
+			}
+			for (; lenR > lenW; lenR--) {
+				archive.readByte();
+			}
+		} else {  // len > 128
+			// expand run
+			lenW = MIN(lenR & 0x7F, left);
+			byte val = archive.readByte();
+			memset(out, val, lenW);
+			out += lenW;
+		}
+
+		left -= lenW;
+	}
+
+	return dataSize - left;
+}
 
 bool DgdsChunk::isPacked(const Common::String& ext) {
 	bool packed = false;
@@ -152,8 +187,8 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive) {
 	ctx.outSize += sizeof(type);
 
 	chunkSize = archive.readUint32LE();
-	if (chunkSize & 0xF0000000) {
-		chunkSize &= ~0xF0000000;
+	if (chunkSize & 0x80000000) {
+		chunkSize &= ~0x80000000;
 		container = true;
 	} else {
 		container = false;
