@@ -24,6 +24,7 @@
 #include "common/debug.h"
 #include "common/debug-channels.h"
 #include "common/file.h"
+#include "common/memstream.h"
 
 #include "engines/util.h"
 
@@ -162,31 +163,52 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive) {
 }
  
 Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& archive) {
-	uint8 method; /* 0=None, 1=RLE, 2=LZW */
+	uint8 compression; /* 0=None, 1=RLE, 2=LZW */
 	const char *descr[] = {"None", "RLE", "LZW"};
 	uint32 unpackSize;
 	Common::SeekableReadStream *ostream = 0;
 
-	method = archive.readByte();
+	compression = archive.readByte();
 	unpackSize = archive.readSint32LE();
 	chunkSize -= (1 + 4);
 
 	ctx.bytesRead += (1 + 4);
 	ctx.outSize += (1 + 4);
 
+	debug("    !%s %u %s %u%c",
+		type, chunkSize,
+		descr[compression],
+		unpackSize, (container ? '+' : ' '));
 	if (!container) {
-		Common::SeekableReadStream *istream;
-		istream = archive.readStream(chunkSize);
+		byte *source = new byte[chunkSize];
+		archive.read(source, chunkSize);
 		ctx.bytesRead += chunkSize;
-		// TODO: decompress
-		delete istream;
+
+		byte *dest = new byte[unpackSize];
+		switch (compression) {
+			case 1: {
+				RleDecompressor dec;
+				ctx.outSize += dec.decompress(dest, unpackSize, source);
+				break;
+				}
+			case 2:	{
+				LzwDecompressor dec;
+				dec.decompress(dest, chunkSize, source);
+				ctx.outSize += unpackSize;
+				break;
+				}
+			default:
+				debug("unknown chunk compression: %u", compression);
+				break;
+		}
+		delete[] source;
+
+		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 	}
-	/*
-	outSize += (1 + 4 + unpackSize);*/
 
 	debug("    %s %u %s %u%c",
 		type, chunkSize,
-		descr[method],
+		descr[compression],
 		unpackSize, (container ? '+' : ' '));
 	return ostream;
 }

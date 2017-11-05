@@ -20,6 +20,7 @@
  *
  */
 
+#include "common/debug.h"
 #include "common/util.h"
 
 #include "dgds/decompress.h"
@@ -59,37 +60,37 @@ uint32 RleDecompressor::decompress(byte *dest, uint32 size, byte *source) {
 	return size - left;
 }
 
-void LzwDecompressor::decompress(byte *dest, byte *source) {
-
+void LzwDecompressor::decompress(byte *dest, uint32 size, byte *source) {
 	_source = source;
 
 	byte litByte = 0;
 	uint16 oldCode = 0;
 	uint16 copyLength, maxCodeValue, code, nextCode, lastCode;
 
-	byte *copyBuf = new byte[8192];
+	byte *copyBuf = new byte[0x4000];
 
-	struct { uint16 code; byte value; } codeTable[8192];
+	struct { uint16 code; byte value; } codeTable[0x4000];
 	memset(codeTable, 0, sizeof(codeTable));
 
 	_codeLength = 9;
-	nextCode = 258;
-	maxCodeValue = 512;
+	nextCode = 0x101;
+	maxCodeValue = 0x200;
 
 	copyLength = 0;
 	_sourceBitsLeft = 8;
 
 	while (1) {
+		debug("%u:%lu", size,(_source-source));
 
 		code = getCode();
 
-		if (code == 257)
+		if (code == 0x101)
 			break;
 
-		if (code == 256) {
+		if (code == 0x100) {
 			_codeLength = 9;
-			nextCode = 258;
-			maxCodeValue = 512;
+			nextCode = 0x101;
+			maxCodeValue = 0x200;
 			lastCode = getCode();
 			oldCode = lastCode;
 			litByte = lastCode;
@@ -121,7 +122,6 @@ void LzwDecompressor::decompress(byte *dest, byte *source) {
 	}
 
 	delete[] copyBuf;
-
 }
 
 uint16 LzwDecompressor::getCode() {

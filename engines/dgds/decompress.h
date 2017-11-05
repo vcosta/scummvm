@@ -34,7 +34,7 @@ public:
 
 class LzwDecompressor {
 public:
-	void decompress(byte *dest, byte *source);
+	void decompress(byte *dest, uint32 size, byte *source);
 private:
 	byte *_source;
 	byte _sourceBitsLeft;
