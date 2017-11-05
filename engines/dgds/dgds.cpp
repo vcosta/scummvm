@@ -146,8 +146,8 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive) {
 	}
 	type[DGDS_TYPENAME_MAX] = '\0';
 
-	ctx.bytesRead += sizeof(type);
-	ctx.outSize += sizeof(type);
+	ctx.bytesRead += DGDS_TYPENAME_MAX;
+	ctx.outSize += DGDS_TYPENAME_MAX;
 
 	chunkSize = archive.readUint32LE();
 	if (chunkSize & 0x80000000) {
@@ -188,12 +188,15 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 		switch (compression) {
 			case 1: {
 				RleDecompressor dec;
-				ctx.outSize += dec.decompress(dest, unpackSize, source);
+//				dec.decompress(dest, unpackSize, source);
+				ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
+				ctx.outSize += unpackSize;
 				break;
 				}
 			case 2:	{
 				LzwDecompressor dec;
-				dec.decompress(dest, chunkSize, source);
+//				dec.decompress(dest, chunkSize, source);
+				ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 				ctx.outSize += unpackSize;
 				break;
 				}
@@ -202,8 +205,6 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 				break;
 		}
 		delete[] source;
-
-		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 	}
 
 	debug("    %s %u %s %u%c",
@@ -299,7 +300,7 @@ static void explode(const char *indexName, bool save) {
 					stream = packed ? chunk.decode(ctx, archive) : chunk.copy(ctx, archive);
 					delete stream;
 				}
-				debug("  [%u] --", ctx.outSize);
+				debug("  [%u:%u] --", ctx.bytesRead, ctx.outSize);
 
 				archive.seek(offset + 13 + 4);
 			}
