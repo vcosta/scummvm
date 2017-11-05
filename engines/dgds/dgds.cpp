@@ -334,5 +334,357 @@ Common::Error DgdsEngine::run() {
 	return Common::kNoError;
 }
 
+// DGDS, Sherlock, SCI, DM, there's also a nice one in engines/agi/lzw.cpp
+// LZW
+void LZW::SkipBits() {
+	if (nextbit) {
+		_res->skip(1); //XXX
+		nextbit = 0;
+		current = _res->readByte();
+	}
+}
+
+unsigned int LZW::GetBits(const unsigned int n) {
+	unsigned int x = 0;
+	for (unsigned int i = 0; i < n; i++) {
+		if (current & (1 << nextbit)) {
+			x += (1 << i);
+		}
+		nextbit++;
+		if (nextbit > 7) {
+			current = _res->readByte();
+			nextbit = 0;
+		}
+	}
+	return x;
+}
+
+typedef struct _CodeTableEntry {
+	uint16 prefix;
+	uint8  append;
+} CodeTableEntry;
+
+LZW::LZW(Common::SeekableReadStream *res, byte *data) {
+	_res = res;
+	current = _res->readByte();
+	int posout = 0;
+
+	nextbit = 0;
+
+	CodeTableEntry *codetable = new CodeTableEntry[4096];
+	uint8 *decodestack = new uint8[4096];
+	uint8 *stackptr = decodestack;
+	unsigned int n_bits = 9;
+	unsigned int free_entry = 257;
+	unsigned int oldcode = GetBits(n_bits);
+	unsigned int lastbyte = oldcode;
+	unsigned int bitpos = 0;
+
+	data[posout] = oldcode;
+	posout++;
+
+	while (!_res->eos()) {
+		unsigned int newcode = GetBits(n_bits);
+		bitpos += n_bits;
+		if (newcode == 256) {
+			SkipBits();
+			_res->skip((((bitpos-1)+((n_bits<<3)-(bitpos-1+(n_bits<<3))%(n_bits<<3)))-bitpos)>>3);
+			n_bits = 9;
+			free_entry = 256;
+			bitpos = 0;
+		} else {
+			unsigned int code = newcode;
+			if (code >= free_entry) {
+				*stackptr++ = lastbyte;
+				code = oldcode;
+			}
+			while (code >= 256) {
+				*stackptr++ = codetable[code].append;
+				code = codetable[code].prefix;
+			}
+			*stackptr++ = code;
+			lastbyte = code;
+			while (stackptr > decodestack) {
+				data[posout] = (*--stackptr);
+				posout++;
+			}
+			if (free_entry < 4096) {
+				codetable[free_entry].prefix = oldcode;
+				codetable[free_entry].append = lastbyte;
+				free_entry++;
+				if ((free_entry >= (unsigned int)(1 << n_bits)) && (n_bits < 12)) {
+					n_bits++;
+					bitpos = 0;
+				}
+			}
+			oldcode = newcode;
+		}
+	}
+	delete[] decodestack;
+	delete[] codetable;
+}
+
+// another
+LZWdecompressor::LZWdecompressor() {
+	_repetitionEnabled = false;
+	_codeBitCount = 0;
+	_currentMaximumCode = 0;
+	_absoluteMaximumCode = 4096;
+	for (int i = 0; i < 12; ++i)
+		_inputBuffer[i] = 0;
+	_dictNextAvailableCode = 0;
+	_dictFlushed = false;
+
+	byte leastSignificantBitmasks[9] = {0x00,0x01,0x03,0x07,0x0F,0x1F,0x3F,0x7F,0xFF};
+	for (uint16 i = 0; i < 9; ++i)
+		_leastSignificantBitmasks[i] = leastSignificantBitmasks[i];
+	_inputBufferBitIndex = 0;
+	_inputBufferBitCount = 0;
+	_charToRepeat = 0;
+
+	_tempBuffer = new byte[5004];
+	_prefixCode = new int16[5003];
+	_appendCharacter = new byte[5226];
+}
+
+LZWdecompressor::~LZWdecompressor() {
+	delete[] _appendCharacter;
+	delete[] _prefixCode;
+	delete[] _tempBuffer;
+}
+
+int16 LZWdecompressor::getNextInputCode(Common::MemoryReadStream &inputStream, int32 *inputByteCount) {
+	byte *inputBuffer = _inputBuffer;
+	if (_dictFlushed || (_inputBufferBitIndex >= _inputBufferBitCount) || (_dictNextAvailableCode > _currentMaximumCode)) {
+		if (_dictNextAvailableCode > _currentMaximumCode) {
+			_codeBitCount++;
+			if (_codeBitCount == 12) {
+				_currentMaximumCode = _absoluteMaximumCode;
+			} else {
+				_currentMaximumCode = (1 << _codeBitCount) - 1;
+			}
+		}
+		if (_dictFlushed) {
+			_currentMaximumCode = (1 << (_codeBitCount = 9)) - 1;
+			_dictFlushed = false;
+		}
+		if (*inputByteCount > _codeBitCount) {
+			_inputBufferBitCount = _codeBitCount;
+		} else {
+			_inputBufferBitCount = *inputByteCount;
+		}
+		if (_inputBufferBitCount > 0) {
+			inputStream.read(_inputBuffer, _inputBufferBitCount);
+			*inputByteCount -= _inputBufferBitCount;
+		} else {
+			return -1;
+		}
+		_inputBufferBitIndex = 0;
+		_inputBufferBitCount = (_inputBufferBitCount << 3) - (_codeBitCount - 1);
+	}
+	int16 bitIndex = _inputBufferBitIndex;
+	int16 requiredInputBitCount = _codeBitCount;
+	inputBuffer += bitIndex >> 3; /* Address of byte in input buffer containing current bit */
+	bitIndex &= 0x0007; /* Bit index of the current bit in the byte */
+	int16 nextInputCode = *inputBuffer++ >> bitIndex; /* Get the first bits of the next input code from the input buffer byte */
+	requiredInputBitCount -= 8 - bitIndex; /* Remaining number of bits to get for a complete input code */
+	bitIndex = 8 - bitIndex;
+	if (requiredInputBitCount >= 8) {
+		nextInputCode |= *inputBuffer++ << bitIndex;
+		bitIndex += 8;
+		requiredInputBitCount -= 8;
+	}
+	nextInputCode |= (*inputBuffer & _leastSignificantBitmasks[requiredInputBitCount]) << bitIndex;
+	_inputBufferBitIndex += _codeBitCount;
+	return nextInputCode;
+}
+
+void LZWdecompressor::outputCharacter(byte character, byte **out) {
+	byte *output = *out;
+
+	if (false == _repetitionEnabled) {
+		if (character == 0x90)
+			_repetitionEnabled = true;
+		else
+			*output++ = _charToRepeat = character;
+	} else {
+		if (character) { /* If character following 0x90 is not 0x00 then it is the repeat count */
+			while (--character)
+				*output++ = _charToRepeat;
+		} else /* else output a 0x90 character */
+			*output++ = 0x90;
+
+		_repetitionEnabled = false;
+	}
+
+	*out = output;
+	return;
+}
+
+int32 LZWdecompressor::decompress(Common::MemoryReadStream &inStream, int32 inputByteCount, byte *out) {
+	byte *reversedDecodedStringStart;
+	byte *reversedDecodedStringEnd = reversedDecodedStringStart = _tempBuffer;
+	byte *originalOut = out;
+	_repetitionEnabled = false;
+	_codeBitCount = 9;
+	_dictFlushed = false;
+	_currentMaximumCode = (1 << (_codeBitCount = 9)) - 1;
+	for (int16 code = 255; code >= 0; code--) {
+		_prefixCode[code] = 0;
+		_appendCharacter[code] = code;
+	}
+	_dictNextAvailableCode = 257;
+	int16 oldCode;
+	int16 character = oldCode = getNextInputCode(inStream, &inputByteCount);
+	if (oldCode == -1) {
+		return -1L;
+	}
+	outputCharacter(character, &out);
+	int16 code;
+	while ((code = getNextInputCode(inStream, &inputByteCount)) > -1) {
+		if (code == 256) { /* This code is used to flush the dictionary */
+			for (int i = 0; i < 256; ++i)
+				_prefixCode[i] = 0;
+			_dictFlushed = true;
+			_dictNextAvailableCode = 256;
+			if ((code = getNextInputCode(inStream, &inputByteCount)) == -1) {
+				break;
+			}
+		}
+		/* This code checks for the special STRING+CHARACTER+STRING+CHARACTER+STRING case which generates an undefined code.
+		It handles it by decoding the last code, adding a single character to the end of the decoded string */
+		int16 newCode = code;
+		if (code >= _dictNextAvailableCode) { /* If code is not defined yet */
+			*reversedDecodedStringEnd++ = character;
+			code = oldCode;
+		}
+		/* Use the string table to decode the string corresponding to the code and store the string in the temporary buffer */
+		while (code >= 256) {
+			*reversedDecodedStringEnd++ = _appendCharacter[code];
+			code = _prefixCode[code];
+		}
+		*reversedDecodedStringEnd++ = (character = _appendCharacter[code]);
+		/* Output the decoded string in reverse order */
+		do {
+			outputCharacter(*(--reversedDecodedStringEnd), &out);
+		} while (reversedDecodedStringEnd > reversedDecodedStringStart);
+		/* If possible, add a new code to the string table */
+		if ((code = _dictNextAvailableCode) < _absoluteMaximumCode) {
+			_prefixCode[code] = oldCode;
+			_appendCharacter[code] = character;
+			_dictNextAvailableCode = code + 1;
+		}
+		oldCode = newCode;
+	}
+	return out - originalOut; /* Byte count of decompressed data */
+}
+
+// another
+void LzwDecompressor::decompress(byte *source, byte *dest) {
+
+	_source = source;
+
+	byte litByte = 0;
+	uint16 oldCode = 0;
+	uint16 copyLength, maxCodeValue, code, nextCode, lastCode;
+
+	byte *copyBuf = new byte[8192];
+
+	struct { uint16 code; byte value; } codeTable[8192];
+	memset(codeTable, 0, sizeof(codeTable));
+
+	_codeLength = 9;
+	nextCode = 258;
+	maxCodeValue = 512;
+
+	copyLength = 0;
+	_sourceBitsLeft = 8;
+
+	while (1) {
+
+		code = getCode();
+
+		if (code == 257)
+			break;
+
+		if (code == 256) {
+			_codeLength = 9;
+			nextCode = 258;
+			maxCodeValue = 512;
+			lastCode = getCode();
+			oldCode = lastCode;
+			litByte = lastCode;
+			*dest++ = litByte;
+		} else {
+			lastCode = code;
+			if (code >= nextCode) {
+				lastCode = oldCode;
+				copyBuf[copyLength++] = litByte;
+			}
+			while (lastCode > 255) {
+				copyBuf[copyLength++] = codeTable[lastCode].value;
+				lastCode = codeTable[lastCode].code;
+			}
+			litByte = lastCode;
+			copyBuf[copyLength++] = lastCode;
+			while (copyLength > 0)
+				*dest++ = copyBuf[--copyLength];
+			codeTable[nextCode].value = lastCode;
+			codeTable[nextCode].code = oldCode;
+			nextCode++;
+			oldCode = code;
+			if (nextCode >= maxCodeValue && _codeLength <= 12) {
+				_codeLength++;
+				maxCodeValue <<= 1;
+			}
+		}
+
+	}
+
+	delete[] copyBuf;
+
+}
+
+uint16 LzwDecompressor::getCode() {
+	const byte bitMasks[9] = {
+		0x00, 0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0x0FF
+	};
+
+	byte   resultBitsLeft = _codeLength;
+	byte   resultBitsPos = 0;
+	uint16 result = 0;
+	byte   currentByte = *_source;
+	byte   currentBits = 0;
+
+	// Get bits of current byte
+	while (resultBitsLeft) {
+		if (resultBitsLeft < _sourceBitsLeft) {
+			// we need less than we have left
+			currentBits = (currentByte >> (8 - _sourceBitsLeft)) & bitMasks[resultBitsLeft];
+			result |= (currentBits << resultBitsPos);
+			_sourceBitsLeft -= resultBitsLeft;
+			resultBitsLeft = 0;
+
+		} else {
+			// we need as much as we have left or more
+			resultBitsLeft -= _sourceBitsLeft;
+			currentBits = currentByte >> (8 - _sourceBitsLeft);
+			result |= (currentBits << resultBitsPos);
+			resultBitsPos += _sourceBitsLeft;
+
+			// Go to next byte
+			_source++;
+
+			_sourceBitsLeft = 8;
+			if (resultBitsLeft) {
+				currentByte = *_source;
+			}
+		}
+	}
+	return result;
+}
+
+// another 
+
 } // End of namespace Dgds
 
