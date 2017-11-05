@@ -1,6 +1,7 @@
 MODULE := engines/dgds
 
 MODULE_OBJS := \
+	decompress.o \
 	detection.o \
 	dgds.o
 
