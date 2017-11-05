@@ -26,11 +26,6 @@
 #include "dgds/decompress.h"
 
 namespace Dgds {
-typedef unsigned uint32;
-typedef unsigned char byte;
-typedef unsigned char uint8;
-typedef unsigned short uint16;
-	
 
 uint32 RleDecompressor::decompress(byte *dest, uint32 size, byte *source) {
 	uint32 left = size;
