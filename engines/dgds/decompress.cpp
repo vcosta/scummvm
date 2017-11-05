@@ -72,7 +72,7 @@ void LzwDecompressor::reset() {
 	_cacheBits = 0;
 }
 
-void LzwDecompressor::decompress(byte *dest, uint32 destSize, byte *source, uint32 sourceSize) {
+uint32 LzwDecompressor::decompress(byte *dest, uint32 destSize, byte *source, uint32 sourceSize) {
 	_source = source;
 	_sourceIdx = 0;
 	_sourceSize = sourceSize;
@@ -143,6 +143,8 @@ void LzwDecompressor::decompress(byte *dest, uint32 destSize, byte *source, uint
 			}
 		}
 	}
+
+	return destIdx;
 }
 
 uint32 LzwDecompressor::getCode(uint32 totalBits) {

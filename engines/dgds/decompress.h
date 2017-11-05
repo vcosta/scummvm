@@ -38,7 +38,7 @@ protected:
         uint32 getCode(uint32 totalBits);
 
 public:
-	void decompress(byte *dest, uint32 destSize, byte *source, uint32 sourceSize);
+	uint32 decompress(byte *dest, uint32 destSize, byte *source, uint32 sourceSize);
 
 private:
         struct {

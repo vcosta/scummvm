@@ -184,16 +184,14 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 		switch (compression) {
 			case 1: {
 				RleDecompressor dec;
-				dec.decompress(dest, unpackSize, source);
+				ctx.outSize += dec.decompress(dest, unpackSize, source);
 				ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
-				ctx.outSize += unpackSize;
 				break;
 				}
 			case 2:	{
 				LzwDecompressor dec;
-				dec.decompress(dest, unpackSize, source, chunkSize);
+				ctx.outSize += dec.decompress(dest, unpackSize, source, chunkSize);
 				ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
-				ctx.outSize += unpackSize;
 				break;
 				}
 			default:
