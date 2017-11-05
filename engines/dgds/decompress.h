@@ -29,16 +29,16 @@ namespace Dgds {
 
 class RleDecompressor {
 public:
-	uint32 decompress(byte *dest, uint32 size, byte *source);
+	uint32 decompress(byte *dest, uint32 sz, Common::ReadStream &input);
 };
 
 class LzwDecompressor {
 protected:
         void reset();
-        uint32 getCode(uint32 totalBits);
+	uint32 getCode(uint32 totalBits, Common::ReadStream &input);
 
 public:
-	uint32 decompress(byte *dest, uint32 destSize, byte *source, uint32 sourceSize);
+	uint32 decompress(byte *dest, uint32 sz, Common::ReadStream &input);
 
 private:
         struct {
@@ -48,9 +48,6 @@ private:
 
         byte _codeCur[256];
 
-        byte *_source;
-
-        uint32 _sourceIdx, _sourceSize;
         uint32 _bitsData, _bitsSize;
 
         uint32 _codeSize, _codeLen, _cacheBits;

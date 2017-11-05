@@ -176,21 +176,19 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 	ctx.outSize += (1 + 4);
 
 	if (!container) {
-		byte *source = new byte[chunkSize];
-		archive.read(source, chunkSize);
-		ctx.bytesRead += chunkSize;
-
 		byte *dest = new byte[unpackSize];
 		switch (compression) {
 			case 1: {
 				RleDecompressor dec;
-				ctx.outSize += dec.decompress(dest, unpackSize, source);
+				ctx.outSize += dec.decompress(dest,unpackSize,archive);
+				ctx.bytesRead += chunkSize;
 				ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 				break;
 				}
 			case 2:	{
 				LzwDecompressor dec;
-				ctx.outSize += dec.decompress(dest, unpackSize, source, chunkSize);
+				ctx.outSize += dec.decompress(dest,unpackSize,archive);
+				ctx.bytesRead += chunkSize;
 				ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 				break;
 				}
@@ -198,7 +196,6 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 				debug("unknown chunk compression: %u", compression);
 				break;
 		}
-		delete[] source;
 	}
 
 	debug("    %s %u %s %u%c",

@@ -20,30 +20,33 @@
  *
  */
 
-#include "common/debug.h"
+#include "common/stream.h"
 #include "common/util.h"
 
 #include "dgds/decompress.h"
 
 namespace Dgds {
 
-uint32 RleDecompressor::decompress(byte *dest, uint32 size, byte *source) {
-	uint32 left = size;
+uint32 RleDecompressor::decompress(byte *dest, uint32 sz, Common::ReadStream &input) {
+	uint32 left = sz;
 
 	uint32 lenR = 0, lenW = 0;
-	while (left > 0) {
-		lenR = *source++;
+	while (left > 0 && !input.eos()) {
+		lenR = input.readByte();
 
 		if (lenR == 128) {
 			lenW = 0;
 		} else if (lenR <= 127) {
 			lenW = MIN(lenR & 0x7F, left);
-			memcpy(dest, source, lenW);
-			dest += lenW;
-			source += lenR;
+			for (uint32 j = 0; j < lenW; j++) {
+				*dest++ = input.readByte();
+			}
+			for (; lenR > lenW; lenR--) {
+				input.readByte();
+			}
 		} else {
 			lenW = MIN(lenR & 0x7F, left);
-			byte val = *source++;
+			byte val = input.readByte();
 			memset(dest, val, lenW);
 			dest += lenW;
 		}
@@ -51,7 +54,7 @@ uint32 RleDecompressor::decompress(byte *dest, uint32 size, byte *source) {
 		left -= lenW;
 	}
 
-	return size - left;
+	return sz - left;
 }
 
 void LzwDecompressor::reset() {
@@ -72,23 +75,19 @@ void LzwDecompressor::reset() {
 	_cacheBits = 0;
 }
 
-uint32 LzwDecompressor::decompress(byte *dest, uint32 destSize, byte *source, uint32 sourceSize) {
-	_source = source;
-	_sourceIdx = 0;
-	_sourceSize = sourceSize;
-
+uint32 LzwDecompressor::decompress(byte *dest, uint32 sz, Common::ReadStream &input) {
 	_bitsData = 0;
 	_bitsSize = 0;
 
 	reset();
 
-	uint32 destIdx;
-	destIdx = 0;
+	uint32 idx;
+	idx = 0;
 	_cacheBits = 0;
-	while (destIdx < destSize) {
+	while (idx < sz) {
 		uint32 code;
 
-		code = getCode(_codeSize);
+		code = getCode(_codeSize, input);
 		if (code == 0xFFFFFFFF) break;
 
 		_cacheBits += _codeSize;
@@ -98,17 +97,17 @@ uint32 LzwDecompressor::decompress(byte *dest, uint32 destSize, byte *source, ui
 
 		if (code == 0x100) {
 			if (_cacheBits > 0)
-				getCode(_codeSize * 8 - _cacheBits);
+				getCode(_codeSize * 8 - _cacheBits, input);
 			reset();
 		} else {
 			if (code >= _tableSize && !_tableFull) {
 				_codeCur[_codeLen++] = _codeCur[0];
 
 				for (uint32 i=0; i<_codeLen; i++)
-					dest[destIdx++] = _codeCur[i];
+					dest[idx++] = _codeCur[i];
 			} else {
 				for (uint32 i=0; i<_codeTable[code].len; i++)
-					dest[destIdx++] = _codeTable[code].str[i];
+					dest[idx++] = _codeTable[code].str[i];
 
 				_codeCur[_codeLen++] = _codeTable[code].str[0];
 			}
@@ -144,10 +143,10 @@ uint32 LzwDecompressor::decompress(byte *dest, uint32 destSize, byte *source, ui
 		}
 	}
 
-	return destIdx;
+	return idx;
 }
 
-uint32 LzwDecompressor::getCode(uint32 totalBits) {
+uint32 LzwDecompressor::getCode(uint32 totalBits, Common::ReadStream &input) {
 	uint32 result, numBits;
 	const byte bitMasks[9] = {
 		0x00, 0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF
@@ -158,11 +157,11 @@ uint32 LzwDecompressor::getCode(uint32 totalBits) {
 	while (numBits > 0) {
 		uint32 useBits;
 
-		if (_sourceIdx >= _sourceSize) return 0xFFFFFFFF;
+		if (input.eos()) return 0xFFFFFFFF;
 
 		if (_bitsSize == 0) {
 			_bitsSize = 8;
-			_bitsData = _source[_sourceIdx++];
+			_bitsData = input.readByte();
 		}
 
 		useBits = numBits;
