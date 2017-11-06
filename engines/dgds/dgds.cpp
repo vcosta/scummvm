@@ -20,11 +20,15 @@
  *
  */
 
-#include "common/endian.h"
 #include "common/debug.h"
 #include "common/debug-channels.h"
+#include "common/endian.h"
+#include "common/events.h"
 #include "common/file.h"
 #include "common/memstream.h"
+#include "common/system.h"
+
+#include "graphics/palette.h"
 
 #include "engines/util.h"
 
@@ -33,6 +37,15 @@
 #include "dgds/dgds.h"
 
 namespace Dgds {
+	typedef unsigned uint32;
+	typedef unsigned short uint16;
+	typedef unsigned char uint8;
+	typedef unsigned char byte;
+
+byte palette[256*3];
+byte binData[320000];
+byte vgaData[320000];
+byte *imgData;
 
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
@@ -115,6 +128,11 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 		else if (strcmp(type, "004:") == 0) packed = true;
 		else if (strcmp(type, "101:") == 0) packed = true;
 
+		else if (strcmp(type, "VGA:") == 0) packed = true;
+	}
+	else if (ext.equals("SCR")) {
+		if (0) {
+		} else if (strcmp(type, "BIN:") == 0) packed = true;
 		else if (strcmp(type, "VGA:") == 0) packed = true;
 	}
 	else if (ext.equals("SDS")) {
@@ -291,6 +309,34 @@ static void explode(const char *indexName, bool save) {
 
 					Common::SeekableReadStream *stream;
 					stream = packed ? chunk.decode(ctx, archive) : chunk.copy(ctx, archive);
+					if (strcmp(name, "DRAGON.PAL") == 0 && chunk.isSection("VGA:")) {
+					    stream->read(palette, 256*3);
+					}
+					if (strcmp(name, "BGND.SCR") == 0 && chunk.isSection("BIN:")) {
+					    stream->read(binData, 320000);
+					}
+					if (strcmp(name, "BGND.SCR") == 0 && chunk.isSection("VGA:")) {
+					    stream->read(vgaData, 320000);
+					}
+					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
+						struct Box {
+							uint16 w, h;
+						} *boxes;
+						uint16 count;
+
+						debug("        [%u] =", count);
+
+						count = stream->readUint16LE();
+						boxes = new Box[count];
+						for (uint16 k = 0; k < count; k++) {
+							uint16 w, h;
+							w = stream->readUint16LE();
+							h = stream->readUint16LE();
+							debug("        %ux%u", w, h);
+							boxes[k].w = w;
+							boxes[k].h = h;
+						}
+					}
 					delete stream;
 				}
 				debug("  [%u:%u] --", ctx.bytesRead, ctx.outSize);
@@ -305,11 +351,39 @@ static void explode(const char *indexName, bool save) {
 Common::Error DgdsEngine::run() {
 	initGraphics(320, 200);
 
+	imgData = new byte[320*200];
+	memset(imgData, 0, 320*200);
+
 	debug("DgdsEngine::init");
 
-	explode("volume.vga", false);
+	explode("volume.vga"/*vga,rmf*/, true);
+	for (uint i=0; i<256*3; i+=3) {
+	    palette[i+0] <<= 2;
+	    palette[i+1] <<= 2;
+	    palette[i+2] <<= 2;
+	}
+
+	g_system->getPaletteManager()->setPalette(palette, 0, 256);
+	for (uint i=0; i<320*200; i+=2) {
+	    imgData[i+0]  = ((vgaData[i/2] & 0xF0)     );
+	    imgData[i+0] |= ((binData[i/2] & 0xF0) >> 4);
+	    imgData[i+1]  = ((vgaData[i/2] & 0x0F) << 4);
+	    imgData[i+1] |= ((binData[i/2] & 0x0F)     );
+	}
+	g_system->copyRectToScreen(imgData, 320, 0, 0, 320, 200);
+
+	Common::EventManager *eventMan = g_system->getEventManager();
+	Common::Event ev;
+
+	while (!shouldQuit()) {
+		eventMan->pollEvent(ev);
+
+		g_system->updateScreen();
+		g_system->delayMillis(20);
+	}
 
 	return Common::kNoError;
 }
 
 } // End of namespace Dgds
+
