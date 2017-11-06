@@ -351,25 +351,22 @@ static void explode(const char *indexName, bool save) {
 					Common::SeekableReadStream *stream;
 					stream = packed ? chunk.decode(ctx, archive) : chunk.copy(ctx, archive);
 					if (strcmp(name, "DRAGON.PAL") == 0 && chunk.isSection("VGA:")) {
-					    stream->read(palette, 256*3);
+						stream->read(palette, 256*3);
 					}
-					if (strcmp(name, "BGND.SCR") == 0 && chunk.isSection("BIN:")) {
-//					    stream->read(binData, 320000);
+					if (strcmp(name, "BGND.SCR")) {
+/*
+						if (chunk.isSection("BIN:"))
+							stream->read(binData, stream->size());
+						else if (chunk.isSection("VGA:"))
+							stream->read(vgaData, stream->size());
+*/
 					}
-					if (strcmp(name, "BGND.SCR") == 0 && chunk.isSection("VGA:")) {
-//					    stream->read(vgaData, 320000);
-					}
-					if (strcmp(name, "DICONS.BMP") == 0 && chunk.isSection("BIN:")) {
-					    stream->read(binData, 10112);
-					}
-					if (strcmp(name, "DICONS.BMP") == 0 && chunk.isSection("VGA:")) {
-					    stream->read(vgaData, 10112);
-					}
-					if (strcmp(name, "HELICOP2.BMP") == 0 && chunk.isSection("BIN:")) {
-//					    stream->read(binData, 1408);
-					}
-					if (strcmp(name, "HELICOP2.BMP") == 0 && chunk.isSection("VGA:")) {
-//					    stream->read(vgaData, 1408);
+					//"HELICOP2.BMP"
+					if (strcmp(name, "DICONS.BMP") == 0) {
+						if (chunk.isSection("BIN:"))
+							stream->read(binData, stream->size());
+						else if (chunk.isSection("VGA:"))
+							stream->read(vgaData, stream->size());
 					}
 					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
 						uint16 *tw;
