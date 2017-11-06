@@ -47,6 +47,11 @@ byte binData[320000];
 byte vgaData[320000];
 byte *imgData;
 
+uint16 *_tw;
+uint16 *_th;
+uint32 *_toffsets;
+uint16 _tcount;
+
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
 	_console = new DgdsConsole(this);
@@ -345,36 +350,59 @@ static void explode(const char *indexName, bool save) {
 
 					Common::SeekableReadStream *stream;
 					stream = packed ? chunk.decode(ctx, archive) : chunk.copy(ctx, archive);
-					if (strcmp(name, "ARCADE.PAL") == 0 && chunk.isSection("VGA:")) {
+					if (strcmp(name, "DRAGON.PAL") == 0 && chunk.isSection("VGA:")) {
 					    stream->read(palette, 256*3);
 					}
 					if (strcmp(name, "BGND.SCR") == 0 && chunk.isSection("BIN:")) {
-					    stream->read(binData, 320000);
+//					    stream->read(binData, 320000);
 					}
 					if (strcmp(name, "BGND.SCR") == 0 && chunk.isSection("VGA:")) {
-					    stream->read(vgaData, 320000);
+//					    stream->read(vgaData, 320000);
+					}
+					if (strcmp(name, "DICONS.BMP") == 0 && chunk.isSection("BIN:")) {
+					    stream->read(binData, 10112);
+					}
+					if (strcmp(name, "DICONS.BMP") == 0 && chunk.isSection("VGA:")) {
+					    stream->read(vgaData, 10112);
+					}
+					if (strcmp(name, "HELICOP2.BMP") == 0 && chunk.isSection("BIN:")) {
+//					    stream->read(binData, 1408);
+					}
+					if (strcmp(name, "HELICOP2.BMP") == 0 && chunk.isSection("VGA:")) {
+//					    stream->read(vgaData, 1408);
 					}
 					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
-						struct tile {
-							uint16 w, h;
-						} *tiles;
-						uint16 count;
+						uint16 *tw;
+						uint16 *th;
+						uint32 *toffsets;
+						uint16 tcount;
 						uint32 sz;
 
-						count = stream->readUint16LE();
-						tiles = new struct tile[count];
-						debug("        [%u] =", count);
+						tcount = stream->readUint16LE();
+						debug("        [%u] =", tcount);
+
+						tw = new uint16[tcount];
+						th = new uint16[tcount];
+						for (uint16 k=0; k<tcount; k++)
+							tw[k] = stream->readUint16LE();
+						for (uint16 k=0; k<tcount; k++)
+							th[k] = stream->readUint16LE();
+
 						sz = 0;
-						for (uint16 k=0; k<count; k++) {
-							uint16 w, h;
-							w = stream->readUint16LE();
-							h = stream->readUint16LE();
-							debug("        (%u,%u) @ %u", w, h, sz);
-							tiles[k].w = w;
-							tiles[k].h = h;
-							sz += w*h;
+						toffsets = new uint32[tcount];
+						for (uint16 k=0; k<tcount; k++) {
+							debug("        (%u,%u) @%u", tw[k], th[k], sz);
+							toffsets[k] = sz;
+							sz += tw[k]*th[k];
 						}
 						debug("        sz: %u", (sz+2)/2);
+
+						if (strcmp(name, "DICONS.BMP") == 0) {
+							_tw = tw;
+							_th = th;
+							_toffsets = toffsets;
+							_tcount = tcount;
+						}
 					}
 					delete stream;
 				}
@@ -391,32 +419,53 @@ Common::Error DgdsEngine::run() {
 	initGraphics(320, 200);
 
 	imgData = new byte[320*200];
+	memset(palette, 1, 256*3);
 	memset(imgData, 0, 320*200);
-	memset(palette, 0, 256*3);
 
 	debug("DgdsEngine::init");
 
 	explode("volume.vga"/*vga,rmf*/, true);
 	for (uint i=0; i<256*3; i+=3) {
-	    palette[i+0] <<= 2;
-	    palette[i+1] <<= 2;
-	    palette[i+2] <<= 2;
+		palette[i+0] <<= 2;
+		palette[i+1] <<= 2;
+		palette[i+2] <<= 2;
 	}
 
 	g_system->getPaletteManager()->setPalette(palette, 0, 256);
-	for (uint i=0; i<320*200; i+=2) {
-	    imgData[i+0]  = ((vgaData[i/2] & 0xF0)     );
-	    imgData[i+0] |= ((binData[i/2] & 0xF0) >> 4);
-	    imgData[i+1]  = ((vgaData[i/2] & 0x0F) << 4);
-	    imgData[i+1] |= ((binData[i/2] & 0x0F)     );
-	}
-	g_system->copyRectToScreen(imgData, 320, 0, 0, 320, 200);
 
 	Common::EventManager *eventMan = g_system->getEventManager();
 	Common::Event ev;
 
+	int k = 0;
 	while (!shouldQuit()) {
-		eventMan->pollEvent(ev);
+		uint w, h;
+		byte *vgaData_;
+		byte *binData_;
+
+		if (eventMan->pollEvent(ev)) {
+			int n = (int)_tcount-1;
+			if (ev.type == Common::EVENT_KEYDOWN) {
+				switch (ev.kbd.keycode) {
+					case Common::KEYCODE_LEFT:	if (k > 0) k--;	break;
+					case Common::KEYCODE_RIGHT:	if (k < n) k++;	break;
+					default:				break;
+				}
+			}
+		}
+
+		w = _tw[k]; h = _th[k];
+		vgaData_ = vgaData + (_toffsets[k]>>1);
+		binData_ = binData + (_toffsets[k]>>1);
+		debug("%u,%u", _tw[k], _th[k]);
+
+		for (uint i=0; i<w*h; i+=2) {
+			imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
+			imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
+			imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
+			imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+		}
+		g_system->fillScreen(0);
+		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);
 
 		g_system->updateScreen();
 		g_system->delayMillis(20);
