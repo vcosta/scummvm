@@ -512,7 +512,8 @@ Common::Error DgdsEngine::run() {
 				switch (ev.kbd.keycode) {
 					case Common::KEYCODE_LEFT:	if (k > 0) k--;	break;
 					case Common::KEYCODE_RIGHT:	if (k < n) k++;	break;
-					default:				break;
+					case Common::KEYCODE_ESCAPE:	return Common::kNoError;
+					default:			break;
 				}
 			}
 		}
