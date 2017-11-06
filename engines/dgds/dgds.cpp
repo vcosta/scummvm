@@ -115,6 +115,9 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 	else if (ext.equals("DDS")) {
 		if (strcmp(type, "DDS:") == 0) packed = true;
 	}
+	else if (ext.equals("GDS")) {
+		if (strcmp(type, "SDS:") == 0) packed = true;
+	}
 	else if (ext.equals("OVL")) {
 		if (0) {
 		} else if (strcmp(type, "ADL:") == 0) packed = true;
@@ -130,6 +133,7 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 		else if (strcmp(type, "SBP:") == 0) packed = true;
 		else if (strcmp(type, "STD:") == 0) packed = true;
 		else if (strcmp(type, "TAN:") == 0) packed = true;
+		else if (strcmp(type, "T3V:") == 0) packed = true;
 		else if (strcmp(type, "001:") == 0) packed = true;
 		else if (strcmp(type, "003:") == 0) packed = true;
 		else if (strcmp(type, "004:") == 0) packed = true;
@@ -362,6 +366,14 @@ static void explode(const char *indexName, bool save) {
 						else if (chunk.isSection("VGA:"))
 							stream->read(vgaData, stream->size());
 */
+					}
+
+					if (strcmp(ext, "GDS") == 0) {
+						if (chunk.isSection("INF:")) {
+						    stream->hexdump(stream->size());
+						} else if (chunk.isSection("SDS:")) {
+						    stream->hexdump(stream->size());
+						}
 					}
 
 					if (strcmp(ext, "TTM") == 0) {
