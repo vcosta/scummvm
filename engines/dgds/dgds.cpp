@@ -242,17 +242,49 @@ Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::File& arch
 	return ostream;
 }
 
+/*
+  input:
+    s - pointer to ASCIIZ filename string
+    idx - pointer to an array of 4 bytes (hash indexes)
+  return:
+    hash - filename hash
+*/
+uint32 dgdsHash(const char *s, byte *idx) {
+	uint32 i, c;
+	uint16 isum, ixor;
+	isum = 0;
+	ixor = 0;
+	for (i = 0; s[i]; i++) {
+		c = toupper(s[i]);
+		isum += c;
+		ixor ^= c;
+	}
+	/* both types here MUST be int16 */
+	isum *= ixor;
+	c = 0;
+	for (ixor = 0; ixor < 4; ixor++) {
+		c <<= 8;
+		/* can use only existing characters
+		   ("i" holds the string length now) */
+		if (i > idx[ixor]) {
+			c |= toupper(s[idx[ixor]]);
+		}
+	}
+	c += isum;
+	return c;
+}
+
 static void explode(const char *indexName, bool save) {
 	Common::File index, archive;
 
 	if (index.open(indexName)) {
-		uint32 version;
+		byte salt[4];
 		uint16 nvolumes;
 
-		version = index.readUint32LE();
+		index.read(salt, sizeof(salt));
 		nvolumes = index.readUint16LE();
 
-		debug("%u %u", version, nvolumes);
+		debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
 
 		for (uint i=0; i<nvolumes; i++) {
 			char name[DGDS_FILENAME_MAX+1];
@@ -280,7 +312,7 @@ static void explode(const char *indexName, bool save) {
 				name[DGDS_FILENAME_MAX] = '\0';
 				inSize = archive.readUint32LE();
 				ctx.init(inSize);
-				debug("  #%u %s %u\n  --", j, name, ctx.inSize);
+				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), ctx.inSize);
 				
 				if (inSize == 0xFFFFFFFF) {
 					continue;
@@ -342,7 +374,7 @@ static void explode(const char *indexName, bool save) {
 							tiles[k].h = h;
 							sz += w*h;
 						}
-						debug("        sz: %u", sz/2);
+						debug("        sz: %u", (sz+2)/2);
 					}
 					delete stream;
 				}
