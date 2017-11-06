@@ -352,7 +352,7 @@ static void explode(const char *indexName, bool save) {
 
 					Common::SeekableReadStream *stream;
 					stream = packed ? chunk.decode(ctx, archive) : chunk.copy(ctx, archive);
-					if (strcmp(name, "DRAGON.PAL") == 0 && chunk.isSection("VGA:")) {
+					if (strcmp(name, "ARCADE.PAL") == 0 && chunk.isSection("VGA:")) {
 						stream->read(palette, 256*3);
 					}
 					if (strcmp(name, "BGND.SCR")) {
@@ -362,6 +362,35 @@ static void explode(const char *indexName, bool save) {
 						else if (chunk.isSection("VGA:"))
 							stream->read(vgaData, stream->size());
 */
+					}
+
+					if (strcmp(ext, "TTM") == 0) {
+						if (chunk.isSection("VER:")) {
+						    char version[5];
+						    stream->read(version, sizeof(version));
+						    debug("        %s", version);
+						} else if (chunk.isSection("PAG:")) {
+						    uint16 pages;
+						    pages = stream->readUint16LE();
+						    debug("        %u", pages);
+						} else if (chunk.isSection("TT3:")) {
+						    stream->hexdump(stream->size());
+						} else if (chunk.isSection("TAG:")) {
+							uint16 count;
+
+							count = stream->readUint16LE();
+							debug("        %u", count);
+							for (uint16 k=0; k<count; k++) {
+							    byte ch;
+							    uint16 idx;
+							    Common::String str;
+
+							    idx = stream->readUint16LE();
+							    while ((ch = stream->readByte()))
+								str += ch;
+							    debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+							}
+						}
 					}
 
 					uint16 tcount;
