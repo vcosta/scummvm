@@ -195,27 +195,31 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 
 	if (!container) {
 		byte *dest = new byte[unpackSize];
+		uint size;
 		switch (compression) {
-			case 0: {
-				ctx.outSize += archive.read(dest,unpackSize);
+			case 0x00: {
+				size = archive.read(dest,chunkSize);
 				break;
 				}
-			case 1: {
+			case 0x01: {
 				RleDecompressor dec;
-				ctx.outSize += dec.decompress(dest,unpackSize,archive);
+				size = dec.decompress(dest,unpackSize,archive);
 				break;
 				}
-			case 2:	{
+			case 0x02: {
 				LzwDecompressor dec;
-				ctx.outSize += dec.decompress(dest,unpackSize,archive);
+				size = dec.decompress(dest,unpackSize,archive);
 				break;
 				}
 			default:
+				archive.skip(chunkSize);
+				size = 0;
 				debug("unknown chunk compression: %u", compression);
 				break;
 		}
 		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 		ctx.bytesRead += chunkSize;
+		ctx.outSize += size;
 	}
 
 	debug("    %s %u %s %u%c",
@@ -309,7 +313,7 @@ static void explode(const char *indexName, bool save) {
 
 					Common::SeekableReadStream *stream;
 					stream = packed ? chunk.decode(ctx, archive) : chunk.copy(ctx, archive);
-					if (strcmp(name, "DRAGON.PAL") == 0 && chunk.isSection("VGA:")) {
+					if (strcmp(name, "ARCADE.PAL") == 0 && chunk.isSection("VGA:")) {
 					    stream->read(palette, 256*3);
 					}
 					if (strcmp(name, "BGND.SCR") == 0 && chunk.isSection("BIN:")) {
@@ -319,22 +323,26 @@ static void explode(const char *indexName, bool save) {
 					    stream->read(vgaData, 320000);
 					}
 					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
-						struct Tile {
+						struct tile {
 							uint16 w, h;
-						} *Tiles;
+						} *tiles;
 						uint16 count;
+						uint32 sz;
 
 						count = stream->readUint16LE();
-						Tiles = new Tile[count];
+						tiles = new struct tile[count];
 						debug("        [%u] =", count);
-						for (uint16 k = 0; k < count; k++) {
+						sz = 0;
+						for (uint16 k=0; k<count; k++) {
 							uint16 w, h;
 							w = stream->readUint16LE();
 							h = stream->readUint16LE();
-							debug("        %ux%u", w, h);
-							Tiles[k].w = w;
-							Tiles[k].h = h;
+							debug("        (%u,%u) @ %u", w, h, sz);
+							tiles[k].w = w;
+							tiles[k].h = h;
+							sz += w*h;
 						}
+						debug("        sz: %u", sz/2);
 					}
 					delete stream;
 				}
@@ -352,6 +360,7 @@ Common::Error DgdsEngine::run() {
 
 	imgData = new byte[320*200];
 	memset(imgData, 0, 320*200);
+	memset(palette, 0, 256*3);
 
 	debug("DgdsEngine::init");
 
