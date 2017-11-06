@@ -319,22 +319,21 @@ static void explode(const char *indexName, bool save) {
 					    stream->read(vgaData, 320000);
 					}
 					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
-						struct Box {
+						struct Tile {
 							uint16 w, h;
-						} *boxes;
+						} *Tiles;
 						uint16 count;
 
-						debug("        [%u] =", count);
-
 						count = stream->readUint16LE();
-						boxes = new Box[count];
+						Tiles = new Tile[count];
+						debug("        [%u] =", count);
 						for (uint16 k = 0; k < count; k++) {
 							uint16 w, h;
 							w = stream->readUint16LE();
 							h = stream->readUint16LE();
 							debug("        %ux%u", w, h);
-							boxes[k].w = w;
-							boxes[k].h = h;
+							Tiles[k].w = w;
+							Tiles[k].h = h;
 						}
 					}
 					delete stream;
