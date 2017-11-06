@@ -45,6 +45,24 @@ static const DgdsGameDescription gameDescriptions[] = {
 		},
 	},
 
+	// Heart of China (PC)
+	{
+		{
+			"china",
+			0,
+			{
+				{"volume.rmf", 0, "677b91bc6961824f1997c187292f174e", 9791},
+				{"volume.001", 0, "3efe89a72940e85d2137162609b8b883", 851843},
+				{"hoc.exe", 0, "0300c8787c8e37c62ce80b94cd658c26", 288832},
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformDOS,
+			ADGF_NO_FLAGS,
+			GUIO1(GUIO_NONE)
+		},
+	},
+
 	{ AD_TABLE_END_MARKER }
 };
 

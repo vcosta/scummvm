@@ -29,6 +29,7 @@
 static const PlainGameDescriptor dgdsGames[] = {
 	{"dgds", "Dynamix DGDS game"},
 	{"rise", "Rise of the Dragon"},
+	{"china", "Heart of China"},
 
 	{0, 0}
 };
