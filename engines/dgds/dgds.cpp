@@ -361,20 +361,14 @@ static void explode(const char *indexName, bool save) {
 							stream->read(vgaData, stream->size());
 */
 					}
-					//"HELICOP2.BMP"
-					if (strcmp(name, "DICONS.BMP") == 0) {
-						if (chunk.isSection("BIN:"))
-							stream->read(binData, stream->size());
-						else if (chunk.isSection("VGA:"))
-							stream->read(vgaData, stream->size());
-					}
-					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
-						uint16 *tw;
-						uint16 *th;
-						uint32 *toffsets;
-						uint16 tcount;
-						uint32 sz;
 
+					uint16 *tw;
+					uint16 *th;
+					uint32 *toffsets;
+					uint16 tcount;
+					uint32 sz;
+
+					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
 						tcount = stream->readUint16LE();
 						debug("        [%u] =", tcount);
 
@@ -393,13 +387,18 @@ static void explode(const char *indexName, bool save) {
 							sz += tw[k]*th[k];
 						}
 						debug("        sz: %u", (sz+2)/2);
-
-						if (strcmp(name, "DICONS.BMP") == 0) {
+					}
+					//"HELICOP2.BMP"
+					if (strcmp(name, "DICONS.BMP") == 0) {
+						if (chunk.isSection("INF:")) {
 							_tw = tw;
 							_th = th;
 							_toffsets = toffsets;
 							_tcount = tcount;
-						}
+						} else if (chunk.isSection("BIN:"))
+							stream->read(binData, stream->size());
+						else if (chunk.isSection("VGA:"))
+							stream->read(vgaData, stream->size());
 					}
 					delete stream;
 				}
