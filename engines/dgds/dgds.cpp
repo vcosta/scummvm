@@ -403,7 +403,6 @@ static void explode(const char *indexName, bool save) {
 							for (uint32 k=0; k<mcount; k++) {
 								uint16 tile;
 								tile = stream->readUint16LE();
-								//mtx[k%mh*mw + k/mh] = tile;
 								mtx[k] = tile;
 //								debug("        %u", tile);
 							}
@@ -477,6 +476,7 @@ Common::Error DgdsEngine::run() {
 			}
 		}
 /*
+		// BMP:INF|BIN|VGA browser.
 		w = _tw[k]; h = _th[k];
 		vgaData_ = vgaData + (_toffsets[k]>>1);
 		binData_ = binData + (_toffsets[k]>>1);
@@ -489,12 +489,17 @@ Common::Error DgdsEngine::run() {
 		}
 		//g_system->fillScreen(0);
 		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);*/
+
+		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
 		cx = cy = 0;
-		// 8x13 tiles, 320x9 matrix, 9x5 tiles.
+		g_system->fillScreen(0);
 		for (uint y=0; cx<_mw; y++) {
+			if ((k+y) >= _mw)
+			    break;
+
 			for (uint x=0; x<_mh; x++) {
-				uint j = k*_mh+y*_mh+x;
+				uint j = (k+y)*_mh+x;
 				w = _tw[_mtx[j]]; h = _th[_mtx[j]];
 				vgaData_ = vgaData + (_toffsets[_mtx[j]]>>1);
 				binData_ = binData + (_toffsets[_mtx[j]]>>1);
