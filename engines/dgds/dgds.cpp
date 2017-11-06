@@ -422,6 +422,7 @@ Common::Error DgdsEngine::run() {
 
 	debug("DgdsEngine::init");
 
+	// Rise of the Dragon.
 	explode("volume.vga"/*vga,rmf*/, true);
 	for (uint i=0; i<256*3; i+=3) {
 		palette[i+0] <<= 2;
