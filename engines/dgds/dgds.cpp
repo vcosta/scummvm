@@ -388,8 +388,10 @@ static void explode(const char *indexName, bool save) {
 						}
 						debug("        sz: %u", (sz+2)/2);
 					}
-					//"HELICOP2.BMP"
-					if (strcmp(name, "DICONS.BMP") == 0) {
+
+					// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
+					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
+					if (strcmp(name, "WALKAWAY.BMP") == 0) {
 						if (chunk.isSection("INF:")) {
 							_tw = tw;
 							_th = th;
