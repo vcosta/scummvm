@@ -494,7 +494,13 @@ Common::Error DgdsEngine::run() {
 		palette[i+1] <<= 2;
 		palette[i+2] <<= 2;
 	}
-
+/*
+	// grayscale palette.
+	for (uint i=0; i<256; i++) {
+	    palette[i*3+0] = 255-i;
+	    palette[i*3+1] = 255-i;
+	    palette[i*3+2] = 255-i;
+	}*/
 	g_system->getPaletteManager()->setPalette(palette, 0, 256);
 
 	Common::EventManager *eventMan = g_system->getEventManager();
