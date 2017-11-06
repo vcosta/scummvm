@@ -492,9 +492,9 @@ Common::Error DgdsEngine::run() {
 		uint cx, cy;
 		cx = cy = 0;
 		// 8x13 tiles, 320x9 matrix, 9x5 tiles.
-		for (uint y=0; y<40; y++) {
+		for (uint y=0; cx<_mw; y++) {
 			for (uint x=0; x<_mh; x++) {
-				uint j = y*_mh+x;
+				uint j = k*_mh+y*_mh+x;
 				w = _tw[_mtx[j]]; h = _th[_mtx[j]];
 				vgaData_ = vgaData + (_toffsets[_mtx[j]]>>1);
 				binData_ = binData + (_toffsets[_mtx[j]]>>1);
