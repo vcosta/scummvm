@@ -412,7 +412,7 @@ static void explode(const char *indexName, bool save) {
 
 					// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
 					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-					if (strcmp(name, "SCROLL.BMP") == 0) {
+					if (strcmp(name, "SCROLL2.BMP") == 0) {
 						if (chunk.isSection("BIN:"))
 							stream->read(binData, stream->size());
 						else if (chunk.isSection("VGA:"))
@@ -492,9 +492,9 @@ Common::Error DgdsEngine::run() {
 		uint cx, cy;
 		cx = cy = 0;
 		// 8x13 tiles, 320x9 matrix, 9x5 tiles.
-		for (uint y=0; y<_mh; y++) {
-			for (uint x=0; x<(_mw/(_mh*8)); x++) {
-				uint j = 4*9*5+y*_mh+x;
+		for (uint y=0; y<40; y++) {
+			for (uint x=0; x<_mh; x++) {
+				uint j = y*_mh+x;
 				w = _tw[_mtx[j]]; h = _th[_mtx[j]];
 				vgaData_ = vgaData + (_toffsets[_mtx[j]]>>1);
 				binData_ = binData + (_toffsets[_mtx[j]]>>1);
