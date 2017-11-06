@@ -47,10 +47,12 @@ byte binData[320000];
 byte vgaData[320000];
 byte *imgData;
 
-uint16 *_tw;
-uint16 *_th;
-uint32 *_toffsets;
 uint16 _tcount;
+uint16 *_tw, *_th;
+uint32 *_toffsets;
+
+uint16 *_mtx;
+uint16 _mw, _mh;
 
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
@@ -362,45 +364,68 @@ static void explode(const char *indexName, bool save) {
 */
 					}
 
-					uint16 *tw;
-					uint16 *th;
-					uint32 *toffsets;
 					uint16 tcount;
-					uint32 sz;
+					uint16 *tw, *th;
+					uint32 *toffsets;
 
-					if (strcmp(ext, "BMP") == 0 && chunk.isSection("INF:")) {
-						tcount = stream->readUint16LE();
-						debug("        [%u] =", tcount);
+					uint16 *mtx;
+					uint16 mw, mh;
 
-						tw = new uint16[tcount];
-						th = new uint16[tcount];
-						for (uint16 k=0; k<tcount; k++)
-							tw[k] = stream->readUint16LE();
-						for (uint16 k=0; k<tcount; k++)
-							th[k] = stream->readUint16LE();
+					if (strcmp(ext, "BMP") == 0) {
+						if (chunk.isSection("INF:")) {
+							tcount = stream->readUint16LE();
+							debug("        [%u] =", tcount);
 
-						sz = 0;
-						toffsets = new uint32[tcount];
-						for (uint16 k=0; k<tcount; k++) {
-							debug("        (%u,%u) @%u", tw[k], th[k], sz);
-							toffsets[k] = sz;
-							sz += tw[k]*th[k];
+							tw = new uint16[tcount];
+							th = new uint16[tcount];
+							for (uint16 k=0; k<tcount; k++)
+								tw[k] = stream->readUint16LE();
+							for (uint16 k=0; k<tcount; k++)
+								th[k] = stream->readUint16LE();
+
+							uint32 sz = 0;
+							toffsets = new uint32[tcount];
+							for (uint16 k=0; k<tcount; k++) {
+								debug("        %ux%u @%u", tw[k], th[k], sz);
+								toffsets[k] = sz;
+								sz += tw[k]*th[k];
+							}
+							debug("        BIN|VGA: %u bytes", (sz+1)/2);
+						} else if (chunk.isSection("MTX:")) {
+							uint32 mcount;
+
+							mw = stream->readUint16LE();
+							mh = stream->readUint16LE();
+							mcount = uint32(mw)*mh;
+							debug("        %ux%u: %u bytes", mw, mh, mcount*2);
+
+							mtx = new uint16[mcount];
+							for (uint32 k=0; k<mcount; k++) {
+								uint16 tile;
+								tile = stream->readUint16LE();
+								//mtx[k%mh*mw + k/mh] = tile;
+								mtx[k] = tile;
+//								debug("        %u", tile);
+							}
 						}
-						debug("        sz: %u", (sz+1)/2);
 					}
 
 					// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
 					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-					if (strcmp(name, "WALKAWAY.BMP") == 0) {
-						if (chunk.isSection("INF:")) {
-							_tw = tw;
-							_th = th;
-							_toffsets = toffsets;
-							_tcount = tcount;
-						} else if (chunk.isSection("BIN:"))
+					if (strcmp(name, "SCROLL.BMP") == 0) {
+						if (chunk.isSection("BIN:"))
 							stream->read(binData, stream->size());
 						else if (chunk.isSection("VGA:"))
 							stream->read(vgaData, stream->size());
+
+						_tcount = tcount;
+						_tw = tw;
+						_th = th;
+						_toffsets = toffsets;
+
+						_mtx = mtx;
+						_mw = mw;
+						_mh = mh;
 					}
 					delete stream;
 				}
@@ -451,11 +476,10 @@ Common::Error DgdsEngine::run() {
 				}
 			}
 		}
-
+/*
 		w = _tw[k]; h = _th[k];
 		vgaData_ = vgaData + (_toffsets[k]>>1);
 		binData_ = binData + (_toffsets[k]>>1);
-		debug("%u,%u", _tw[k], _th[k]);
 
 		for (uint i=0; i<w*h; i+=2) {
 			imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
@@ -463,8 +487,30 @@ Common::Error DgdsEngine::run() {
 			imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
 			imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
 		}
-		g_system->fillScreen(0);
-		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);
+		//g_system->fillScreen(0);
+		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);*/
+		uint cx, cy;
+		cx = cy = 0;
+		// 8x13 tiles, 320x9 matrix, 9x5 tiles.
+		for (uint y=0; y<_mh; y++) {
+			for (uint x=0; x<(_mw/(_mh*8)); x++) {
+				uint j = 4*9*5+y*_mh+x;
+				w = _tw[_mtx[j]]; h = _th[_mtx[j]];
+				vgaData_ = vgaData + (_toffsets[_mtx[j]]>>1);
+				binData_ = binData + (_toffsets[_mtx[j]]>>1);
+
+				for (uint i=0; i<w*h; i+=2) {
+					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
+					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
+					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
+					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+				}
+				g_system->copyRectToScreen(imgData, w, cx, cy, w, h);
+				cy += h;
+			}
+			cy = 0;
+			cx += w;
+		}
 
 		g_system->updateScreen();
 		g_system->delayMillis(20);
