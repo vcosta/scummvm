@@ -386,7 +386,7 @@ static void explode(const char *indexName, bool save) {
 							toffsets[k] = sz;
 							sz += tw[k]*th[k];
 						}
-						debug("        sz: %u", (sz+2)/2);
+						debug("        sz: %u", (sz+1)/2);
 					}
 
 					// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
