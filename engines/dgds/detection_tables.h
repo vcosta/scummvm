@@ -35,11 +35,44 @@ static const DgdsGameDescription gameDescriptions[] = {
 			{
 				{"volume.vga", 0, "b0583c199614ed1c161a25398c5c7fba", 7823},
 				{"volume.001", 0, "3483f61b9bf0023c00a7fc1b568a54fa", 769811},
-				{"dragon.exe", 0, "f0123506e223d67ff78fd1b419f6a67c", 102094},
 				AD_LISTEND
 			},
 			Common::EN_ANY,
 			Common::kPlatformDOS,
+			ADGF_NO_FLAGS,
+			GUIO1(GUIO_NONE)
+		},
+	},
+
+	// Rise of the Dragon (Amiga)
+	{
+		{
+			"rise",
+			0,
+			{
+				{"volume.rmf", 0, "44cd1ffdfeb385dcfcd60563e1036167", 8972},
+				{"volume.001", 0, "71b0b4a623166dc4aeba9bd19d71697f", 519385},
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformAmiga,
+			ADGF_NO_FLAGS,
+			GUIO1(GUIO_NONE)
+		},
+	},
+
+	// Rise of the Dragon (Mac)
+	{
+		{
+			"rise",
+			0,
+			{
+				{"volume.rmf", 0, "fe8d0b0f68bb4068793f2ea438d28d97", 7079},
+				{"volume.001", 0, "90b30eb275d468e21d308ca836a3d3b8", 1403672},
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformMacintosh,
 			ADGF_NO_FLAGS,
 			GUIO1(GUIO_NONE)
 		},
@@ -53,7 +86,6 @@ static const DgdsGameDescription gameDescriptions[] = {
 			{
 				{"volume.rmf", 0, "677b91bc6961824f1997c187292f174e", 9791},
 				{"volume.001", 0, "3efe89a72940e85d2137162609b8b883", 851843},
-				{"hoc.exe", 0, "0300c8787c8e37c62ce80b94cd658c26", 288832},
 				AD_LISTEND
 			},
 			Common::EN_ANY,
