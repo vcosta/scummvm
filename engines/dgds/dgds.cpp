@@ -89,9 +89,9 @@ struct DgdsChunk {
 	int readHeader(DgdsFileCtx& ctx, Common::File& archive, const char *name);
 	bool isSection(const Common::String& section);
 
-	bool isPacked(const Common::String& ext);	
-	Common::SeekableReadStream* decode(DgdsFileCtx& ctx, Common::File& archive);
-	Common::SeekableReadStream* copy(DgdsFileCtx& ctx, Common::File& archive);
+	bool isPacked(const Common::String& ext);
+	Common::SeekableReadStream* decode(DgdsFileCtx& ctx, Common::SeekableReadStream& archive);
+	Common::SeekableReadStream* copy(DgdsFileCtx& ctx, Common::SeekableReadStream& archive);
 };
 
 bool DgdsChunk::isSection(const Common::String& section) {
@@ -123,11 +123,7 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 
 	if (0) {
 	}
-	else if (ext.equals("ADS")) {
-		if (0) {
-		} else if (strcmp(type, "SCR:") == 0) packed = true;
-	}
-	else if (ext.equals("ADH")) {
+	else if (ext.equals("ADS") || ext.equals("ADL") || ext.equals("ADH")) {
 		if (0) {
 		} else if (strcmp(type, "SCR:") == 0) packed = true;
 	}
@@ -195,8 +191,8 @@ int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive, const char *n
 	if (type[DGDS_TYPENAME_MAX-1] != ':') {
 	    debug("bad header in: %s", name);
 		type[0] = '\0';
-	ctx.bytesRead += DGDS_TYPENAME_MAX;
-	ctx.outSize += DGDS_TYPENAME_MAX;
+		ctx.bytesRead += DGDS_TYPENAME_MAX;
+		ctx.outSize += DGDS_TYPENAME_MAX;
 		return 1;
 	}
 	type[DGDS_TYPENAME_MAX] = '\0';
@@ -217,7 +213,7 @@ int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive, const char *n
 	return 2;
 }
  
-Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& archive) {
+Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::SeekableReadStream& archive) {
 	uint8 compression; /* 0=None, 1=RLE, 2=LZW */
 	const char *descr[] = {"None", "RLE", "LZW"};
 	uint32 unpackSize;
@@ -266,7 +262,7 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 	return ostream;
 }
 
-Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::File& archive) {
+Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::SeekableReadStream& archive) {
 	Common::SeekableReadStream *ostream = 0;
 
 	if (!container) {
@@ -394,13 +390,24 @@ static void explode(const char *indexName, bool save) {
 						/* IFF-8SVX audio. */
 					}
 					if (strcmp(ext, "VIN") == 0) {
-					    archive.hexdump(inSize);
-					}
-					if (strcmp(ext, "AMG") == 0) {
 						Common::String line;
 						while (1) {
 							line = archive.readLine();
-							debug("\"%s\"", line.c_str());
+							debug("    \"%s\"", line.c_str());
+							ctx.bytesRead += 2; /* \r\n */
+
+							if (line.empty())
+								break;
+							ctx.bytesRead += line.size();
+						}
+					}
+					if (strcmp(ext, "AMG") == 0) {
+						archive.hexdump(inSize);
+
+						Common::String line;
+						while (1) {
+							line = archive.readLine();
+							debug("    \"%s\"", line.c_str());
 
 							ctx.bytesRead += line.size()+1;
 
@@ -432,9 +439,44 @@ static void explode(const char *indexName, bool save) {
 							}
 						}
 
-						if (strcmp(ext, "ADS") == 0 || strcmp(ext, "ADH") == 0) {
-							if (chunk.isSection("SCR:")) {
+						if (strcmp(ext, "ADS") == 0 || strcmp(ext, "ADL") == 0 || strcmp(ext, "ADH") == 0) {
+							if (chunk.isSection("VER:")) {
+								char version[5];
+
+								stream->read(version, sizeof(version));
+								debug("        %s", version);
+							} else if (chunk.isSection("RES:")) {
+								uint16 count;
+
+								count = stream->readUint16LE();
+								debug("        %u:", count);
+								for (uint16 k=0; k<count; k++) {
+									byte ch;
+									uint16 idx;
+									idx = stream->readUint16LE();
+
+									Common::String str;
+									while ((ch = stream->readByte()))
+										str += ch;
+									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+								}
+							} else if (chunk.isSection("SCR:")) {
 								stream->hexdump(stream->size());
+							} else if (chunk.isSection("TAG:")) {
+								uint16 count;
+
+								count = stream->readUint16LE();
+								debug("        %u:", count);
+								for (uint16 k=0; k<count; k++) {
+									byte ch;
+									uint16 idx;
+									idx = stream->readUint16LE();
+
+									Common::String str;
+									while ((ch = stream->readByte()))
+										str += ch;
+									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+								}
 							}
 						}
 
@@ -523,6 +565,12 @@ static void explode(const char *indexName, bool save) {
 							}
 						}
 
+						if (strcmp(ext, "SDS") == 0) {
+							if (chunk.isSection("SDS:")) {
+								stream->hexdump(stream->size());
+							}
+						}
+
 						if (strcmp(ext, "GDS") == 0) {
 							if (chunk.isSection("INF:")) {
 								stream->hexdump(stream->size());
@@ -534,6 +582,7 @@ static void explode(const char *indexName, bool save) {
 						if (strcmp(ext, "TTM") == 0) {
 							if (chunk.isSection("VER:")) {
 								char version[5];
+
 								stream->read(version, sizeof(version));
 								debug("        %s", version);
 							} else if (chunk.isSection("PAG:")) {
