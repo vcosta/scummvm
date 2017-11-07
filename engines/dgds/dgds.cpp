@@ -440,14 +440,55 @@ static void explode(const char *indexName, bool save) {
 
 						if (strcmp(ext, "SX") == 0) {
 							if (chunk.isSection("INF:")) {
-								stream->hexdump(stream->size());
-							} else if (chunk.isSection("TAG:")) {
-								stream->hexdump(stream->size());
-							} else if (chunk.isSection("FNM:")) {
-								stream->hexdump(stream->size());
-							} else if (chunk.isSection("DAT:")) {
-								stream->hexdump(stream->size());
+								uint16 count;
 
+								stream->hexdump(2);
+								stream->skip(2);
+
+								count = stream->readUint16LE();
+								debug("        %u:", count);
+								for (uint16 k=0; k<count; k++) {
+									uint16 idx;
+									idx = stream->readUint16LE();
+									debug("        %2u: %2u", k, idx);
+								}
+							} else if (chunk.isSection("TAG:")) {
+								uint16 count;
+
+								count = stream->readUint16LE();
+								debug("        %u:", count);
+								for (uint16 k=0; k<count; k++) {
+									byte ch;
+									uint16 idx;
+									idx = stream->readUint16LE();
+
+									Common::String str;
+									while ((ch = stream->readByte()))
+										str += ch;
+									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+								}
+							} else if (chunk.isSection("FNM:")) {
+								uint16 count;
+
+								count = stream->readUint16LE();
+								debug("        %u", count);
+								for (uint16 k=0; k<count; k++) {
+									byte ch;
+									uint16 idx;
+									idx = stream->readUint16LE();
+
+									Common::String str;
+									while ((ch = stream->readByte()))
+										str += ch;
+									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+								}
+							} else if (chunk.isSection("DAT:")) {
+								uint16 idx;
+								idx = stream->readUint16LE();
+								debug("        %2u", idx);
+
+								stream->hexdump(stream->size());
+/*
 								Common::DumpFile out;
 								char *buf;
 
@@ -462,7 +503,7 @@ static void explode(const char *indexName, bool save) {
 									out.write(buf, inSize);
 									out.close();
 								}
-								delete [] buf;
+								delete [] buf;*/
 							}
 						}
 
