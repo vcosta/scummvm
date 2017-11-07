@@ -224,7 +224,7 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::File& ar
 	Common::SeekableReadStream *ostream = 0;
 
 	compression = archive.readByte();
-	unpackSize = archive.readSint32LE();
+	unpackSize = archive.readUint32LE();
 	chunkSize -= (1 + 4);
 
 	ctx.bytesRead += (1 + 4);
@@ -488,6 +488,37 @@ static void explode(const char *indexName, bool save) {
 								debug("        %2u", idx);
 
 								stream->hexdump(stream->size());
+
+								stream->readUint16LE();
+
+								uint8 compression;
+								uint32 unpackSize, chunkSize;
+
+								compression = stream->readByte();
+								unpackSize = stream->readUint32LE();
+								debug("        %u, %2u", compression, unpackSize);
+
+								chunkSize = stream->size();
+
+								byte *dest = new byte[unpackSize];
+								uint size;
+								switch (compression) {
+									case 0x02: {
+											   LzwDecompressor dec;
+											   size = dec.decompress(dest,unpackSize,*stream);
+											   break;
+										   }
+									default:
+										   stream->skip(chunkSize);
+										   size = 0;
+										   debug("unknown chunk compression: %u", compression);
+										   break;
+								}
+								Common::SeekableReadStream *ostream = 0;
+								ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
+								ostream->hexdump(ostream->size());
+								ctx.bytesRead += chunkSize;
+								ctx.outSize += size;
 /*
 								Common::DumpFile out;
 								char *buf;
