@@ -489,52 +489,37 @@ static void explode(const char *indexName, bool save) {
 
 								stream->hexdump(stream->size());
 
-								stream->readUint16LE();
+								/* danger will robinson, danger. */
+								uint16 dummy;
+								dummy = stream->readUint16LE();
 
 								uint8 compression;
-								uint32 unpackSize, chunkSize;
+								uint32 unpackSize;
 
 								compression = stream->readByte();
 								unpackSize = stream->readUint32LE();
-								debug("        %u, %2u", compression, unpackSize);
-
-								chunkSize = stream->size();
+								debug("        %u, %u, %u", dummy, compression, unpackSize);
+								stream->hexdump(stream->size());
+/*
+								uint size;
+								size = stream->size();
 
 								byte *dest = new byte[unpackSize];
-								uint size;
-								switch (compression) {
-									case 0x02: {
-											   LzwDecompressor dec;
-											   size = dec.decompress(dest,unpackSize,*stream);
-											   break;
-										   }
-									default:
-										   stream->skip(chunkSize);
-										   size = 0;
-										   debug("unknown chunk compression: %u", compression);
-										   break;
-								}
-								Common::SeekableReadStream *ostream = 0;
-								ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
-								ostream->hexdump(ostream->size());
-								ctx.bytesRead += chunkSize;
-								ctx.outSize += size;
-/*
+
 								Common::DumpFile out;
 								char *buf;
 
-								uint sz;
-								sz = stream->size();
-								buf = new char[inSize];
+								buf = new char[size];
 
 								if (!out.open(name)) {
 									debug("Couldn't write to %s", name);
 								} else {
-									stream->read(buf, inSize);
-									out.write(buf, inSize);
+									stream->read(buf, size);
+									out.write(buf, size);
 									out.close();
 								}
-								delete [] buf;*/
+								delete [] buf;
+								*/
 							}
 						}
 
