@@ -307,6 +307,8 @@ uint32 dgdsHash(const char *s, byte *idx) {
 	return c;
 }
 
+enum {DGDS_NONE, DGDS_TAG, DGDS_REQ};
+
 static void explode(const char *indexName, bool save) {
 	Common::File index, archive;
 
@@ -331,6 +333,7 @@ static void explode(const char *indexName, bool save) {
 			archive.open(name);
 
 			debug("--\n#%u %s %u", i, name, nfiles);
+			uint parent = DGDS_NONE;
 			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
 				struct DgdsFileCtx ctx;
@@ -476,6 +479,52 @@ static void explode(const char *indexName, bool save) {
 									while ((ch = stream->readByte()))
 										str += ch;
 									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+								}
+							}
+						}
+
+						if (strcmp(ext, "REQ") == 0) {
+							if (chunk.container) {
+								if (chunk.isSection("TAG:")) {
+									parent = DGDS_TAG;
+								} else if (chunk.isSection("REQ:")) {
+									parent = DGDS_REQ;
+								}
+							} else  {
+								if (parent == DGDS_TAG) {
+									if (chunk.isSection("REQ:")) {
+										uint16 count;
+
+										count = stream->readUint16LE();
+										debug("        %u:", count);
+										for (uint16 k=0; k<count; k++) {
+											byte ch;
+											uint16 idx;
+											idx = stream->readUint16LE();
+
+											Common::String str;
+											while ((ch = stream->readByte()))
+												str += ch;
+											debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+										}
+									} else if (chunk.isSection("GAD:")) {
+										uint16 count;
+
+										count = stream->readUint16LE();
+										debug("        %u:", count);
+										for (uint16 k=0; k<count; k++) {
+											byte ch;
+											uint16 idx;
+											idx = stream->readUint16LE();
+
+											Common::String str;
+											while ((ch = stream->readByte()))
+												str += ch;
+											debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+										}
+									}
+								} else if (parent == DGDS_REQ) {
+										stream->hexdump(stream->size());
 								}
 							}
 						}
