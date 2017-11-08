@@ -404,6 +404,13 @@ static void explode(const char *indexName, bool save) {
 						file->hexdump(file->size());
 					}
 				} else {
+					uint16 tcount;
+					uint16 *tw, *th;
+					uint32 *toffsets;
+
+					uint16 *mtx;
+					uint16 mw, mh;
+
 					struct DgdsChunk chunk;
 					while (chunk.readHeader(ctx, *file, name)) {
 						Common::SeekableReadStream *stream;
@@ -411,18 +418,36 @@ static void explode(const char *indexName, bool save) {
 						bool packed = chunk.isPacked(ext);
 						stream = packed ? chunk.decode(ctx, *file) : chunk.copy(ctx, *file);
 						if (stream) ctx.outSize += stream->size();
+
 						/*
 								debug(">> %u:%u", stream->pos(), file->pos());
 								stream->hexdump(stream->size());*/
 
-						if (strcmp(name, "DYNAMIX.PAL") == 0 && chunk.isSection("VGA:")) {
-							stream->read(palette, 256*3);
+						if (strcmp(ext, "PAL") == 0) {
+							if (strcmp(name, "DYNAMIX.PAL") == 0) {
+								if (chunk.isSection("VGA:")) {
+									stream->read(palette, 256*3);
+								}
+							} else {
+								if (chunk.isSection("VGA:")) {
+									stream->skip(256*3);
+								}
+							}
 						}
-						if (strcmp(name, "DYNAMIX.SCR"/*"BGND.SCR"*/) == 0) {
-							if (chunk.isSection("BIN:")) {
-								stream->read(binData, stream->size());
-							} else if (chunk.isSection("VGA:")) {
-								stream->read(vgaData, stream->size());
+						if (strcmp(ext, "SCR") == 0) {
+							// BGND.SCR
+							if (strcmp(name, "DYNAMIX.SCR") == 0) {
+								if (chunk.isSection("BIN:")) {
+									stream->read(binData, stream->size());
+								} else if (chunk.isSection("VGA:")) {
+									stream->read(vgaData, stream->size());
+								}
+							} else {
+								if (chunk.isSection("BIN:")) {
+									stream->skip(stream->size());
+								} else if (chunk.isSection("VGA:")) {
+									stream->skip(stream->size());
+								}
 							}
 						}
 
@@ -603,7 +628,6 @@ static void explode(const char *indexName, bool save) {
 								stream->hexdump(stream->size());
 							}
 						}
-
 						if (strcmp(ext, "GDS") == 0) {
 							if (chunk.isSection("INF:")) {
 								stream->hexdump(stream->size());
@@ -611,7 +635,6 @@ static void explode(const char *indexName, bool save) {
 								stream->hexdump(stream->size());
 							}
 						}
-
 						if (strcmp(ext, "TTM") == 0) {
 							if (chunk.isSection("VER:")) {
 								char version[5];
@@ -642,14 +665,6 @@ static void explode(const char *indexName, bool save) {
 								}
 							}
 						}
-
-						uint16 tcount;
-						uint16 *tw, *th;
-						uint32 *toffsets;
-
-						uint16 *mtx;
-						uint16 mw, mh;
-
 						if (strcmp(ext, "BMP") == 0) {
 							if (chunk.isSection("INF:")) {
 								tcount = stream->readUint16LE();
@@ -686,27 +701,33 @@ static void explode(const char *indexName, bool save) {
 									//								debug("        %u", tile);
 								}
 							}
+
+							// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
+							// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
+							if (strcmp(name, "XXXDYNAMIX.BMP") == 0) {
+								if (chunk.isSection("BIN:")) {
+									stream->read(binData, stream->size());
+								} else if (chunk.isSection("VGA:")) {
+									stream->read(vgaData, stream->size());
+								} else if (chunk.isSection("INF:")) {
+									_tcount = tcount;
+									_tw = tw;
+									_th = th;
+									_toffsets = toffsets;
+								} else if (chunk.isSection("MTX:")) {
+									_mtx = mtx;
+									_mw = mw;
+									_mh = mh;
+								}
+							} else {
+								if (chunk.isSection("BIN:")) {
+									stream->skip(stream->size());
+								} else if (chunk.isSection("VGA:")) {
+									stream->skip(stream->size());
+								}
+							}
 						}
 
-						// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
-						// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-						if (strcmp(name, "XXXDYNAMIX.BMP") == 0) {
-							/*
-							if (chunk.isSection("BIN:"))
-								stream->read(binData, stream->size());
-							else if (chunk.isSection("VGA:"))
-								stream->read(vgaData, stream->size());
-
-							_tcount = tcount;
-							_tw = tw;
-							_th = th;
-							_toffsets = toffsets;
-
-							_mtx = mtx;
-							_mw = mw;
-							_mh = mh;
-							*/
-						}
 						delete stream;
 					}
 				}
