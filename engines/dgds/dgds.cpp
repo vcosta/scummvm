@@ -377,7 +377,7 @@ static void explode(const char *indexName, bool save) {
 					    file->hexdump(64);
 					}
 					if (strcmp(ext, "INS") == 0) {
-						/* IFF-8SVX audio. */
+						file->hexdump(file->size());
 					}
 					if (strcmp(ext, "VIN") == 0) {
 						Common::String line;
@@ -391,7 +391,7 @@ static void explode(const char *indexName, bool save) {
 						file->hexdump(file->size());
 					}
 					if (strcmp(ext, "AMG") == 0) {
-						volume.hexdump(inSize);
+						file->hexdump(file->size());
 
 						Common::String line;
 						while (!file->eos()) {
