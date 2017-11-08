@@ -370,37 +370,39 @@ static void explode(const char *indexName, bool save) {
 				}
 
 				if (isCompact(ext)) {
-					if (strcmp(ext, "BMP") == 0) {
-					    file->hexdump(64);
-					}
 					if (strcmp(ext, "RST") == 0) {
 					    file->hexdump(64);
 					}
-					if (strcmp(ext, "INS") == 0) {
-						/* IFF-8SVX sound sample. */
-						file->hexdump(file->size());
+					if (strcmp(ext, "SCR") == 0) {
+					    /* Unknown image format (Amiga). */
+					    file->hexdump(64);
 					}
-					if (strcmp(ext, "VIN") == 0) {
-						Common::String line;
-						while (!file->eos()) {
-							line = file->readLine();
-							debug("    \"%s\"", line.c_str());
-
-							if (line.empty())
-								break;
-						}
-						file->hexdump(file->size());
+					if (strcmp(ext, "BMP") == 0) {
+					    /* Unknown image format (Amiga). */
+					    file->hexdump(64);
+					}
+					if (strcmp(ext, "INS") == 0) {
+						/* IFF-8SVX sound sample (Amiga). */
+						file->hexdump(16);
+					}
+					if (strcmp(ext, "SNG") == 0) {
+						/* IFF-SMUS music (Amiga). */
+						file->hexdump(16);
 					}
 					if (strcmp(ext, "AMG") == 0) {
-						file->hexdump(file->size());
-
-						Common::String line;
-						while (!file->eos()) {
-							line = file->readLine();
+						/* (Amiga). */
+						Common::String line = file->readLine();
+						while (!file->eos() && !line.empty()) {
 							debug("    \"%s\"", line.c_str());
-
-							if (line.empty())
-								break;
+							line = file->readLine();
+						}
+					}
+					if (strcmp(ext, "VIN") == 0) {
+						/* (Macintosh). */
+						Common::String line = file->readLine();
+						while (!file->eos() && !line.empty()) {
+							debug("    \"%s\"", line.c_str());
+							line = file->readLine();
 						}
 						file->hexdump(file->size());
 					}
