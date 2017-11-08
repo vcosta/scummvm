@@ -32,6 +32,7 @@
 #include "common/platform.h"
 
 #include "graphics/palette.h"
+#include "graphics/surface.h"
 
 #include "engines/util.h"
 
@@ -776,8 +777,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 	}	
 }
 
-uint sw = 0, sh = 0;
-uint bw = 0, bh = 0;
+int sw = 0, sh = 0;
+int bw = 0, bh = 0;
 uint bk = 0;
 void interpret(Common::Platform platform, const char *rootName) {
 	if (!ttm) return;
@@ -823,6 +824,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 
 		byte *vgaData_;
 		byte *binData_;
+		Graphics::Surface *dst;
 		switch (op) {
 			case 0xf050:
 				// LOAD PALETTE
@@ -833,7 +835,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 				vgaData_ = vgaData;
 				binData_ = binData;
 
-				for (uint i=0; i<sw*sh; i+=2) {
+				for (int i=0; i<sw*sh; i+=2) {
 					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
 					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
 					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
@@ -857,16 +859,41 @@ void interpret(Common::Platform platform, const char *rootName) {
 				vgaData_ = _vgaData + (_toffsets[bk]>>1);
 				binData_ = _binData + (_toffsets[bk]>>1);
 
-				for (uint i=0; i<bw*bh; i+=2) {
+				for (int i=0; i<bw*bh; i+=2) {
 					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
 					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
 					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
 					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
 				}
 				break;
-			case 0xa500:
+			case 0xa500: {
 				// DRAW BMP?
-				g_system->copyRectToScreen(imgData, bw, ivals[0], ivals[1], MIN(bw, sw-ivals[0]), MIN(bh, sh-ivals[1]));
+				int tx, ty;
+				tx = ivals[0];
+				ty = ivals[1];
+
+				const Common::Rect destRect(tx, ty, tx+bw, ty+bh);
+
+				dst = g_system->lockScreen();
+
+				Common::Rect clippedDestRect(0, 0, dst->w, dst->h);
+				clippedDestRect.clip(destRect);
+
+				const int rows = clippedDestRect.height();
+				const int columns = clippedDestRect.width();
+
+				byte *src = imgData;
+				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
+				for (int i=0; i<rows; ++i) {
+					for (int j=0; j<columns; ++j) {
+						if (src[j])
+							ptr[j] = src[j];
+					}
+					ptr += dst->pitch;
+					src += bw;
+				}
+				g_system->unlockScreen();
+				     }
 				break;
 			case 0xf020:
 				// LOAD BMP
