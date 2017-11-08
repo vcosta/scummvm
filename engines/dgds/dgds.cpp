@@ -268,7 +268,7 @@ Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::SeekableRe
 	Common::SeekableReadStream *ostream = 0;
 
 	if (!container) {
-		ostream = archive.readStream(chunkSize);
+		ostream = new Common::SeekableSubReadStream(&archive, archive.pos(), archive.pos()+chunkSize, DisposeAfterUse::NO);
 		ctx.bytesRead += chunkSize;
 		ctx.outSize += chunkSize;
 	}
