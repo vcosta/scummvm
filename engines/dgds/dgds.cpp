@@ -101,37 +101,37 @@ bool DgdsChunk::isSection(const Common::String& section) {
 }
 
 bool isFlatfile(Common::Platform platform, const Common::String& ext) {
-	bool compact = false;
+	bool flat = false;
 
 	if (0) {}
 	else if (ext.equals("RST"))
-		compact = true;
+		flat = true;
 
 	switch (platform) {
 		case Common::kPlatformAmiga:
 			if (0) {}
 			else if (ext.equals("BMP"))
-				compact = true;
+				flat = true;
 			else if (ext.equals("SCR"))
-				compact = true;
+				flat = true;
 			else if (ext.equals("INS"))
-				compact = true;
+				flat = true;
 			else if (ext.equals("SNG"))
-				compact = true;
+				flat = true;
 			else if (ext.equals("AMG"))
-				compact = true;
+				flat = true;
 			break;
 
 		case Common::kPlatformMacintosh:
 			/* SOUNDS.SNG is particularly large. */
 			if (0) {}
 			else if (ext.equals("VIN"))
-				compact = true;
+				flat = true;
 			break;
 		default:
 			break;
 	}
-	return compact;
+	return flat;
 }
 
 bool DgdsChunk::isPacked(const Common::String& ext) {
