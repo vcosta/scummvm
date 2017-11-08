@@ -475,7 +475,42 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 								pages = stream->readUint16LE();
 								debug("        %u", pages);
 							} else if (chunk.isSection("TT3:")) {
-								stream->hexdump(stream->size());
+								while (!stream->eos()) {
+								    uint16 code;
+								    byte count;
+								    uint op;
+
+								    code = stream->readUint16LE();
+								    count = code & 0x000F;
+								    op = code & 0xFFF0;
+
+								    debugN("        OP: %4x, %2u: ", op, count);
+								    if (count == 0x0F) {
+									Common::String sval;
+									byte ch[2];
+
+									do {
+									    ch[0] = stream->readByte();
+									    ch[1] = stream->readByte();
+									    sval += ch[0];
+									    sval += ch[1];
+									} while (ch[0] != 0 && ch[1] != 0);
+
+									debugN("\"%s\"", sval.c_str());
+								    } else {
+									uint ival;
+
+									for (byte k=0; k<count; k++) {
+									    ival = stream->readUint16LE();
+
+									    if (k == 0)
+										debugN("%u", ival);
+									    else
+										debugN(", %u", ival);
+									}
+								    }
+								    debug(" ");
+								}
 							} else if (chunk.isSection("TAG:")) {
 								stream->hexdump(stream->size());
 								uint16 count;
@@ -588,6 +623,7 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 								unpackSize = stream->readUint32LE();
 								debug("        %u, %u, %u", dummy, compression, unpackSize);
 								stream->hexdump(stream->size());
+								stream->skip(stream->size()-stream->pos());
 /*
 								uint size;
 								size = stream->size();
