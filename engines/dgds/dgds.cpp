@@ -554,10 +554,18 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 						/* Macintosh. */
 						if (strcmp(ext, "SX") == 0) {
 							if (chunk.isSection("INF:")) {
+								uint16 count;
+
 								stream->hexdump(2);
 								stream->skip(2);
 
-								readStrings(stream);
+								count = stream->readUint16LE();
+								debug("        %u:", count);
+								for (uint16 k = 0; k < count; k++) {
+									uint16 idx;
+									idx = stream->readUint16LE();
+									debug("        %2u: %2u", k, idx);
+								}
 							} else if (chunk.isSection("TAG:")) {
 								readStrings(stream);
 							} else if (chunk.isSection("FNM:")) {
