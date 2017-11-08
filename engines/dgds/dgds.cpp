@@ -72,14 +72,13 @@ DgdsEngine::~DgdsEngine() {
 #define DGDS_TYPENAME_MAX 4
 
 struct DgdsFileCtx {
-	uint32 bytesRead, inSize, outSize;
+	uint32 inSize, outSize;
 	
 	void init(uint32 size);
 };
 
 void DgdsFileCtx::init(uint32 size) {
 	inSize = size;
-	bytesRead = 0;
 	outSize = 0;
 }
 
@@ -184,23 +183,18 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 }
 
 int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name) {
-	if (ctx.bytesRead >= ctx.inSize) {
+	if (file.pos() >= file.size()) {
 		return 0;
 	}
-	
+
 	file.read(type, DGDS_TYPENAME_MAX);
 
 	if (type[DGDS_TYPENAME_MAX-1] != ':') {
 	    debug("bad header in: %s", name);
 		type[0] = '\0';
-		ctx.bytesRead += DGDS_TYPENAME_MAX;
-		ctx.outSize += DGDS_TYPENAME_MAX;
 		return 1;
 	}
 	type[DGDS_TYPENAME_MAX] = '\0';
-
-	ctx.bytesRead += DGDS_TYPENAME_MAX;
-	ctx.outSize += DGDS_TYPENAME_MAX;
 
 	chunkSize = file.readUint32LE();
 	if (chunkSize & 0x80000000) {
@@ -210,8 +204,6 @@ int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, co
 		container = false;
 	}
 
-	ctx.bytesRead += 4;
-	ctx.outSize += 4;
 	return 2;
 }
  
@@ -224,9 +216,6 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 	compression = file.readByte();
 	unpackSize = file.readUint32LE();
 	chunkSize -= (1 + 4);
-
-	ctx.bytesRead += (1 + 4);
-	ctx.outSize += (1 + 4);
 
 	if (!container) {
 		byte *dest = new byte[unpackSize];
@@ -253,8 +242,6 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 				break;
 		}
 		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
-		ctx.bytesRead += chunkSize;
-		ctx.outSize += size;
 	}
 
 	debug("    %s %u %s %u%c",
@@ -269,8 +256,6 @@ Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::SeekableRe
 
 	if (!container) {
 		ostream = new Common::SeekableSubReadStream(&file, file.pos(), file.pos()+chunkSize, DisposeAfterUse::NO);
-		ctx.bytesRead += chunkSize;
-		ctx.outSize += chunkSize;
 	}
 
 	debug("    %s %u%c", type, chunkSize, (container ? '+' : ' '));
@@ -432,7 +417,11 @@ static void explode(const char *indexName, bool save) {
 						} else if (ret == 2) {
 							bool packed = chunk.isPacked(ext);
 							stream = packed ? chunk.decode(ctx, *file) : chunk.copy(ctx, *file);
+							if (stream) ctx.outSize += stream->size();
 						}
+						/*
+								debug(">> %u:%u", stream->pos(), file->pos());
+								stream->hexdump(stream->size());*/
 
 						if (strcmp(name, "DYNAMIX.PAL") == 0 && chunk.isSection("VGA:")) {
 							stream->read(palette, 256*3);
@@ -730,7 +719,7 @@ static void explode(const char *indexName, bool save) {
 					}
 				}
 
-				debug("  [%u:%u] --", ctx.bytesRead, ctx.outSize);
+				debug("  [%u:%u] --", file->pos(), ctx.outSize);
 			}
 			volume.close();
 		}
