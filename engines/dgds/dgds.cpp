@@ -354,7 +354,7 @@ static void explode(const char *indexName, bool save) {
 						out.write(buf, inSize);
 						out.close();
 						file->seek(0);
-}
+					}
 					delete [] buf;
 				}
 				
