@@ -308,6 +308,24 @@ uint32 dgdsHash(const char *s, byte *idx) {
 
 enum {DGDS_NONE, DGDS_TAG, DGDS_REQ};
 
+uint16 readStrings(Common::SeekableReadStream* stream){
+	uint16 count;
+	
+	count = stream->readUint16LE();
+	debug("        %u:", count);
+	for (uint16 k=0; k<count; k++) {
+		byte ch;
+		uint16 idx;
+		idx = stream->readUint16LE();
+		
+		Common::String str;
+		while ((ch = stream->readByte()))
+			str += ch;
+		debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+	}
+	return count;
+}
+
 static void explode(Common::Platform platform, const char *indexName, bool save) {
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
@@ -499,37 +517,11 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 								stream->read(version, sizeof(version));
 								debug("        %s", version);
 							} else if (chunk.isSection("RES:")) {
-								uint16 count;
-
-								count = stream->readUint16LE();
-								debug("        %u:", count);
-								for (uint16 k=0; k<count; k++) {
-									byte ch;
-									uint16 idx;
-									idx = stream->readUint16LE();
-
-									Common::String str;
-									while ((ch = stream->readByte()))
-										str += ch;
-									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
-								}
+								readStrings(stream);
 							} else if (chunk.isSection("SCR:")) {
 								stream->hexdump(stream->size());
 							} else if (chunk.isSection("TAG:")) {
-								uint16 count;
-
-								count = stream->readUint16LE();
-								debug("        %u:", count);
-								for (uint16 k=0; k<count; k++) {
-									byte ch;
-									uint16 idx;
-									idx = stream->readUint16LE();
-
-									Common::String str;
-									while ((ch = stream->readByte()))
-										str += ch;
-									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
-								}
+								readStrings(stream);
 							}
 						}
 
@@ -543,35 +535,9 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 							} else  {
 								if (parent == DGDS_TAG) {
 									if (chunk.isSection("REQ:")) {
-										uint16 count;
-
-										count = stream->readUint16LE();
-										debug("        %u:", count);
-										for (uint16 k=0; k<count; k++) {
-											byte ch;
-											uint16 idx;
-											idx = stream->readUint16LE();
-
-											Common::String str;
-											while ((ch = stream->readByte()))
-												str += ch;
-											debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
-										}
+										readStrings(stream);
 									} else if (chunk.isSection("GAD:")) {
-										uint16 count;
-
-										count = stream->readUint16LE();
-										debug("        %u:", count);
-										for (uint16 k=0; k<count; k++) {
-											byte ch;
-											uint16 idx;
-											idx = stream->readUint16LE();
-
-											Common::String str;
-											while ((ch = stream->readByte()))
-												str += ch;
-											debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
-										}
+										readStrings(stream);
 									}
 								} else if (parent == DGDS_REQ) {
 									stream->hexdump(stream->size());
@@ -588,48 +554,14 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 						/* Macintosh. */
 						if (strcmp(ext, "SX") == 0) {
 							if (chunk.isSection("INF:")) {
-								uint16 count;
-
 								stream->hexdump(2);
 								stream->skip(2);
 
-								count = stream->readUint16LE();
-								debug("        %u:", count);
-								for (uint16 k=0; k<count; k++) {
-									uint16 idx;
-									idx = stream->readUint16LE();
-									debug("        %2u: %2u", k, idx);
-								}
+								readStrings(stream);
 							} else if (chunk.isSection("TAG:")) {
-								uint16 count;
-
-								count = stream->readUint16LE();
-								debug("        %u:", count);
-								for (uint16 k=0; k<count; k++) {
-									byte ch;
-									uint16 idx;
-									idx = stream->readUint16LE();
-
-									Common::String str;
-									while ((ch = stream->readByte()))
-										str += ch;
-									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
-								}
+								readStrings(stream);
 							} else if (chunk.isSection("FNM:")) {
-								uint16 count;
-
-								count = stream->readUint16LE();
-								debug("        %u", count);
-								for (uint16 k=0; k<count; k++) {
-									byte ch;
-									uint16 idx;
-									idx = stream->readUint16LE();
-
-									Common::String str;
-									while ((ch = stream->readByte()))
-										str += ch;
-									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
-								}
+								readStrings(stream);
 							} else if (chunk.isSection("DAT:")) {
 								uint16 idx;
 								idx = stream->readUint16LE();
