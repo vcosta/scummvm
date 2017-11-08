@@ -88,12 +88,12 @@ struct DgdsChunk {
 	uint32 chunkSize;
 	bool container;
 	
-	int readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& archive, const char *name);
+	int readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name);
 	bool isSection(const Common::String& section);
 
 	bool isPacked(const Common::String& ext);
-	Common::SeekableReadStream* decode(DgdsFileCtx& ctx, Common::SeekableReadStream& archive);
-	Common::SeekableReadStream* copy(DgdsFileCtx& ctx, Common::SeekableReadStream& archive);
+	Common::SeekableReadStream* decode(DgdsFileCtx& ctx, Common::SeekableReadStream& file);
+	Common::SeekableReadStream* copy(DgdsFileCtx& ctx, Common::SeekableReadStream& file);
 };
 
 bool DgdsChunk::isSection(const Common::String& section) {
@@ -183,12 +183,12 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 	return packed;
 }
 
-int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& archive, const char *name) {
+int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name) {
 	if (ctx.bytesRead >= ctx.inSize) {
 		return 0;
 	}
 	
-	archive.read(type, DGDS_TYPENAME_MAX);
+	file.read(type, DGDS_TYPENAME_MAX);
 
 	if (type[DGDS_TYPENAME_MAX-1] != ':') {
 	    debug("bad header in: %s", name);
@@ -202,7 +202,7 @@ int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& archive,
 	ctx.bytesRead += DGDS_TYPENAME_MAX;
 	ctx.outSize += DGDS_TYPENAME_MAX;
 
-	chunkSize = archive.readUint32LE();
+	chunkSize = file.readUint32LE();
 	if (chunkSize & 0x80000000) {
 		chunkSize &= ~0x80000000;
 		container = true;
@@ -215,14 +215,14 @@ int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& archive,
 	return 2;
 }
  
-Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::SeekableReadStream& archive) {
+Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::SeekableReadStream& file) {
 	uint8 compression; /* 0=None, 1=RLE, 2=LZW */
 	const char *descr[] = {"None", "RLE", "LZW"};
 	uint32 unpackSize;
 	Common::SeekableReadStream *ostream = 0;
 
-	compression = archive.readByte();
-	unpackSize = archive.readUint32LE();
+	compression = file.readByte();
+	unpackSize = file.readUint32LE();
 	chunkSize -= (1 + 4);
 
 	ctx.bytesRead += (1 + 4);
@@ -233,21 +233,21 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 		uint size;
 		switch (compression) {
 			case 0x00: {
-				size = archive.read(dest,chunkSize);
+				size = file.read(dest,chunkSize);
 				break;
 				}
 			case 0x01: {
 				RleDecompressor dec;
-				size = dec.decompress(dest,unpackSize,archive);
+				size = dec.decompress(dest,unpackSize,file);
 				break;
 				}
 			case 0x02: {
 				LzwDecompressor dec;
-				size = dec.decompress(dest,unpackSize,archive);
+				size = dec.decompress(dest,unpackSize,file);
 				break;
 				}
 			default:
-				archive.skip(chunkSize);
+				file.skip(chunkSize);
 				size = 0;
 				debug("unknown chunk compression: %u", compression);
 				break;
@@ -264,11 +264,11 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 	return ostream;
 }
 
-Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::SeekableReadStream& archive) {
+Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::SeekableReadStream& file) {
 	Common::SeekableReadStream *ostream = 0;
 
 	if (!container) {
-		ostream = new Common::SeekableSubReadStream(&archive, archive.pos(), archive.pos()+chunkSize, DisposeAfterUse::NO);
+		ostream = new Common::SeekableSubReadStream(&file, file.pos(), file.pos()+chunkSize, DisposeAfterUse::NO);
 		ctx.bytesRead += chunkSize;
 		ctx.outSize += chunkSize;
 	}
@@ -426,14 +426,14 @@ static void explode(const char *indexName, bool save) {
 				} else {
 					struct DgdsChunk chunk;
 					int ret;
-					while ((ret = chunk.readHeader(ctx, volume, name)) != 0) {
+					while ((ret = chunk.readHeader(ctx, *file, name)) != 0) {
 						Common::SeekableReadStream *stream;
 
 						if (ret == 1) {
 							break;
 						} else if (ret == 2) {
 							bool packed = chunk.isPacked(ext);
-							stream = packed ? chunk.decode(ctx, volume) : chunk.copy(ctx, volume);
+							stream = packed ? chunk.decode(ctx, *file) : chunk.copy(ctx, *file);
 						}
 
 						if (strcmp(name, "DYNAMIX.PAL") == 0 && chunk.isSection("VGA:")) {
