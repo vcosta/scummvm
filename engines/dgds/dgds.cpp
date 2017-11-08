@@ -377,6 +377,7 @@ static void explode(const char *indexName, bool save) {
 					    file->hexdump(64);
 					}
 					if (strcmp(ext, "INS") == 0) {
+						/* IFF-8SVX sound sample. */
 						file->hexdump(file->size());
 					}
 					if (strcmp(ext, "VIN") == 0) {
