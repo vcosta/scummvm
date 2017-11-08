@@ -991,8 +991,6 @@ Common::Error DgdsEngine::run() {
 
 //	explode(platform, rootName, true);
 
-	explode(platform, rootName, "TITLE1.TTM", false);
-
 	g_system->fillScreen(0);
 
 //	return Common::kNoError;
@@ -1015,17 +1013,26 @@ Common::Error DgdsEngine::run() {
 		byte *binData_;*/
 
 		if (eventMan->pollEvent(ev)) {
-			int n = (int)_tcount-1;
+			//int n = (int)_tcount-1;
 			if (ev.type == Common::EVENT_KEYDOWN) {
 				switch (ev.kbd.keycode) {
-					case Common::KEYCODE_LEFT:	if (k > 0) k--;	break;
-					case Common::KEYCODE_RIGHT:	if (k < n) k++;	break;
+					case Common::KEYCODE_LEFT:	/*if (k > 0) k--;*/	break;
+					case Common::KEYCODE_RIGHT:	/*if (k < n) k++;*/	break;
 					case Common::KEYCODE_ESCAPE:	return Common::kNoError;
 					default:			break;
 				}
 			}
 		}
 
+		if (!ttm || ttm->eos()) {
+		    delete ttm;
+		    ttm = 0;
+		    if ((k%2) == 0)
+			explode(platform, rootName, "TITLE1.TTM", false);
+		    else
+			explode(platform, rootName, "TITLE2.TTM", false);
+		    k++;
+		}
 		interpret(platform, rootName);
 /*
 		// SCR:BIN|VGA viewer.
