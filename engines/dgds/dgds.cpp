@@ -57,6 +57,8 @@ uint32 *_toffsets;
 uint16 *_mtx;
 uint16 _mw, _mh;
 
+Common::SeekableReadStream* ttm;
+
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
 	_console = new DgdsConsole(this);
@@ -326,7 +328,7 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 	return count;
 }
 
-static void explode(Common::Platform platform, const char *indexName, bool save) {
+static void explode(Common::Platform platform, const char *indexName, const char *fileName, bool save) {
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
 
@@ -365,13 +367,18 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 				volume.read(name, sizeof(name));
 				name[DGDS_FILENAME_MAX] = '\0';
 				inSize = volume.readUint32LE();
-				ctx.init(inSize);
-				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), ctx.inSize);
+				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), inSize);
 				
 				if (inSize == 0xFFFFFFFF) {
 					continue;
 				}
-				
+
+				if (!save && strcmp(name, fileName) != 0) {
+				    volume.seek(offset+13+4+inSize);
+				    continue;
+				}
+
+				ctx.init(inSize);
 				file = new Common::SeekableSubReadStream(&volume, offset+13+4, offset+13+4+inSize, DisposeAfterUse::NO);
 
 				if (save) {
@@ -475,6 +482,12 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 								pages = stream->readUint16LE();
 								debug("        %u", pages);
 							} else if (chunk.isSection("TT3:")) {
+								if (strcmp(name, "TITLE1.TTM") == 0) {
+								    ttm = stream->readStream(stream->size());
+								} else {
+								    stream->skip(stream->size());
+								}
+								/*
 								while (!stream->eos()) {
 								    uint16 code;
 								    byte count;
@@ -510,7 +523,7 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 									}
 								    }
 								    debug(" ");
-								}
+								}*/
 							} else if (chunk.isSection("TAG:")) {
 								stream->hexdump(stream->size());
 								uint16 count;
@@ -649,9 +662,15 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 
 						/* DOS & Macintosh. */
 						if (strcmp(ext, "PAL") == 0) {
-							if (strcmp(name, "DYNAMIX.PAL") == 0) {
+							if (strcmp(name, fileName) == 0) {
 								if (chunk.isSection("VGA:")) {
 									stream->read(palette, 256*3);
+
+									for (uint k=0; k<256*3; k+=3) {
+										palette[k+0] <<= 2;
+										palette[k+1] <<= 2;
+										palette[k+2] <<= 2;
+									}
 								}
 							} else {
 								if (chunk.isSection("VGA:")) {
@@ -660,8 +679,7 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 							}
 						}
 						if (strcmp(ext, "SCR") == 0) {
-							// BGND.SCR
-							if (strcmp(name, "DYNAMIX.SCR") == 0) {
+							if (strcmp(name, fileName) == 0) {
 								if (chunk.isSection("BIN:")) {
 									stream->read(binData, stream->size());
 								} else if (chunk.isSection("VGA:")) {
@@ -714,7 +732,7 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 
 							// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
 							// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-							if (strcmp(name, "XXXDYNAMIX.BMP") == 0) {
+							if (strcmp(name, fileName) == 0) {
 								if (chunk.isSection("BIN:")) {
 									stream->read(binData, stream->size());
 								} else if (chunk.isSection("VGA:")) {
@@ -743,30 +761,43 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 				}
 
 				debug("  [%u:%u] --", file->pos(), ctx.outSize);
+
+				if (!save) {
+				    volume.close();
+				    index.close();
+				    return;
+				}
 			}
 			volume.close();
 		}
+		index.close();
 	}	
 }
 
 Common::Error DgdsEngine::run() {
+	Common::Platform platform;
+	const char *rootName;
+
 	initGraphics(320, 200);
 
 	imgData = new byte[320*200];
 	memset(palette, 1, 256*3);
 	memset(imgData, 0, 320*200);
+	ttm = 0;
 
 	debug("DgdsEngine::init");
 
 	// Rise of the Dragon.
-	explode(Common::kPlatformMacintosh, "volume.rmf"/*vga,rmf*/, true);
+	platform = Common::kPlatformMacintosh;
+	rootName = "volume.rmf"; // volume.rmf, volume.vga
+
+//	explode(platform, rootName, true);
+
+	explode(platform, rootName, "DYNAMIX.PAL", false);
+	explode(platform, rootName, "DYNAMIX.SCR", false);
+
 //	return Common::kNoError;
 
-	for (uint i=0; i<256*3; i+=3) {
-		palette[i+0] <<= 2;
-		palette[i+1] <<= 2;
-		palette[i+2] <<= 2;
-	}
 /*
 	// grayscale palette.
 	for (uint i=0; i<256; i++) {
