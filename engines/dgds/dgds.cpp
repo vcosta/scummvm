@@ -659,6 +659,9 @@ static void explode(const char *indexName, bool save) {
 
 								count = stream->readUint16LE();
 								debug("        %u", count);
+								// something fishy here. the first two entries sometimes are an empty string or non-text junk.
+								// most of the time entries have text (sometimes with garbled characters).
+								// this parser is likely not ok. but the NUL count seems to be ok.
 								for (uint16 k=0; k<count; k++) {
 									byte ch;
 									uint16 idx;
