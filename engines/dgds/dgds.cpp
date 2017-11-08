@@ -25,7 +25,9 @@
 #include "common/endian.h"
 #include "common/events.h"
 #include "common/file.h"
+#include "common/stream.h"
 #include "common/memstream.h"
+#include "common/substream.h"
 #include "common/system.h"
 
 #include "graphics/palette.h"
@@ -86,7 +88,7 @@ struct DgdsChunk {
 	uint32 chunkSize;
 	bool container;
 	
-	int readHeader(DgdsFileCtx& ctx, Common::File& archive, const char *name);
+	int readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& archive, const char *name);
 	bool isSection(const Common::String& section);
 
 	bool isPacked(const Common::String& ext);
@@ -181,7 +183,7 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 	return packed;
 }
 
-int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::File& archive, const char *name) {
+int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& archive, const char *name) {
 	if (ctx.bytesRead >= ctx.inSize) {
 		return 0;
 	}
@@ -310,7 +312,8 @@ uint32 dgdsHash(const char *s, byte *idx) {
 enum {DGDS_NONE, DGDS_TAG, DGDS_REQ};
 
 static void explode(const char *indexName, bool save) {
-	Common::File index, archive;
+	Common::File index, volume;
+	Common::SeekableSubReadStream *file;
 
 	if (index.open(indexName)) {
 		byte salt[4];
@@ -330,7 +333,7 @@ static void explode(const char *indexName, bool save) {
 			
 			nfiles = index.readUint16LE();
 			
-			archive.open(name);
+			volume.open(name);
 
 			debug("--\n#%u %s %u", i, name, nfiles);
 			uint parent = DGDS_NONE;
@@ -343,16 +346,18 @@ static void explode(const char *indexName, bool save) {
 				offset = index.readUint32LE();
 				debug("  %u %u", hash, offset);
 				
-				archive.seek(offset);
-				archive.read(name, sizeof(name));
+				volume.seek(offset);
+				volume.read(name, sizeof(name));
 				name[DGDS_FILENAME_MAX] = '\0';
-				inSize = archive.readUint32LE();
+				inSize = volume.readUint32LE();
 				ctx.init(inSize);
 				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), ctx.inSize);
 				
 				if (inSize == 0xFFFFFFFF) {
 					continue;
 				}
+				
+				file = new Common::SeekableSubReadStream(&volume, offset+13+4, offset+13+4+inSize, DisposeAfterUse::NO);
 
 				if (save) {
 					Common::DumpFile out;
@@ -363,11 +368,11 @@ static void explode(const char *indexName, bool save) {
 					if (!out.open(name)) {
 						debug("Couldn't write to %s", name);
 					} else {
-						archive.read(buf, inSize);
+						file->read(buf, inSize);
 						out.write(buf, inSize);
 						out.close();
-						archive.seek(offset + 13 + 4);
-					}
+						file->seek(0);
+}
 					delete [] buf;
 				}
 				
@@ -384,10 +389,10 @@ static void explode(const char *indexName, bool save) {
 
 				if (isCompact(ext)) {
 					if (strcmp(ext, "BMP") == 0) {
-					    archive.hexdump(64);
+					    volume.hexdump(64);
 					}
 					if (strcmp(ext, "RST") == 0) {
-					    archive.hexdump(64);
+					    volume.hexdump(64);
 					}
 					if (strcmp(ext, "INS") == 0) {
 						/* IFF-8SVX audio. */
@@ -395,7 +400,7 @@ static void explode(const char *indexName, bool save) {
 					if (strcmp(ext, "VIN") == 0) {
 						Common::String line;
 						while (1) {
-							line = archive.readLine();
+							line = volume.readLine();
 							debug("    \"%s\"", line.c_str());
 							ctx.bytesRead += 2; /* \r\n */
 
@@ -405,11 +410,11 @@ static void explode(const char *indexName, bool save) {
 						}
 					}
 					if (strcmp(ext, "AMG") == 0) {
-						archive.hexdump(inSize);
+						volume.hexdump(inSize);
 
 						Common::String line;
 						while (1) {
-							line = archive.readLine();
+							line = volume.readLine();
 							debug("    \"%s\"", line.c_str());
 
 							ctx.bytesRead += line.size()+1;
@@ -421,14 +426,14 @@ static void explode(const char *indexName, bool save) {
 				} else {
 					struct DgdsChunk chunk;
 					int ret;
-					while ((ret = chunk.readHeader(ctx, archive, name)) != 0) {
+					while ((ret = chunk.readHeader(ctx, volume, name)) != 0) {
 						Common::SeekableReadStream *stream;
 
 						if (ret == 1) {
 							break;
 						} else if (ret == 2) {
 							bool packed = chunk.isPacked(ext);
-							stream = packed ? chunk.decode(ctx, archive) : chunk.copy(ctx, archive);
+							stream = packed ? chunk.decode(ctx, volume) : chunk.copy(ctx, volume);
 						}
 
 						if (strcmp(name, "DYNAMIX.PAL") == 0 && chunk.isSection("VGA:")) {
@@ -641,6 +646,7 @@ static void explode(const char *indexName, bool save) {
 							} else if (chunk.isSection("TT3:")) {
 								stream->hexdump(stream->size());
 							} else if (chunk.isSection("TAG:")) {
+								stream->hexdump(stream->size());
 								uint16 count;
 
 								count = stream->readUint16LE();
@@ -727,10 +733,8 @@ static void explode(const char *indexName, bool save) {
 				}
 
 				debug("  [%u:%u] --", ctx.bytesRead, ctx.outSize);
-
-				archive.seek(offset + 13 + 4);
 			}
-			archive.close();
+			volume.close();
 		}
 	}	
 }
