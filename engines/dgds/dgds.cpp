@@ -484,7 +484,7 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 								    count = code & 0x000F;
 								    op = code & 0xFFF0;
 
-								    debugN("        OP: %4x, %2u: ", op, count);
+								    debugN("\tOP: 0x%4.4x %2u ", op, count);
 								    if (count == 0x0F) {
 									Common::String sval;
 									byte ch[2];
