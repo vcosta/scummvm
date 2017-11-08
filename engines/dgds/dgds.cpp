@@ -308,7 +308,7 @@ uint32 dgdsHash(const char *s, byte *idx) {
 
 enum {DGDS_NONE, DGDS_TAG, DGDS_REQ};
 
-static void explode(const char *indexName, bool save) {
+static void explode(Common::Platform platform, const char *indexName, bool save) {
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
 
@@ -384,9 +384,6 @@ static void explode(const char *indexName, bool save) {
 					ext++;
 				}
 
-				Common::Platform platform;
-
-				platform = Common::kPlatformMacintosh;
 				if (isFlatfile(platform, ext)) {
 					if (strcmp(ext, "RST") == 0) {
 						file->hexdump(64);
@@ -786,8 +783,9 @@ Common::Error DgdsEngine::run() {
 	debug("DgdsEngine::init");
 
 	// Rise of the Dragon.
-	explode("volume.rmf"/*vga,rmf*/, true);
+	explode(Common::kPlatformMacintosh, "volume.rmf"/*vga,rmf*/, true);
 //	return Common::kNoError;
+
 	for (uint i=0; i<256*3; i+=3) {
 		palette[i+0] <<= 2;
 		palette[i+1] <<= 2;
