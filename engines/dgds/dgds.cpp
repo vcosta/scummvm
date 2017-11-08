@@ -936,7 +936,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 				break;
 
 			case 0xa500: {
-				// DRAW BMP? BROKEN OFFSCREEN DRAWING.
+				// DRAW BMP?
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
