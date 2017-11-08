@@ -399,29 +399,27 @@ static void explode(const char *indexName, bool save) {
 					}
 					if (strcmp(ext, "VIN") == 0) {
 						Common::String line;
-						while (1) {
+						while (!file->eos()) {
 							line = file->readLine();
 							debug("    \"%s\"", line.c_str());
-							ctx.bytesRead += 2; /* \r\n */
 
 							if (line.empty())
 								break;
-							ctx.bytesRead += line.size();
 						}
+						file->hexdump(file->size());
 					}
 					if (strcmp(ext, "AMG") == 0) {
 						volume.hexdump(inSize);
 
 						Common::String line;
-						while (1) {
+						while (!file->eos()) {
 							line = file->readLine();
 							debug("    \"%s\"", line.c_str());
 
-							ctx.bytesRead += line.size()+1;
-
-							if (ctx.bytesRead >= ctx.inSize)
+							if (line.empty())
 								break;
 						}
+						file->hexdump(file->size());
 					}
 				} else {
 					struct DgdsChunk chunk;
