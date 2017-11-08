@@ -29,6 +29,7 @@
 #include "common/memstream.h"
 #include "common/substream.h"
 #include "common/system.h"
+#include "common/platform.h"
 
 #include "graphics/palette.h"
 
@@ -99,23 +100,37 @@ bool DgdsChunk::isSection(const Common::String& section) {
        return section.equals(type);
 }
 
-bool isCompact(const Common::String& ext) {
+bool isFlat(Common::Platform platform, const Common::String& ext) {
 	bool compact = false;
 
-	if (0) {}/*
-	else if (ext.equals("BMP"))
-		compact = true;*/
-	else if (ext.equals("AMG"))
-		compact = true;
-	else if (ext.equals("INS"))
-		compact = true;
+	if (0) {}
 	else if (ext.equals("RST"))
 		compact = true;
-	else if (ext.equals("VIN"))
-		compact = true;
-	/* SOME SNG have subheaders SNG:SSM|SNG|FCU(?)|INF|DIG */
-	/* SOUNDS.SNG is particularly large. */
-	/* check for .SCR, .SNG */
+
+	switch (platform) {
+		case Common::kPlatformAmiga:
+			if (0) {}
+			else if (ext.equals("BMP"))
+				compact = true;
+			else if (ext.equals("SCR"))
+				compact = true;
+			else if (ext.equals("INS"))
+				compact = true;
+			else if (ext.equals("SNG"))
+				compact = true;
+			else if (ext.equals("AMG"))
+				compact = true;
+			break;
+
+		case Common::kPlatformMacintosh:
+			/* SOUNDS.SNG is particularly large. */
+			if (0) {}
+			else if (ext.equals("VIN"))
+				compact = true;
+			break;
+		default:
+			break;
+	}
 	return compact;
 }
 
@@ -369,17 +384,20 @@ static void explode(const char *indexName, bool save) {
 					ext++;
 				}
 
-				if (isCompact(ext)) {
+				Common::Platform platform;
+
+				platform = Common::kPlatformMacintosh;
+				if (isFlat(platform, ext)) {
 					if (strcmp(ext, "RST") == 0) {
-					    file->hexdump(64);
+						file->hexdump(64);
 					}
 					if (strcmp(ext, "SCR") == 0) {
-					    /* Unknown image format (Amiga). */
-					    file->hexdump(64);
+						/* Unknown image format (Amiga). */
+						file->hexdump(64);
 					}
 					if (strcmp(ext, "BMP") == 0) {
-					    /* Unknown image format (Amiga). */
-					    file->hexdump(64);
+						/* Unknown image format (Amiga). */
+						file->hexdump(64);
 					}
 					if (strcmp(ext, "INS") == 0) {
 						/* IFF-8SVX sound sample (Amiga). */
