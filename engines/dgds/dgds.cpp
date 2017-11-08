@@ -389,10 +389,10 @@ static void explode(const char *indexName, bool save) {
 
 				if (isCompact(ext)) {
 					if (strcmp(ext, "BMP") == 0) {
-					    volume.hexdump(64);
+					    file->hexdump(64);
 					}
 					if (strcmp(ext, "RST") == 0) {
-					    volume.hexdump(64);
+					    file->hexdump(64);
 					}
 					if (strcmp(ext, "INS") == 0) {
 						/* IFF-8SVX audio. */
@@ -400,7 +400,7 @@ static void explode(const char *indexName, bool save) {
 					if (strcmp(ext, "VIN") == 0) {
 						Common::String line;
 						while (1) {
-							line = volume.readLine();
+							line = file->readLine();
 							debug("    \"%s\"", line.c_str());
 							ctx.bytesRead += 2; /* \r\n */
 
@@ -414,7 +414,7 @@ static void explode(const char *indexName, bool save) {
 
 						Common::String line;
 						while (1) {
-							line = volume.readLine();
+							line = file->readLine();
 							debug("    \"%s\"", line.c_str());
 
 							ctx.bytesRead += line.size()+1;
