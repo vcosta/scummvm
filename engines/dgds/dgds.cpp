@@ -630,7 +630,13 @@ static void explode(const char *indexName, bool save) {
 						}
 						if (strcmp(ext, "GDS") == 0) {
 							if (chunk.isSection("INF:")) {
-								stream->hexdump(stream->size());
+								char version[7];
+
+								// guess. 
+								uint dummy = stream->readUint32LE();
+								stream->read(version, sizeof(version));
+								debug("        %u, \"%s\"", dummy, version);
+
 							} else if (chunk.isSection("SDS:")) {
 								stream->hexdump(stream->size());
 							}
