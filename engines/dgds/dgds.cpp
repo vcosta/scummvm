@@ -100,7 +100,7 @@ bool DgdsChunk::isSection(const Common::String& section) {
        return section.equals(type);
 }
 
-bool isFlat(Common::Platform platform, const Common::String& ext) {
+bool isFlatfile(Common::Platform platform, const Common::String& ext) {
 	bool compact = false;
 
 	if (0) {}
@@ -387,7 +387,7 @@ static void explode(const char *indexName, bool save) {
 				Common::Platform platform;
 
 				platform = Common::kPlatformMacintosh;
-				if (isFlat(platform, ext)) {
+				if (isFlatfile(platform, ext)) {
 					if (strcmp(ext, "RST") == 0) {
 						file->hexdump(64);
 					}
