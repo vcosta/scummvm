@@ -373,7 +373,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					continue;
 				}
 
-				if (!save && strcmp(name, fileName) != 0) {
+				if (!save && scumm_stricmp(name, fileName) != 0) {
 				    volume.seek(offset+13+4+inSize);
 				    continue;
 				}
@@ -662,7 +662,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 						/* DOS & Macintosh. */
 						if (strcmp(ext, "PAL") == 0) {
-							if (strcmp(name, fileName) == 0) {
+							if (scumm_stricmp(name, fileName) == 0) {
 								if (chunk.isSection("VGA:")) {
 									stream->read(palette, 256*3);
 
@@ -679,7 +679,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							}
 						}
 						if (strcmp(ext, "SCR") == 0) {
-							if (strcmp(name, fileName) == 0) {
+							if (scumm_stricmp(name, fileName) == 0) {
 								if (chunk.isSection("BIN:")) {
 									stream->read(binData, stream->size());
 								} else if (chunk.isSection("VGA:")) {
@@ -732,7 +732,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 							// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
 							// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-							if (strcmp(name, fileName) == 0) {
+							if (scumm_stricmp(name, fileName) == 0) {
 								if (chunk.isSection("BIN:")) {
 									stream->read(binData, stream->size());
 								} else if (chunk.isSection("VGA:")) {
@@ -774,6 +774,78 @@ static void explode(Common::Platform platform, const char *indexName, const char
 	}	
 }
 
+void interpret(Common::Platform platform, const char *rootName) {
+	if (!ttm) return;
+
+	while (!ttm->eos()) {
+		uint16 code;
+		byte count;
+		uint op;
+
+		Common::String sval;
+
+		code = ttm->readUint16LE();
+		count = code & 0x000F;
+		op = code & 0xFFF0;
+
+		debugN("\tOP: 0x%4.4x %2u ", op, count);
+		if (count == 0x0F) {
+			byte ch[2];
+
+			do {
+				ch[0] = ttm->readByte();
+				ch[1] = ttm->readByte();
+				sval += ch[0];
+				sval += ch[1];
+			} while (ch[0] != 0 && ch[1] != 0);
+
+			debugN("\"%s\"", sval.c_str());
+		} else {
+			uint ival;
+
+			for (byte k=0; k<count; k++) {
+				ival = ttm->readUint16LE();
+
+				if (k == 0)
+					debugN("%u", ival);
+				else
+					debugN(", %u", ival);
+			}
+		}
+		debug(" ");
+
+		uint w, h;
+		byte *vgaData_;
+		byte *binData_;
+		switch (op) {
+			case 0xf050:
+				// LOAD PALETTE
+				explode(platform, rootName, sval.c_str(), false);
+				g_system->getPaletteManager()->setPalette(palette, 0, 256);
+				break;
+			case 0xf010:
+				// LOAD SCREEN
+				explode(platform, rootName, sval.c_str(), false);
+
+				w = 320; h = 200;
+				vgaData_ = vgaData;
+				binData_ = binData;
+
+				for (uint i=0; i<w*h; i+=2) {
+					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
+					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
+					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
+					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+				}
+				g_system->copyRectToScreen(imgData, w, 0, 0, w, h);
+				break;
+			default:
+				break;
+		}
+		break;
+	}
+}
+
 Common::Error DgdsEngine::run() {
 	Common::Platform platform;
 	const char *rootName;
@@ -793,8 +865,9 @@ Common::Error DgdsEngine::run() {
 
 //	explode(platform, rootName, true);
 
-	explode(platform, rootName, "DYNAMIX.PAL", false);
-	explode(platform, rootName, "DYNAMIX.SCR", false);
+	explode(platform, rootName, "TITLE1.TTM", false);
+
+	g_system->fillScreen(0);
 
 //	return Common::kNoError;
 
@@ -805,16 +878,15 @@ Common::Error DgdsEngine::run() {
 	    palette[i*3+1] = 255-i;
 	    palette[i*3+2] = 255-i;
 	}*/
-	g_system->getPaletteManager()->setPalette(palette, 0, 256);
 
 	Common::EventManager *eventMan = g_system->getEventManager();
 	Common::Event ev;
 
 	int k = 0;
-	while (!shouldQuit()) {
+	while (!shouldQuit()) {/*
 		uint w, h;
 		byte *vgaData_;
-		byte *binData_;
+		byte *binData_;*/
 
 		if (eventMan->pollEvent(ev)) {
 			int n = (int)_tcount-1;
@@ -828,6 +900,8 @@ Common::Error DgdsEngine::run() {
 			}
 		}
 
+		interpret(platform, rootName);
+/*
 		// SCR:BIN|VGA viewer.
 		w = 320; h = 200;
 		vgaData_ = vgaData;
@@ -840,7 +914,7 @@ Common::Error DgdsEngine::run() {
 			imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
 		}
 		g_system->fillScreen(0);
-		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);
+		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);*/
 /*
 		// BMP:INF|BIN|VGA browser.
 		w = _tw[k]; h = _th[k];
@@ -884,7 +958,7 @@ Common::Error DgdsEngine::run() {
 		}
 */
 		g_system->updateScreen();
-		g_system->delayMillis(20);
+		g_system->delayMillis(50);
 	}
 
 	return Common::kNoError;
