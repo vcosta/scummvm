@@ -48,6 +48,8 @@ namespace Dgds {
 byte palette[256*3];
 byte binData[320000];
 byte vgaData[320000];
+byte _binData[320000];
+byte _vgaData[320000];
 byte *imgData;
 
 uint16 _tcount;
@@ -734,9 +736,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
 							if (scumm_stricmp(name, fileName) == 0) {
 								if (chunk.isSection("BIN:")) {
-									stream->read(binData, stream->size());
+									stream->read(_binData, stream->size());
 								} else if (chunk.isSection("VGA:")) {
-									stream->read(vgaData, stream->size());
+									stream->read(_vgaData, stream->size());
 								} else if (chunk.isSection("INF:")) {
 									_tcount = tcount;
 									_tw = tw;
@@ -774,6 +776,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 	}	
 }
 
+uint sw = 0, sh = 0;
+uint bw = 0, bh = 0;
+uint bk = 0;
 void interpret(Common::Platform platform, const char *rootName) {
 	if (!ttm) return;
 
@@ -781,6 +786,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 		uint16 code;
 		byte count;
 		uint op;
+		uint16 ivals[16];
 
 		Common::String sval;
 
@@ -805,6 +811,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 
 			for (byte k=0; k<count; k++) {
 				ival = ttm->readUint16LE();
+				ivals[k] = ival;
 
 				if (k == 0)
 					debugN("%u", ival);
@@ -814,30 +821,56 @@ void interpret(Common::Platform platform, const char *rootName) {
 		}
 		debug(" ");
 
-		uint w, h;
 		byte *vgaData_;
 		byte *binData_;
 		switch (op) {
 			case 0xf050:
 				// LOAD PALETTE
 				explode(platform, rootName, sval.c_str(), false);
-				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
-			case 0xf010:
-				// LOAD SCREEN
-				explode(platform, rootName, sval.c_str(), false);
-
-				w = 320; h = 200;
+			case 0x1090:
+				// SET PALETTE? UPDATE SCREEN?
 				vgaData_ = vgaData;
 				binData_ = binData;
 
-				for (uint i=0; i<w*h; i+=2) {
+				for (uint i=0; i<sw*sh; i+=2) {
 					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
 					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
 					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
 					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
 				}
-				g_system->copyRectToScreen(imgData, w, 0, 0, w, h);
+
+				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				g_system->getPaletteManager()->setPalette(palette, 0, 256);
+				break;
+			case 0xf010:
+				// LOAD SCR
+				explode(platform, rootName, sval.c_str(), false);
+				sw = 320; sh = 200;
+				break;
+
+			case 0x1030:
+				// SET BMP?
+				bk = ivals[0];
+
+				bw = _tw[bk]; bh = _th[bk];
+				vgaData_ = _vgaData + (_toffsets[bk]>>1);
+				binData_ = _binData + (_toffsets[bk]>>1);
+
+				for (uint i=0; i<bw*bh; i+=2) {
+					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
+					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
+					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
+					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+				}
+				break;
+			case 0xa500:
+				// DRAW BMP?
+				g_system->copyRectToScreen(imgData, bw, ivals[0], ivals[1], MIN(bw, sw-ivals[0]), MIN(bh, sh-ivals[1]));
+				break;
+			case 0xf020:
+				// LOAD BMP
+				explode(platform, rootName, sval.c_str(), false);
 				break;
 			default:
 				break;
