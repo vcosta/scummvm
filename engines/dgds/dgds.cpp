@@ -87,7 +87,7 @@ struct DgdsChunk {
 	uint32 chunkSize;
 	bool container;
 	
-	int readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name);
+	bool readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name);
 	bool isSection(const Common::String& section);
 
 	bool isPacked(const Common::String& ext);
@@ -182,17 +182,17 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 	return packed;
 }
 
-int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name) {
+bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name) {
 	if (file.pos() >= file.size()) {
-		return 0;
+		return false;
 	}
 
 	file.read(type, DGDS_TYPENAME_MAX);
 
 	if (type[DGDS_TYPENAME_MAX-1] != ':') {
-	    debug("bad header in: %s", name);
 		type[0] = '\0';
-		return 1;
+		debug("bad header in: %s", name);
+		return false;
 	}
 	type[DGDS_TYPENAME_MAX] = '\0';
 
@@ -203,8 +203,7 @@ int DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, co
 	} else {
 		container = false;
 	}
-
-	return 2;
+	return true;
 }
  
 Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::SeekableReadStream& file) {
@@ -219,25 +218,23 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 
 	if (!container) {
 		byte *dest = new byte[unpackSize];
-		uint size;
 		switch (compression) {
 			case 0x00: {
-				size = file.read(dest,chunkSize);
+				file.read(dest,chunkSize);
 				break;
 				}
 			case 0x01: {
 				RleDecompressor dec;
-				size = dec.decompress(dest,unpackSize,file);
+				dec.decompress(dest,unpackSize,file);
 				break;
 				}
 			case 0x02: {
 				LzwDecompressor dec;
-				size = dec.decompress(dest,unpackSize,file);
+				dec.decompress(dest,unpackSize,file);
 				break;
 				}
 			default:
 				file.skip(chunkSize);
-				size = 0;
 				debug("unknown chunk compression: %u", compression);
 				break;
 		}
@@ -408,17 +405,12 @@ static void explode(const char *indexName, bool save) {
 					}
 				} else {
 					struct DgdsChunk chunk;
-					int ret;
-					while ((ret = chunk.readHeader(ctx, *file, name)) != 0) {
+					while (chunk.readHeader(ctx, *file, name)) {
 						Common::SeekableReadStream *stream;
 
-						if (ret == 1) {
-							break;
-						} else if (ret == 2) {
-							bool packed = chunk.isPacked(ext);
-							stream = packed ? chunk.decode(ctx, *file) : chunk.copy(ctx, *file);
-							if (stream) ctx.outSize += stream->size();
-						}
+						bool packed = chunk.isPacked(ext);
+						stream = packed ? chunk.decode(ctx, *file) : chunk.copy(ctx, *file);
+						if (stream) ctx.outSize += stream->size();
 						/*
 								debug(">> %u:%u", stream->pos(), file->pos());
 								stream->hexdump(stream->size());*/
