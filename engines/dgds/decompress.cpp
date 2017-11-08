@@ -27,7 +27,7 @@
 
 namespace Dgds {
 
-uint32 RleDecompressor::decompress(byte *dest, uint32 sz, Common::ReadStream &input) {
+uint32 RleDecompressor::decompress(byte *dest, uint32 sz, Common::SeekableReadStream &input) {
 	uint32 left = sz;
 
 	uint32 lenR = 0, lenW = 0;
@@ -75,7 +75,7 @@ void LzwDecompressor::reset() {
 	_cacheBits = 0;
 }
 
-uint32 LzwDecompressor::decompress(byte *dest, uint32 sz, Common::ReadStream &input) {
+uint32 LzwDecompressor::decompress(byte *dest, uint32 sz, Common::SeekableReadStream &input) {
 	_bitsData = 0;
 	_bitsSize = 0;
 
@@ -84,7 +84,8 @@ uint32 LzwDecompressor::decompress(byte *dest, uint32 sz, Common::ReadStream &in
 	uint32 idx;
 	idx = 0;
 	_cacheBits = 0;
-	while (idx < sz) {
+
+	do {
 		uint32 code;
 
 		code = getCode(_codeSize, input);
@@ -141,12 +142,12 @@ uint32 LzwDecompressor::decompress(byte *dest, uint32 sz, Common::ReadStream &in
 				_codeLen = _codeTable[code].len;
 			}
 		}
-	}
+	} while (idx < sz);
 
 	return idx;
 }
 
-uint32 LzwDecompressor::getCode(uint32 totalBits, Common::ReadStream &input) {
+uint32 LzwDecompressor::getCode(uint32 totalBits, Common::SeekableReadStream &input) {
 	uint32 result, numBits;
 	const byte bitMasks[9] = {
 		0x00, 0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF
@@ -157,7 +158,7 @@ uint32 LzwDecompressor::getCode(uint32 totalBits, Common::ReadStream &input) {
 	while (numBits > 0) {
 		uint32 useBits;
 
-		if (input.eos()) return 0xFFFFFFFF;
+		if (input.pos() >= input.size()) return 0xFFFFFFFF;
 
 		if (_bitsSize == 0) {
 			_bitsSize = 8;
