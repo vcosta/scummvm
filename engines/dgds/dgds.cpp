@@ -45,6 +45,9 @@ namespace Dgds {
 	typedef unsigned char uint8;
 	typedef unsigned char byte;
 
+#define DGDS_SCREEN_WIDTH 320
+#define DGDS_SCREEN_HEIGHT 200
+
 byte palette[256*3];
 byte binData[320000];
 byte vgaData[320000];
@@ -774,11 +777,11 @@ static void explode(Common::Platform platform, const char *indexName, bool save)
 }
 
 Common::Error DgdsEngine::run() {
-	initGraphics(320, 200);
+	initGraphics(DGDS_SCREEN_WIDTH, DGDS_SCREEN_HEIGHT);
 
-	imgData = new byte[320*200];
+	imgData = new byte[DGDS_SCREEN_WIDTH*DGDS_SCREEN_HEIGHT];
 	memset(palette, 1, 256*3);
-	memset(imgData, 0, 320*200);
+	memset(imgData, 0, DGDS_SCREEN_WIDTH*DGDS_SCREEN_HEIGHT);
 
 	debug("DgdsEngine::init");
 
@@ -822,7 +825,7 @@ Common::Error DgdsEngine::run() {
 		}
 
 		// SCR:BIN|VGA viewer.
-		w = 320; h = 200;
+		w = DGDS_SCREEN_WIDTH; h = DGDS_SCREEN_HEIGHT;
 		vgaData_ = vgaData;
 		binData_ = binData;
 
