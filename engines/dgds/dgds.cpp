@@ -123,7 +123,7 @@ bool isFlatfile(Common::Platform platform, const Common::String& ext) {
 			break;
 
 		case Common::kPlatformMacintosh:
-			/* SOUNDS.SNG is particularly large. */
+			/* SOUNDS.SX is particularly large. */
 			if (0) {}
 			else if (ext.equals("VIN"))
 				flat = true;
@@ -444,34 +444,57 @@ static void explode(const char *indexName, bool save) {
 								debug(">> %u:%u", stream->pos(), file->pos());
 								stream->hexdump(stream->size());*/
 
-						if (strcmp(ext, "PAL") == 0) {
-							if (strcmp(name, "DYNAMIX.PAL") == 0) {
-								if (chunk.isSection("VGA:")) {
-									stream->read(palette, 256*3);
-								}
-							} else {
-								if (chunk.isSection("VGA:")) {
-									stream->skip(256*3);
-								}
+						if (strcmp(ext, "SDS") == 0) {
+							if (chunk.isSection("SDS:")) {
+								stream->hexdump(stream->size());
 							}
 						}
-						if (strcmp(ext, "SCR") == 0) {
-							// BGND.SCR
-							if (strcmp(name, "DYNAMIX.SCR") == 0) {
-								if (chunk.isSection("BIN:")) {
-									stream->read(binData, stream->size());
-								} else if (chunk.isSection("VGA:")) {
-									stream->read(vgaData, stream->size());
-								}
-							} else {
-								if (chunk.isSection("BIN:")) {
-									stream->skip(stream->size());
-								} else if (chunk.isSection("VGA:")) {
-									stream->skip(stream->size());
-								}
-							}
-						}
+						if (strcmp(ext, "TTM") == 0) {
+							if (chunk.isSection("VER:")) {
+								char version[5];
 
+								stream->read(version, sizeof(version));
+								debug("        %s", version);
+							} else if (chunk.isSection("PAG:")) {
+								uint16 pages;
+								pages = stream->readUint16LE();
+								debug("        %u", pages);
+							} else if (chunk.isSection("TT3:")) {
+								stream->hexdump(stream->size());
+							} else if (chunk.isSection("TAG:")) {
+								stream->hexdump(stream->size());
+								uint16 count;
+
+								count = stream->readUint16LE();
+								debug("        %u", count);
+								// something fishy here. the first two entries sometimes are an empty string or non-text junk.
+								// most of the time entries have text (sometimes with garbled characters).
+								// this parser is likely not ok. but the NUL count seems to be ok.
+								for (uint16 k=0; k<count; k++) {
+									byte ch;
+									uint16 idx;
+									Common::String str;
+
+									idx = stream->readUint16LE();
+									while ((ch = stream->readByte()))
+										str += ch;
+									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+								}
+							}
+						}
+						if (strcmp(ext, "GDS") == 0) {
+							if (chunk.isSection("INF:")) {
+								char version[7];
+
+								// guess. 
+								uint dummy = stream->readUint32LE();
+								stream->read(version, sizeof(version));
+								debug("        %u, \"%s\"", dummy, version);
+
+							} else if (chunk.isSection("SDS:")) {
+								stream->hexdump(stream->size());
+							}
+						}
 						if (strcmp(ext, "ADS") == 0 || strcmp(ext, "ADL") == 0 || strcmp(ext, "ADH") == 0) {
 							if (chunk.isSection("VER:")) {
 								char version[5];
@@ -565,6 +588,7 @@ static void explode(const char *indexName, bool save) {
 							}
 						}
 
+						/* Macintosh. */
 						if (strcmp(ext, "SX") == 0) {
 							if (chunk.isSection("INF:")) {
 								uint16 count;
@@ -650,54 +674,31 @@ static void explode(const char *indexName, bool save) {
 							}
 						}
 
-						if (strcmp(ext, "SDS") == 0) {
-							if (chunk.isSection("SDS:")) {
-								stream->hexdump(stream->size());
+						/* DOS & Macintosh. */
+						if (strcmp(ext, "PAL") == 0) {
+							if (strcmp(name, "DYNAMIX.PAL") == 0) {
+								if (chunk.isSection("VGA:")) {
+									stream->read(palette, 256*3);
+								}
+							} else {
+								if (chunk.isSection("VGA:")) {
+									stream->skip(256*3);
+								}
 							}
 						}
-						if (strcmp(ext, "GDS") == 0) {
-							if (chunk.isSection("INF:")) {
-								char version[7];
-
-								// guess. 
-								uint dummy = stream->readUint32LE();
-								stream->read(version, sizeof(version));
-								debug("        %u, \"%s\"", dummy, version);
-
-							} else if (chunk.isSection("SDS:")) {
-								stream->hexdump(stream->size());
-							}
-						}
-						if (strcmp(ext, "TTM") == 0) {
-							if (chunk.isSection("VER:")) {
-								char version[5];
-
-								stream->read(version, sizeof(version));
-								debug("        %s", version);
-							} else if (chunk.isSection("PAG:")) {
-								uint16 pages;
-								pages = stream->readUint16LE();
-								debug("        %u", pages);
-							} else if (chunk.isSection("TT3:")) {
-								stream->hexdump(stream->size());
-							} else if (chunk.isSection("TAG:")) {
-								stream->hexdump(stream->size());
-								uint16 count;
-
-								count = stream->readUint16LE();
-								debug("        %u", count);
-								// something fishy here. the first two entries sometimes are an empty string or non-text junk.
-								// most of the time entries have text (sometimes with garbled characters).
-								// this parser is likely not ok. but the NUL count seems to be ok.
-								for (uint16 k=0; k<count; k++) {
-									byte ch;
-									uint16 idx;
-									Common::String str;
-
-									idx = stream->readUint16LE();
-									while ((ch = stream->readByte()))
-										str += ch;
-									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+						if (strcmp(ext, "SCR") == 0) {
+							// BGND.SCR
+							if (strcmp(name, "DYNAMIX.SCR") == 0) {
+								if (chunk.isSection("BIN:")) {
+									stream->read(binData, stream->size());
+								} else if (chunk.isSection("VGA:")) {
+									stream->read(vgaData, stream->size());
+								}
+							} else {
+								if (chunk.isSection("BIN:")) {
+									stream->skip(stream->size());
+								} else if (chunk.isSection("VGA:")) {
+									stream->skip(stream->size());
 								}
 							}
 						}
