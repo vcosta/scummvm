@@ -51,7 +51,7 @@ byte binData[320000];
 byte vgaData[320000];
 byte _binData[320000];
 byte _vgaData[320000];
-byte *imgData;
+byte *imgData, *_imgData;
 
 uint16 _tcount;
 uint16 *_tw, *_th;
@@ -342,7 +342,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 		index.read(salt, sizeof(salt));
 		nvolumes = index.readUint16LE();
 
-		debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
+//		debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
 
 		for (uint i=0; i<nvolumes; i++) {
 			char name[DGDS_FILENAME_MAX+1];
@@ -355,7 +355,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			
 			volume.open(name);
 
-			debug("--\n#%u %s %u", i, name, nfiles);
+//			debug("--\n#%u %s %u", i, name, nfiles);
 			uint parent = DGDS_NONE;
 			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
@@ -370,7 +370,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				volume.read(name, sizeof(name));
 				name[DGDS_FILENAME_MAX] = '\0';
 				inSize = volume.readUint32LE();
-				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), inSize);
+//				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), inSize);
 				
 				if (inSize == 0xFFFFFFFF) {
 					continue;
@@ -485,7 +485,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 								pages = stream->readUint16LE();
 								debug("        %u", pages);
 							} else if (chunk.isSection("TT3:")) {
-								if (strcmp(name, "TITLE1.TTM") == 0) {
+								if (strcmp(name, fileName) == 0) {
 								    ttm = stream->readStream(stream->size());
 								} else {
 								    stream->skip(stream->size());
@@ -777,9 +777,14 @@ static void explode(Common::Platform platform, const char *indexName, const char
 	}	
 }
 
-int sw = 0, sh = 0;
+int sw = 320, sh = 200;
 int bw = 0, bh = 0;
-uint bk = 0;
+int bk = 0;
+
+char bmpNames[16][DGDS_FILENAME_MAX+1];
+char scrNames[16][DGDS_FILENAME_MAX+1];
+int id = 0, sid = 0;
+
 void interpret(Common::Platform platform, const char *rootName) {
 	if (!ttm) return;
 
@@ -787,7 +792,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 		uint16 code;
 		byte count;
 		uint op;
-		uint16 ivals[16];
+		int16 ivals[16];
 
 		Common::String sval;
 
@@ -808,16 +813,16 @@ void interpret(Common::Platform platform, const char *rootName) {
 
 			debugN("\"%s\"", sval.c_str());
 		} else {
-			uint ival;
+			int16 ival;
 
 			for (byte k=0; k<count; k++) {
-				ival = ttm->readUint16LE();
+				ival = ttm->readSint16LE();
 				ivals[k] = ival;
 
 				if (k == 0)
-					debugN("%u", ival);
+					debugN("%d", ival);
 				else
-					debugN(", %u", ival);
+					debugN(", %d", ival);
 			}
 		}
 		debug(" ");
@@ -826,12 +831,51 @@ void interpret(Common::Platform platform, const char *rootName) {
 		byte *binData_;
 		Graphics::Surface *dst;
 		switch (op) {
+			case 0xf010:
+				// LOAD SCR
+				Common::strlcpy(scrNames[sid], sval.c_str(), sizeof(scrNames[sid]));
+				break;
+			case 0xf020:
+				// LOAD BMP
+				Common::strlcpy(bmpNames[id], sval.c_str(), sizeof(bmpNames[id]));
+				break;
 			case 0xf050:
-				// LOAD PALETTE
+				// LOAD PAL
 				explode(platform, rootName, sval.c_str(), false);
+				g_system->getPaletteManager()->setPalette(palette, 0, 256);
+				break;
+
+			case 0x1050:
+				// SELECT BMP
+				id = ivals[0];
+				break;
+
+			case 0x1060:
+				// SELECT SCR
+				sid = ivals[0];
+				break;
+
+			case 0x1030:
+				// SET BMP?
+				explode(platform, rootName, bmpNames[id], false);
+
+				bk = ivals[0];
+
+				bw = _tw[bk]; bh = _th[bk];
+				vgaData_ = _vgaData + (_toffsets[bk]>>1);
+				binData_ = _binData + (_toffsets[bk]>>1);
+
+				for (int i=0; i<bw*bh; i+=2) {
+					_imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
+					_imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
+					_imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
+					_imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+				}
 				break;
 			case 0x1090:
-				// SET PALETTE? UPDATE SCREEN?
+				// SET PAL? UPDATE SCREEN?
+				explode(platform, rootName, scrNames[sid], false);
+
 				vgaData_ = vgaData;
 				binData_ = binData;
 
@@ -841,48 +885,70 @@ void interpret(Common::Platform platform, const char *rootName) {
 					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
 					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
 				}
-
 				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
-				g_system->getPaletteManager()->setPalette(palette, 0, 256);
-				break;
-			case 0xf010:
-				// LOAD SCR
-				explode(platform, rootName, sval.c_str(), false);
-				sw = 320; sh = 200;
+				g_system->updateScreen();
 				break;
 
-			case 0x1030:
-				// SET BMP?
-				bk = ivals[0];
-
-				bw = _tw[bk]; bh = _th[bk];
-				vgaData_ = _vgaData + (_toffsets[bk]>>1);
-				binData_ = _binData + (_toffsets[bk]>>1);
-
-				for (int i=0; i<bw*bh; i+=2) {
-					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
-					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
-					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
-					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
-				}
-				break;
-			case 0xa500: {
-				// DRAW BMP?
-				int tx, ty;
-				tx = ivals[0];
-				ty = ivals[1];
-
-				const Common::Rect destRect(tx, ty, tx+bw, ty+bh);
-
-				dst = g_system->lockScreen();
-
-				Common::Rect clippedDestRect(0, 0, dst->w, dst->h);
+			case 0x4120:
+				// STORE?
+				ivals[0] = 0;
+				ivals[1] = 0;
+				ivals[2] = 320;
+				ivals[3] = 200;
+			case 0x4200: {
+				// STORE AREA?
+				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
+				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
 
 				const int rows = clippedDestRect.height();
 				const int columns = clippedDestRect.width();
 
-				byte *src = imgData;
+				dst = g_system->lockScreen();
+
+				byte *src = imgData + clippedDestRect.top*sw + clippedDestRect.left;
+				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
+				for (int i=0; i<rows; ++i) {
+					for (int j=0; j<columns; ++j) {
+						src[j] = ptr[j];
+					}
+					ptr += dst->pitch;
+					src += sw;
+				}
+				g_system->unlockScreen();
+				}
+				break;
+
+
+			case 0x4110:
+				// FADE TO BLACK?
+				memset(imgData, 0, 320*200);
+				g_system->fillScreen(0);
+
+				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				g_system->updateScreen();
+				break;
+
+			case 0x0ff0:
+				// RESET AREA?
+				g_system->updateScreen();
+				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				break;
+
+			case 0xa500: {
+				// DRAW BMP? BROKEN OFFSCREEN DRAWING.
+				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
+				Common::Rect clippedDestRect(0, 0, sw, sh);
+				clippedDestRect.clip(destRect);
+
+				const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
+
+				const int rows = clippedDestRect.height();
+				const int columns = clippedDestRect.width();
+
+				dst = g_system->lockScreen();
+
+				byte *src = _imgData + croppedBy.y * bw + croppedBy.x;
 				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
 				for (int i=0; i<rows; ++i) {
 					for (int j=0; j<columns; ++j) {
@@ -893,13 +959,10 @@ void interpret(Common::Platform platform, const char *rootName) {
 					src += bw;
 				}
 				g_system->unlockScreen();
-				     }
-				break;
-			case 0xf020:
-				// LOAD BMP
-				explode(platform, rootName, sval.c_str(), false);
+				}
 				break;
 			default:
+				debug("        MEEP!");
 				break;
 		}
 		break;
@@ -912,9 +975,12 @@ Common::Error DgdsEngine::run() {
 
 	initGraphics(320, 200);
 
-	imgData = new byte[320*200];
 	memset(palette, 1, 256*3);
+
+	imgData = new byte[320*200];
+	_imgData = new byte[320*200];
 	memset(imgData, 0, 320*200);
+	memset(_imgData, 0, 320*200);
 	ttm = 0;
 
 	debug("DgdsEngine::init");
@@ -1017,7 +1083,6 @@ Common::Error DgdsEngine::run() {
 			cx += w;
 		}
 */
-		g_system->updateScreen();
 		g_system->delayMillis(50);
 	}
 
