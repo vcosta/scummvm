@@ -533,7 +533,13 @@ static void explode(const char *indexName, bool save) {
 										}
 									}
 								} else if (parent == DGDS_REQ) {
-										stream->hexdump(stream->size());
+									stream->hexdump(stream->size());
+
+									if (chunk.isSection("REQ:")) {
+										stream->skip(stream->size());
+									} else if (chunk.isSection("GAD:")) {
+										stream->skip(stream->size());
+									}
 								}
 							}
 						}
