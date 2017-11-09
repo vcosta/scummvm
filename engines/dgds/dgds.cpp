@@ -88,13 +88,36 @@ void DgdsFileCtx::init(uint32 size) {
 	outSize = 0;
 }
 
+typedef uint32 DGDS_ID;
+
+#define ID_BIN	MKTAG('B','I','N',':')
+#define ID_VGA	MKTAG('V','G','A',':')
+#define ID_INF	MKTAG('I','N','F',':')
+#define ID_TAG	MKTAG('T','A','G',':')
+#define ID_REQ	MKTAG('R','E','Q',':')
+#define ID_RES	MKTAG('R','E','S',':')
+#define ID_SCR	MKTAG('S','C','R',':')
+#define ID_GAD	MKTAG('G','A','D',':')
+#define ID_VER	MKTAG('V','E','R',':')
+#define ID_MTX	MKTAG('M','T','X',':')
+#define ID_SDS	MKTAG('S','D','S',':')
+#define ID_PAG	MKTAG('P','A','G',':')
+#define ID_TT3	MKTAG('T','T','3',':')
+#define ID_SSM	MKTAG('S','S','M',':')
+#define ID_SNG	MKTAG('S','N','G',':')
+#define ID_FNM	MKTAG('F','N','M',':')
+#define ID_DAT	MKTAG('D','A','T',':')
+
 struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
+	DGDS_ID _type;
+
 	uint32 chunkSize;
 	bool container;
 	
 	bool readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name);
 	bool isSection(const Common::String& section);
+	bool isSection(DGDS_ID section);
 
 	bool isPacked(const Common::String& ext);
 	Common::SeekableReadStream* decode(DgdsFileCtx& ctx, Common::SeekableReadStream& file);
@@ -103,6 +126,10 @@ struct DgdsChunk {
 
 bool DgdsChunk::isSection(const Common::String& section) {
        return section.equals(type);
+}
+
+bool DgdsChunk::isSection(DGDS_ID section) {
+       return (section == _type);
 }
 
 bool isFlatfile(Common::Platform platform, const Common::String& ext) {
@@ -120,9 +147,9 @@ bool isFlatfile(Common::Platform platform, const Common::String& ext) {
 			else if (ext.equals("SCR"))
 				flat = true;
 			else if (ext.equals("INS"))
-				flat = true;
+				flat = true;/*
 			else if (ext.equals("SNG"))
-				flat = true;
+				flat = true;*/
 			else if (ext.equals("AMG"))
 				flat = true;
 			break;
@@ -146,18 +173,18 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 	}
 	else if (ext.equals("ADS") || ext.equals("ADL") || ext.equals("ADH")) {
 		if (0) {
-		} else if (strcmp(type, "SCR:") == 0) packed = true;
+		} else if (_type == ID_SCR) packed = true;
 	}
 	else if (ext.equals("BMP")) {
 		if (0) {
-		} else if (strcmp(type, "BIN:") == 0) packed = true;
-		else if (strcmp(type, "VGA:") == 0) packed = true;
+		} else if (_type == ID_BIN) packed = true;
+		else if (_type == ID_VGA) packed = true;
 	}
 	else if (ext.equals("DDS")) {
 		if (strcmp(type, "DDS:") == 0) packed = true;
 	}
 	else if (ext.equals("GDS")) {
-		if (strcmp(type, "SDS:") == 0) packed = true;
+		if (_type == ID_SDS) packed = true;
 	}
 	else if (ext.equals("OVL")) {
 		if (0) {
@@ -184,20 +211,20 @@ bool DgdsChunk::isPacked(const Common::String& ext) {
 	}
 	else if (ext.equals("SCR")) {
 		if (0) {
-		} else if (strcmp(type, "BIN:") == 0) packed = true;
-		else if (strcmp(type, "VGA:") == 0) packed = true;
+		} else if (_type == ID_BIN) packed = true;
+		else if (_type == ID_VGA) packed = true;
 	}
 	else if (ext.equals("SDS")) {
-		if (strcmp(type, "SDS:") == 0) packed = true;
+		if (_type == ID_SDS) packed = true;
 	}
 	else if (ext.equals("SNG")) {
-		if (strcmp(type, "SNG:") == 0) packed = true;
+		if (_type == ID_SNG) packed = true;
 	}
 	else if (ext.equals("TDS")) {
 		if (strcmp(type, "TDS:") == 0) packed = true;
 	}
 	else if (ext.equals("TTM")) {
-		if (strcmp(type, "TT3:") == 0) packed = true;
+		if (_type == ID_TT3) packed = true;
 	}
 	return packed;
 }
@@ -211,10 +238,12 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, c
 
 	if (type[DGDS_TYPENAME_MAX-1] != ':') {
 		type[0] = '\0';
+		_type = 0;
 		debug("bad header in: %s", name);
 		return false;
 	}
 	type[DGDS_TYPENAME_MAX] = '\0';
+	_type = MKTAG(uint32(type[0]), uint32(type[1]), uint32(type[2]), uint32(type[3]));
 
 	chunkSize = file.readUint32LE();
 	if (chunkSize & 0x80000000) {
@@ -342,7 +371,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 		index.read(salt, sizeof(salt));
 		nvolumes = index.readUint16LE();
 
-//		debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
+		debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
 
 		for (uint i=0; i<nvolumes; i++) {
 			char name[DGDS_FILENAME_MAX+1];
@@ -355,7 +384,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			
 			volume.open(name);
 
-//			debug("--\n#%u %s %u", i, name, nfiles);
+			debug("--\n#%u %s %u", i, name, nfiles);
 			uint parent = DGDS_NONE;
 			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
@@ -370,7 +399,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				volume.read(name, sizeof(name));
 				name[DGDS_FILENAME_MAX] = '\0';
 				inSize = volume.readUint32LE();
-//				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), inSize);
+				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), inSize);
 				
 				if (inSize == 0xFFFFFFFF) {
 					continue;
@@ -470,27 +499,26 @@ static void explode(Common::Platform platform, const char *indexName, const char
 								stream->hexdump(stream->size());*/
 
 						if (strcmp(ext, "SDS") == 0) {
-							if (chunk.isSection("SDS:")) {
+							if (chunk.isSection(ID_SDS)) {
 								stream->hexdump(stream->size());
 							}
 						}
 						if (strcmp(ext, "TTM") == 0) {
-							if (chunk.isSection("VER:")) {
+							if (chunk.isSection(ID_VER)) {
 								char version[5];
 
 								stream->read(version, sizeof(version));
 								debug("        %s", version);
-							} else if (chunk.isSection("PAG:")) {
+							} else if (chunk.isSection(ID_PAG)) {
 								uint16 pages;
 								pages = stream->readUint16LE();
 								debug("        %u", pages);
-							} else if (chunk.isSection("TT3:")) {
+							} else if (chunk.isSection(ID_TT3)) {
 								if (strcmp(name, fileName) == 0) {
 								    ttm = stream->readStream(stream->size());
 								} else {
 								    stream->skip(stream->size());
-								}
-								/*
+								}/*
 								while (!stream->eos()) {
 								    uint16 code;
 								    byte count;
@@ -514,20 +542,20 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 									debugN("\"%s\"", sval.c_str());
 								    } else {
-									uint ival;
+									int ival;
 
 									for (byte k=0; k<count; k++) {
-									    ival = stream->readUint16LE();
+									    ival = stream->readSint16LE();
 
 									    if (k == 0)
-										debugN("%u", ival);
+										debugN("%d", ival);
 									    else
-										debugN(", %u", ival);
+										debugN(", %d", ival);
 									}
 								    }
 								    debug(" ");
 								}*/
-							} else if (chunk.isSection("TAG:")) {
+							} else if (chunk.isSection(ID_TAG)) {
 								stream->hexdump(stream->size());
 								uint16 count;
 
@@ -549,7 +577,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							}
 						}
 						if (strcmp(ext, "GDS") == 0) {
-							if (chunk.isSection("INF:")) {
+							if (chunk.isSection(ID_INF)) {
 								char version[7];
 
 								// guess. 
@@ -557,89 +585,96 @@ static void explode(Common::Platform platform, const char *indexName, const char
 								stream->read(version, sizeof(version));
 								debug("        %u, \"%s\"", dummy, version);
 
-							} else if (chunk.isSection("SDS:")) {
+							} else if (chunk.isSection(ID_SDS)) {
 								stream->hexdump(stream->size());
 							}
 						}
 						if (strcmp(ext, "ADS") == 0 || strcmp(ext, "ADL") == 0 || strcmp(ext, "ADH") == 0) {
-							if (chunk.isSection("VER:")) {
+							if (chunk.isSection(ID_VER)) {
 								char version[5];
 
 								stream->read(version, sizeof(version));
 								debug("        %s", version);
-							} else if (chunk.isSection("RES:")) {
+							} else if (chunk.isSection(ID_RES)) {
 								readStrings(stream);
-							} else if (chunk.isSection("SCR:")) {
+							} else if (chunk.isSection(ID_SCR)) {
 								stream->hexdump(stream->size());
-							} else if (chunk.isSection("TAG:")) {
+							} else if (chunk.isSection(ID_TAG)) {
 								readStrings(stream);
 							}
 						}
 
 						if (strcmp(ext, "REQ") == 0) {
 							if (chunk.container) {
-								if (chunk.isSection("TAG:")) {
+								if (chunk.isSection(ID_TAG)) {
 									parent = DGDS_TAG;
-								} else if (chunk.isSection("REQ:")) {
+								} else if (chunk.isSection(ID_REQ)) {
 									parent = DGDS_REQ;
 								}
 							} else  {
 								if (parent == DGDS_TAG) {
-									if (chunk.isSection("REQ:")) {
+									if (chunk.isSection(ID_REQ)) {
 										readStrings(stream);
-									} else if (chunk.isSection("GAD:")) {
+									} else if (chunk.isSection(ID_GAD)) {
 										readStrings(stream);
 									}
 								} else if (parent == DGDS_REQ) {
 									stream->hexdump(stream->size());
 
-									if (chunk.isSection("REQ:")) {
+									if (chunk.isSection(ID_REQ)) {
 										stream->skip(stream->size());
-									} else if (chunk.isSection("GAD:")) {
+									} else if (chunk.isSection(ID_GAD)) {
 										stream->skip(stream->size());
 									}
 								}
 							}
 						}
 
-						/* Macintosh. */
+						/* DOS. */
+						if (strcmp(ext, "SNG") == 0) {
+						    debug("ENTER SNG");
+							if (chunk.isSection(ID_SSM)) {
+							    stream->hexdump(stream->size());
+							    stream->skip(stream->size());
+							} else if (chunk.isSection(ID_SNG)) {
+							    stream->hexdump(stream->size());
+							    stream->skip(stream->size());
+							} else if (chunk.isSection(ID_INF)) {
+							    stream->hexdump(stream->size());
+							    stream->skip(stream->size());
+							}
+						}
+
 						if (strcmp(ext, "SX") == 0) {
-							if (chunk.isSection("INF:")) {
-								uint16 count;
+							if (chunk.isSection(ID_INF)) {
+								uint16 type, count;
 
-								stream->hexdump(2);
-								stream->skip(2);
-
+								type = stream->readUint16LE();
 								count = stream->readUint16LE();
-								debug("        %u:", count);
+
+								debug("        %u [%u]:", type, count);
 								for (uint16 k = 0; k < count; k++) {
 									uint16 idx;
 									idx = stream->readUint16LE();
 									debug("        %2u: %2u", k, idx);
 								}
-							} else if (chunk.isSection("TAG:")) {
+							} else if (chunk.isSection(ID_TAG)) {
 								readStrings(stream);
-							} else if (chunk.isSection("FNM:")) {
+							} else if (chunk.isSection(ID_FNM)) {
 								readStrings(stream);
-							} else if (chunk.isSection("DAT:")) {
+							} else if (chunk.isSection(ID_DAT)) {
 								uint16 idx;
 								idx = stream->readUint16LE();
 								debug("        %2u", idx);
 
 								stream->hexdump(stream->size());
-
-								/* danger will robinson, danger. */
-								uint16 dummy;
-								dummy = stream->readUint16LE();
-
-								uint8 compression;
-								uint32 unpackSize;
-
-								compression = stream->readByte();
-								unpackSize = stream->readUint32LE();
-								debug("        %u, %u, %u", dummy, compression, unpackSize);
-								stream->hexdump(stream->size());
 								stream->skip(stream->size()-stream->pos());
+/*
+								uint unpackSize = 1000;
+								byte *dest = new byte[unpackSize];
+								RleDecompressor dec;
+								dec.decompress(dest,unpackSize,file);
+								ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);*/
 /*
 								uint size;
 								size = stream->size();
@@ -666,7 +701,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 						/* DOS & Macintosh. */
 						if (strcmp(ext, "PAL") == 0) {
 							if (scumm_stricmp(name, fileName) == 0) {
-								if (chunk.isSection("VGA:")) {
+								if (chunk.isSection(ID_VGA)) {
 									stream->read(palette, 256*3);
 
 									for (uint k=0; k<256*3; k+=3) {
@@ -676,28 +711,28 @@ static void explode(Common::Platform platform, const char *indexName, const char
 									}
 								}
 							} else {
-								if (chunk.isSection("VGA:")) {
+								if (chunk.isSection(ID_VGA)) {
 									stream->skip(256*3);
 								}
 							}
 						}
 						if (strcmp(ext, "SCR") == 0) {
 							if (scumm_stricmp(name, fileName) == 0) {
-								if (chunk.isSection("BIN:")) {
+								if (chunk.isSection(ID_BIN)) {
 									stream->read(binData, stream->size());
-								} else if (chunk.isSection("VGA:")) {
+								} else if (chunk.isSection(ID_VGA)) {
 									stream->read(vgaData, stream->size());
 								}
 							} else {
-								if (chunk.isSection("BIN:")) {
+								if (chunk.isSection(ID_BIN)) {
 									stream->skip(stream->size());
-								} else if (chunk.isSection("VGA:")) {
+								} else if (chunk.isSection(ID_VGA)) {
 									stream->skip(stream->size());
 								}
 							}
 						}
 						if (strcmp(ext, "BMP") == 0) {
-							if (chunk.isSection("INF:")) {
+							if (chunk.isSection(ID_INF)) {
 								tcount = stream->readUint16LE();
 								debug("        [%u] =", tcount);
 
@@ -716,7 +751,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 									sz += tw[k]*th[k];
 								}
 								debug("        BIN|VGA: %u bytes", (sz+1)/2);
-							} else if (chunk.isSection("MTX:")) {
+							} else if (chunk.isSection(ID_MTX)) {
 								uint32 mcount;
 
 								mw = stream->readUint16LE();
@@ -736,24 +771,24 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
 							// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
 							if (scumm_stricmp(name, fileName) == 0) {
-								if (chunk.isSection("BIN:")) {
+								if (chunk.isSection(ID_BIN)) {
 									stream->read(_binData, stream->size());
-								} else if (chunk.isSection("VGA:")) {
+								} else if (chunk.isSection(ID_VGA)) {
 									stream->read(_vgaData, stream->size());
-								} else if (chunk.isSection("INF:")) {
+								} else if (chunk.isSection(ID_INF)) {
 									_tcount = tcount;
 									_tw = tw;
 									_th = th;
 									_toffsets = toffsets;
-								} else if (chunk.isSection("MTX:")) {
+								} else if (chunk.isSection(ID_MTX)) {
 									_mtx = mtx;
 									_mw = mw;
 									_mh = mh;
 								}
 							} else {
-								if (chunk.isSection("BIN:")) {
+								if (chunk.isSection(ID_BIN)) {
 									stream->skip(stream->size());
-								} else if (chunk.isSection("VGA:")) {
+								} else if (chunk.isSection(ID_VGA)) {
 									stream->skip(stream->size());
 								}
 							}
@@ -988,12 +1023,14 @@ Common::Error DgdsEngine::run() {
 	// Rise of the Dragon.
 	platform = Common::kPlatformMacintosh;
 	rootName = "volume.rmf"; // volume.rmf, volume.vga
+/*
+	explode(platform, rootName, "TITLE1.TTM", true);
+	return Common::kNoError;
+	explode(platform, rootName, "DYNAMIX.SNG", false);*/
 
 //	explode(platform, rootName, true);
 
 	g_system->fillScreen(0);
-
-//	return Common::kNoError;
 
 /*
 	// grayscale palette.
