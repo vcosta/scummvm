@@ -689,7 +689,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					}
 					break;
 				case EX_SCR:
-					/* currently does not handle the VQT: and OFF: tags
+					/* currently does not handle the VQT: and OFF: chunks
 					 for the compressed pics in the DOS port. */
 					if (set) {
 						if (chunk.isSection(ID_BIN)) {
@@ -706,7 +706,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					}
 					break;
 				case EX_BMP:
-					/* currently does not handle the VQT: and OFF: tags
+					/* currently does not handle the VQT: and OFF: chunks
 					 for the compressed pics in the DOS port. */
 					if (chunk.isSection(ID_INF)) {
 						tcount = stream->readUint16LE();
