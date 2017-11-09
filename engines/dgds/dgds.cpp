@@ -402,51 +402,51 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 	return count;
 }
 
-void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream* input, const char* name, bool set) {
+void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& input, const char* name, bool set) {
 	struct DgdsFileCtx ctx;
 	uint parent = DGDS_NONE;
 
-	ctx.init(input->size());
+	ctx.init(input.size());
 
 	if (isFlatfile(platform, _ex)) {
 		Common::String line;
 		
 		switch (_ex) {
 			case EX_RST:
-				input->hexdump(64);
+				input.hexdump(64);
 				break;
 			case EX_SCR:
 				/* Unknown image format (Amiga). */
-				input->hexdump(64);
+				input.hexdump(64);
 				break;
 			case EX_BMP:
 				/* Unknown image format (Amiga). */
-				input->hexdump(64);
+				input.hexdump(64);
 				break;
 			case EX_INS:
 				/* IFF-8SVX sound sample (Amiga). */
-				input->hexdump(16);
+				input.hexdump(16);
 				break;
 			case EX_SNG:
 				/* IFF-SMUS music (Amiga). */
-				input->hexdump(16);
+				input.hexdump(16);
 				break;
 			case EX_AMG:
 				/* (Amiga). */
-				line = input->readLine();
-				while (!input->eos() && !line.empty()) {
+				line = input.readLine();
+				while (!input.eos() && !line.empty()) {
 					debug("    \"%s\"", line.c_str());
-					line = input->readLine();
+					line = input.readLine();
 				}
 				break;
 			case EX_VIN:
 				/* (Macintosh). */
-				line = input->readLine();
-				while (!input->eos() && !line.empty()) {
+				line = input.readLine();
+				while (!input.eos() && !line.empty()) {
 					debug("    \"%s\"", line.c_str());
-					line = input->readLine();
+					line = input.readLine();
 				}
-				input->hexdump(input->size());
+				input.hexdump(input.size());
 				break;
 			default:
 				break;
@@ -460,11 +460,11 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 		uint16 mw, mh;
 		
 		struct DgdsChunk chunk;
-		while (chunk.readHeader(ctx, *input, name)) {
+		while (chunk.readHeader(ctx, input, name)) {
 			Common::SeekableReadStream *stream;
 			
 			bool packed = chunk.isPacked(_ex);
-			stream = packed ? chunk.decode(ctx, *input) : chunk.copy(ctx, *input);
+			stream = packed ? chunk.decode(ctx, input) : chunk.copy(ctx, input);
 			if (stream) ctx.outSize += stream->size();
 			
 			/*
@@ -777,7 +777,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 		}
 	}
 
-	debug("  [%u:%u] --", input->pos(), ctx.outSize);
+	debug("  [%u:%u] --", input.pos(), ctx.outSize);
 }
 
 static void explode(Common::Platform platform, const char *indexName, const char *fileName) {
@@ -856,7 +856,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					_ex = 0;
 				}
 
-				parseFile(platform, _ex, file, name, fileName);
+				parseFile(platform, _ex, *file, name, fileName);
 
 				if (fileName) {
 				    volume.close();
