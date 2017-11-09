@@ -31,6 +31,8 @@
 #include "common/system.h"
 #include "common/platform.h"
 
+#include "common/iff_container.h"
+
 #include "graphics/palette.h"
 #include "graphics/surface.h"
 
@@ -415,10 +417,19 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 			case EX_RST:
 				input.hexdump(64);
 				break;
-			case EX_SCR:
+			case EX_SCR: {
 				/* Unknown image format (Amiga). */
-				input.hexdump(64);
-				break;
+				char tag[5];
+				input.read(tag, sizeof(tag));		/* maybe */
+
+				uint16 height, numPlanes;
+
+				height = input.readUint16LE();		/* always 200 (320x200 screen). */
+				numPlanes = input.readUint16LE();	/* always 5 (32 color). */
+				debug("    \"%s\" height:%u bpp:%u", tag, height, numPlanes);
+				input.hexdump(input.size());
+				}
+			        break;
 			case EX_BMP:
 				/* Unknown image format (Amiga). */
 				input.hexdump(64);
@@ -490,48 +501,47 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						if (set) {
 							ttm = stream->readStream(stream->size());
 						} else {
-							stream->skip(stream->size());
-						}/*
-						 while (!stream->eos()) {
-						 uint16 code;
-						 byte count;
-						 uint op;
-						 
-						 code = stream->readUint16LE();
-						 count = code & 0x000F;
-						 op = code & 0xFFF0;
-						 
-						 debugN("\tOP: 0x%4.4x %2u ", op, count);
-						 if (count == 0x0F) {
-						 Common::String sval;
-						 byte ch[2];
-						 
-						 do {
-						 ch[0] = stream->readByte();
-						 ch[1] = stream->readByte();
-						 sval += ch[0];
-						 sval += ch[1];
-						 } while (ch[0] != 0 && ch[1] != 0);
-						 
-						 debugN("\"%s\"", sval.c_str());
-						 } else {
-						 int ival;
-						 
-						 for (byte k=0; k<count; k++) {
-						 ival = stream->readSint16LE();
-						 
-						 if (k == 0)
-						 debugN("%d", ival);
-						 else
-						 debugN(", %d", ival);
-						 }
-						 }
-						 debug(" ");
-						 }*/
+							while (!stream->eos()) {
+								uint16 code;
+								byte count;
+								uint op;
+
+								code = stream->readUint16LE();
+								count = code & 0x000F;
+								op = code & 0xFFF0;
+
+								debugN("\tOP: 0x%4.4x %2u ", op, count);
+								if (count == 0x0F) {
+									Common::String sval;
+									byte ch[2];
+
+									do {
+										ch[0] = stream->readByte();
+										ch[1] = stream->readByte();
+										sval += ch[0];
+										sval += ch[1];
+									} while (ch[0] != 0 && ch[1] != 0);
+
+									debugN("\"%s\"", sval.c_str());
+								} else {
+									int ival;
+
+									for (byte k=0; k<count; k++) {
+										ival = stream->readSint16LE();
+
+										if (k == 0)
+											debugN("%d", ival);
+										else
+											debugN(", %d", ival);
+									}
+								}
+								debug(" ");
+							}
+						}
 					} else if (chunk.isSection(ID_TAG)) {
 						stream->hexdump(stream->size());
 						uint16 count;
-						
+
 						count = stream->readUint16LE();
 						debug("        %u", count);
 						// something fishy here. the first two entries sometimes are an empty string or non-text junk.
@@ -541,7 +551,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 							byte ch;
 							uint16 idx;
 							Common::String str;
-							
+
 							idx = stream->readUint16LE();
 							while ((ch = stream->readByte()))
 								str += ch;
@@ -1083,21 +1093,30 @@ Common::Error DgdsEngine::run() {
 	rootName = "volume.rmf"; // volume.rmf, volume.vga
 /*
 	explode(platform, rootName, "TITLE1.TTM");
-	return Common::kNoError;
 	explode(platform, rootName, "DYNAMIX.SNG");*/
 
 //	explode(platform, rootName, 0);
+	//return Common::kNoError;
 
 	g_system->fillScreen(0);
 
-/*
 	// grayscale palette.
+/*
 	for (uint i=0; i<256; i++) {
 	    palette[i*3+0] = 255-i;
 	    palette[i*3+1] = 255-i;
 	    palette[i*3+2] = 255-i;
-	}*/
-
+	}
+*/
+/*
+	// Amiga grayscale palette.
+	for (uint i=0; i<32; i++) {
+	    palette[i*3+0] = 255-i*8;
+	    palette[i*3+1] = 255-i*8;
+	    palette[i*3+2] = 255-i*8;
+	}
+	g_system->getPaletteManager()->setPalette(palette, 0, 256);
+*/
 	Common::EventManager *eventMan = g_system->getEventManager();
 	Common::Event ev;
 
