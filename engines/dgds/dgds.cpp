@@ -402,6 +402,384 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 	return count;
 }
 
+void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream* input, const char* name, bool set) {
+	struct DgdsFileCtx ctx;
+	uint parent = DGDS_NONE;
+
+	ctx.init(input->size());
+
+	if (isFlatfile(platform, _ex)) {
+		Common::String line;
+		
+		switch (_ex) {
+			case EX_RST:
+				input->hexdump(64);
+				break;
+			case EX_SCR:
+				/* Unknown image format (Amiga). */
+				input->hexdump(64);
+				break;
+			case EX_BMP:
+				/* Unknown image format (Amiga). */
+				input->hexdump(64);
+				break;
+			case EX_INS:
+				/* IFF-8SVX sound sample (Amiga). */
+				input->hexdump(16);
+				break;
+			case EX_SNG:
+				/* IFF-SMUS music (Amiga). */
+				input->hexdump(16);
+				break;
+			case EX_AMG:
+				/* (Amiga). */
+				line = input->readLine();
+				while (!input->eos() && !line.empty()) {
+					debug("    \"%s\"", line.c_str());
+					line = input->readLine();
+				}
+				break;
+			case EX_VIN:
+				/* (Macintosh). */
+				line = input->readLine();
+				while (!input->eos() && !line.empty()) {
+					debug("    \"%s\"", line.c_str());
+					line = input->readLine();
+				}
+				input->hexdump(input->size());
+				break;
+			default:
+				break;
+		}
+	} else {
+		uint16 tcount;
+		uint16 *tw, *th;
+		uint32 *toffsets;
+		
+		uint16 *mtx;
+		uint16 mw, mh;
+		
+		struct DgdsChunk chunk;
+		while (chunk.readHeader(ctx, *input, name)) {
+			Common::SeekableReadStream *stream;
+			
+			bool packed = chunk.isPacked(_ex);
+			stream = packed ? chunk.decode(ctx, *input) : chunk.copy(ctx, *input);
+			if (stream) ctx.outSize += stream->size();
+			
+			/*
+			 debug(">> %u:%u", stream->pos(), file->pos());
+			 stream->hexdump(stream->size());*/
+			switch (_ex) {
+				case EX_SDS:
+					if (chunk.isSection(ID_SDS)) {
+						stream->hexdump(stream->size());
+					}
+					break;
+				case EX_TTM:
+					if (chunk.isSection(ID_VER)) {
+						char version[5];
+						
+						stream->read(version, sizeof(version));
+						debug("        %s", version);
+					} else if (chunk.isSection(ID_PAG)) {
+						uint16 pages;
+						pages = stream->readUint16LE();
+						debug("        %u", pages);
+					} else if (chunk.isSection(ID_TT3)) {
+						if (set) {
+							ttm = stream->readStream(stream->size());
+						} else {
+							stream->skip(stream->size());
+						}/*
+						 while (!stream->eos()) {
+						 uint16 code;
+						 byte count;
+						 uint op;
+						 
+						 code = stream->readUint16LE();
+						 count = code & 0x000F;
+						 op = code & 0xFFF0;
+						 
+						 debugN("\tOP: 0x%4.4x %2u ", op, count);
+						 if (count == 0x0F) {
+						 Common::String sval;
+						 byte ch[2];
+						 
+						 do {
+						 ch[0] = stream->readByte();
+						 ch[1] = stream->readByte();
+						 sval += ch[0];
+						 sval += ch[1];
+						 } while (ch[0] != 0 && ch[1] != 0);
+						 
+						 debugN("\"%s\"", sval.c_str());
+						 } else {
+						 int ival;
+						 
+						 for (byte k=0; k<count; k++) {
+						 ival = stream->readSint16LE();
+						 
+						 if (k == 0)
+						 debugN("%d", ival);
+						 else
+						 debugN(", %d", ival);
+						 }
+						 }
+						 debug(" ");
+						 }*/
+					} else if (chunk.isSection(ID_TAG)) {
+						stream->hexdump(stream->size());
+						uint16 count;
+						
+						count = stream->readUint16LE();
+						debug("        %u", count);
+						// something fishy here. the first two entries sometimes are an empty string or non-text junk.
+						// most of the time entries have text (sometimes with garbled characters).
+						// this parser is likely not ok. but the NUL count seems to be ok.
+						for (uint16 k=0; k<count; k++) {
+							byte ch;
+							uint16 idx;
+							Common::String str;
+							
+							idx = stream->readUint16LE();
+							while ((ch = stream->readByte()))
+								str += ch;
+							debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
+						}
+					}
+					break;
+				case EX_GDS:
+					if (chunk.isSection(ID_INF)) {
+						char version[7];
+						
+						// guess. 
+						uint dummy = stream->readUint32LE();
+						stream->read(version, sizeof(version));
+						debug("        %u, \"%s\"", dummy, version);
+						
+					} else if (chunk.isSection(ID_SDS)) {
+						stream->hexdump(stream->size());
+					}
+					break;
+				case EX_ADS:
+				case EX_ADL:
+				case EX_ADH:
+					if (chunk.isSection(ID_VER)) {
+						char version[5];
+						
+						stream->read(version, sizeof(version));
+						debug("        %s", version);
+					} else if (chunk.isSection(ID_RES)) {
+						readStrings(stream);
+					} else if (chunk.isSection(ID_SCR)) {
+						stream->hexdump(stream->size());
+					} else if (chunk.isSection(ID_TAG)) {
+						readStrings(stream);
+					}
+					break;
+				case EX_REQ:
+					if (chunk.container) {
+						if (chunk.isSection(ID_TAG)) {
+							parent = DGDS_TAG;
+						} else if (chunk.isSection(ID_REQ)) {
+							parent = DGDS_REQ;
+						}
+					} else  {
+						if (parent == DGDS_TAG) {
+							if (chunk.isSection(ID_REQ)) {
+								readStrings(stream);
+							} else if (chunk.isSection(ID_GAD)) {
+								readStrings(stream);
+							}
+						} else if (parent == DGDS_REQ) {
+							stream->hexdump(stream->size());
+							
+							if (chunk.isSection(ID_REQ)) {
+								stream->skip(stream->size());
+							} else if (chunk.isSection(ID_GAD)) {
+								stream->skip(stream->size());
+							}
+						}
+					}
+					break;
+				case EX_SNG:
+					/* DOS. */
+					debug("ENTER SNG");
+					if (chunk.isSection(ID_SSM)) {
+						stream->hexdump(stream->size());
+						stream->skip(stream->size());
+					} else if (chunk.isSection(ID_SNG)) {
+						stream->hexdump(stream->size());
+						stream->skip(stream->size());
+					} else if (chunk.isSection(ID_INF)) {
+						stream->hexdump(stream->size());
+						stream->skip(stream->size());
+					}
+					break;
+				case EX_SX:
+					/* Macintosh. */
+					if (chunk.isSection(ID_INF)) {
+						uint16 type, count;
+						
+						type = stream->readUint16LE();
+						count = stream->readUint16LE();
+						
+						debug("        %u [%u]:", type, count);
+						for (uint16 k = 0; k < count; k++) {
+							uint16 idx;
+							idx = stream->readUint16LE();
+							debug("        %2u: %2u", k, idx);
+						}
+					} else if (chunk.isSection(ID_TAG)) {
+						readStrings(stream);
+					} else if (chunk.isSection(ID_FNM)) {
+						readStrings(stream);
+					} else if (chunk.isSection(ID_DAT)) {
+						uint16 idx;
+						idx = stream->readUint16LE();
+						debug("        %2u", idx);
+						
+						stream->hexdump(stream->size());
+						stream->skip(stream->size()-stream->pos());
+						/*
+						 uint unpackSize = 1000;
+						 byte *dest = new byte[unpackSize];
+						 RleDecompressor dec;
+						 dec.decompress(dest,unpackSize,file);
+						 ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);*/
+						/*
+						 uint size;
+						 size = stream->size();
+						 
+						 byte *dest = new byte[unpackSize];
+						 
+						 Common::DumpFile out;
+						 char *buf;
+						 
+						 buf = new char[size];
+						 
+						 if (!out.open(name)) {
+						 debug("Couldn't write to %s", name);
+						 } else {
+						 stream->read(buf, size);
+						 out.write(buf, size);
+						 out.close();
+						 }
+						 delete [] buf;
+						 */
+					}
+					break;
+				case EX_PAL:
+					/* DOS & Macintosh. */
+					if (set) {
+						if (chunk.isSection(ID_VGA)) {
+							stream->read(palette, 256*3);
+							
+							for (uint k=0; k<256*3; k+=3) {
+								palette[k+0] <<= 2;
+								palette[k+1] <<= 2;
+								palette[k+2] <<= 2;
+							}
+						}
+					} else {
+						if (chunk.isSection(ID_VGA)) {
+							stream->skip(256*3);
+						}
+					}
+					break;
+				case EX_SCR:
+					/* currently does not handle the VQT: and OFF: tags
+					 for the compressed pics in the DOS port. */
+					if (set) {
+						if (chunk.isSection(ID_BIN)) {
+							stream->read(binData, stream->size());
+						} else if (chunk.isSection(ID_VGA)) {
+							stream->read(vgaData, stream->size());
+						}
+					} else {
+						if (chunk.isSection(ID_BIN)) {
+							stream->skip(stream->size());
+						} else if (chunk.isSection(ID_VGA)) {
+							stream->skip(stream->size());
+						}
+					}
+					break;
+				case EX_BMP:
+					/* currently does not handle the VQT: and OFF: tags
+					 for the compressed pics in the DOS port. */
+					if (chunk.isSection(ID_INF)) {
+						tcount = stream->readUint16LE();
+						debug("        [%u] =", tcount);
+						
+						tw = new uint16[tcount];
+						th = new uint16[tcount];
+						for (uint16 k=0; k<tcount; k++)
+							tw[k] = stream->readUint16LE();
+						for (uint16 k=0; k<tcount; k++)
+							th[k] = stream->readUint16LE();
+						
+						uint32 sz = 0;
+						toffsets = new uint32[tcount];
+						for (uint16 k=0; k<tcount; k++) {
+							debug("        %ux%u @%u", tw[k], th[k], sz);
+							toffsets[k] = sz;
+							sz += tw[k]*th[k];
+						}
+						debug("        BIN|VGA: %u bytes", (sz+1)/2);
+					} else if (chunk.isSection(ID_MTX)) {
+						uint32 mcount;
+						
+						mw = stream->readUint16LE();
+						mh = stream->readUint16LE();
+						mcount = uint32(mw)*mh;
+						debug("        %ux%u: %u bytes", mw, mh, mcount*2);
+						
+						mtx = new uint16[mcount];
+						for (uint32 k=0; k<mcount; k++) {
+							uint16 tile;
+							tile = stream->readUint16LE();
+							mtx[k] = tile;
+							//								debug("        %u", tile);
+						}
+					}
+					
+					// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
+					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
+					if (set) {
+						if (chunk.isSection(ID_BIN)) {
+							stream->read(_binData, stream->size());
+						} else if (chunk.isSection(ID_VGA)) {
+							stream->read(_vgaData, stream->size());
+						} else if (chunk.isSection(ID_INF)) {
+							_tcount = tcount;
+							_tw = tw;
+							_th = th;
+							_toffsets = toffsets;
+						} else if (chunk.isSection(ID_MTX)) {
+							_mtx = mtx;
+							_mw = mw;
+							_mh = mh;
+						}
+					} else {
+						if (chunk.isSection(ID_BIN)) {
+							stream->skip(stream->size());
+						} else if (chunk.isSection(ID_VGA)) {
+							stream->skip(stream->size());
+						}
+					}
+					break;
+				default:
+					break;
+			}
+			
+			delete stream;
+		}
+	}
+
+	debug("  [%u:%u] --", input->pos(), ctx.outSize);
+}
+
 static void explode(Common::Platform platform, const char *indexName, const char *fileName) {
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
@@ -427,10 +805,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			volume.open(name);
 
 			debug("--\n#%u %s %u", i, name, nfiles);
-			uint parent = DGDS_NONE;
 			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
-				struct DgdsFileCtx ctx;
 				uint32 inSize;
 
 				hash = index.readUint32LE();
@@ -452,7 +828,6 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					continue;
 				}
 
-				ctx.init(inSize);
 				file = new Common::SeekableSubReadStream(&volume, offset+13+4, offset+13+4+inSize, DisposeAfterUse::NO);
 
 				if (!fileName) {
@@ -481,376 +856,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					_ex = 0;
 				}
 
-				if (isFlatfile(platform, _ex)) {
-					Common::String line;
-
-					switch (_ex) {
-					case EX_RST:
-						file->hexdump(64);
-						break;
-					case EX_SCR:
-						/* Unknown image format (Amiga). */
-						file->hexdump(64);
-						break;
-					case EX_BMP:
-						/* Unknown image format (Amiga). */
-						file->hexdump(64);
-						break;
-					case EX_INS:
-						/* IFF-8SVX sound sample (Amiga). */
-						file->hexdump(16);
-						break;
-					case EX_SNG:
-						/* IFF-SMUS music (Amiga). */
-						file->hexdump(16);
-						break;
-					case EX_AMG:
-						/* (Amiga). */
-						line = file->readLine();
-						while (!file->eos() && !line.empty()) {
-							debug("    \"%s\"", line.c_str());
-							line = file->readLine();
-						}
-						break;
-					case EX_VIN:
-						/* (Macintosh). */
-						line = file->readLine();
-						while (!file->eos() && !line.empty()) {
-							debug("    \"%s\"", line.c_str());
-							line = file->readLine();
-						}
-						file->hexdump(file->size());
-						break;
-					default:
-						break;
-					}
-				} else {
-					uint16 tcount;
-					uint16 *tw, *th;
-					uint32 *toffsets;
-
-					uint16 *mtx;
-					uint16 mw, mh;
-
-					struct DgdsChunk chunk;
-					while (chunk.readHeader(ctx, *file, name)) {
-						Common::SeekableReadStream *stream;
-
-						bool packed = chunk.isPacked(_ex);
-						stream = packed ? chunk.decode(ctx, *file) : chunk.copy(ctx, *file);
-						if (stream) ctx.outSize += stream->size();
-
-						/*
-								debug(">> %u:%u", stream->pos(), file->pos());
-								stream->hexdump(stream->size());*/
-						switch (_ex) {
-						case EX_SDS:
-							if (chunk.isSection(ID_SDS)) {
-								stream->hexdump(stream->size());
-							}
-							break;
-						case EX_TTM:
-							if (chunk.isSection(ID_VER)) {
-								char version[5];
-
-								stream->read(version, sizeof(version));
-								debug("        %s", version);
-							} else if (chunk.isSection(ID_PAG)) {
-								uint16 pages;
-								pages = stream->readUint16LE();
-								debug("        %u", pages);
-							} else if (chunk.isSection(ID_TT3)) {
-								if (fileName) {
-								    ttm = stream->readStream(stream->size());
-								} else {
-								    stream->skip(stream->size());
-								}/*
-								while (!stream->eos()) {
-								    uint16 code;
-								    byte count;
-								    uint op;
-
-								    code = stream->readUint16LE();
-								    count = code & 0x000F;
-								    op = code & 0xFFF0;
-
-								    debugN("\tOP: 0x%4.4x %2u ", op, count);
-								    if (count == 0x0F) {
-									Common::String sval;
-									byte ch[2];
-
-									do {
-									    ch[0] = stream->readByte();
-									    ch[1] = stream->readByte();
-									    sval += ch[0];
-									    sval += ch[1];
-									} while (ch[0] != 0 && ch[1] != 0);
-
-									debugN("\"%s\"", sval.c_str());
-								    } else {
-									int ival;
-
-									for (byte k=0; k<count; k++) {
-									    ival = stream->readSint16LE();
-
-									    if (k == 0)
-										debugN("%d", ival);
-									    else
-										debugN(", %d", ival);
-									}
-								    }
-								    debug(" ");
-								}*/
-							} else if (chunk.isSection(ID_TAG)) {
-								stream->hexdump(stream->size());
-								uint16 count;
-
-								count = stream->readUint16LE();
-								debug("        %u", count);
-								// something fishy here. the first two entries sometimes are an empty string or non-text junk.
-								// most of the time entries have text (sometimes with garbled characters).
-								// this parser is likely not ok. but the NUL count seems to be ok.
-								for (uint16 k=0; k<count; k++) {
-									byte ch;
-									uint16 idx;
-									Common::String str;
-
-									idx = stream->readUint16LE();
-									while ((ch = stream->readByte()))
-										str += ch;
-									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
-								}
-							}
-							break;
-						case EX_GDS:
-							if (chunk.isSection(ID_INF)) {
-								char version[7];
-
-								// guess. 
-								uint dummy = stream->readUint32LE();
-								stream->read(version, sizeof(version));
-								debug("        %u, \"%s\"", dummy, version);
-
-							} else if (chunk.isSection(ID_SDS)) {
-								stream->hexdump(stream->size());
-							}
-							break;
-						case EX_ADS:
-						case EX_ADL:
-						case EX_ADH:
-							if (chunk.isSection(ID_VER)) {
-								char version[5];
-
-								stream->read(version, sizeof(version));
-								debug("        %s", version);
-							} else if (chunk.isSection(ID_RES)) {
-								readStrings(stream);
-							} else if (chunk.isSection(ID_SCR)) {
-								stream->hexdump(stream->size());
-							} else if (chunk.isSection(ID_TAG)) {
-								readStrings(stream);
-							}
-							break;
-						case EX_REQ:
-							if (chunk.container) {
-								if (chunk.isSection(ID_TAG)) {
-									parent = DGDS_TAG;
-								} else if (chunk.isSection(ID_REQ)) {
-									parent = DGDS_REQ;
-								}
-							} else  {
-								if (parent == DGDS_TAG) {
-									if (chunk.isSection(ID_REQ)) {
-										readStrings(stream);
-									} else if (chunk.isSection(ID_GAD)) {
-										readStrings(stream);
-									}
-								} else if (parent == DGDS_REQ) {
-									stream->hexdump(stream->size());
-
-									if (chunk.isSection(ID_REQ)) {
-										stream->skip(stream->size());
-									} else if (chunk.isSection(ID_GAD)) {
-										stream->skip(stream->size());
-									}
-								}
-							}
-							break;
-						case EX_SNG:
-							/* DOS. */
-							debug("ENTER SNG");
-							if (chunk.isSection(ID_SSM)) {
-							    stream->hexdump(stream->size());
-							    stream->skip(stream->size());
-							} else if (chunk.isSection(ID_SNG)) {
-							    stream->hexdump(stream->size());
-							    stream->skip(stream->size());
-							} else if (chunk.isSection(ID_INF)) {
-							    stream->hexdump(stream->size());
-							    stream->skip(stream->size());
-							}
-							break;
-						case EX_SX:
-							/* Macintosh. */
-							if (chunk.isSection(ID_INF)) {
-								uint16 type, count;
-
-								type = stream->readUint16LE();
-								count = stream->readUint16LE();
-
-								debug("        %u [%u]:", type, count);
-								for (uint16 k = 0; k < count; k++) {
-									uint16 idx;
-									idx = stream->readUint16LE();
-									debug("        %2u: %2u", k, idx);
-								}
-							} else if (chunk.isSection(ID_TAG)) {
-								readStrings(stream);
-							} else if (chunk.isSection(ID_FNM)) {
-								readStrings(stream);
-							} else if (chunk.isSection(ID_DAT)) {
-								uint16 idx;
-								idx = stream->readUint16LE();
-								debug("        %2u", idx);
-
-								stream->hexdump(stream->size());
-								stream->skip(stream->size()-stream->pos());
-/*
-								uint unpackSize = 1000;
-								byte *dest = new byte[unpackSize];
-								RleDecompressor dec;
-								dec.decompress(dest,unpackSize,file);
-								ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);*/
-/*
-								uint size;
-								size = stream->size();
-
-								byte *dest = new byte[unpackSize];
-
-								Common::DumpFile out;
-								char *buf;
-
-								buf = new char[size];
-
-								if (!out.open(name)) {
-									debug("Couldn't write to %s", name);
-								} else {
-									stream->read(buf, size);
-									out.write(buf, size);
-									out.close();
-								}
-								delete [] buf;
-								*/
-							}
-							break;
-						case EX_PAL:
-							/* DOS & Macintosh. */
-							if (fileName) {
-								if (chunk.isSection(ID_VGA)) {
-									stream->read(palette, 256*3);
-
-									for (uint k=0; k<256*3; k+=3) {
-										palette[k+0] <<= 2;
-										palette[k+1] <<= 2;
-										palette[k+2] <<= 2;
-									}
-								}
-							} else {
-								if (chunk.isSection(ID_VGA)) {
-									stream->skip(256*3);
-								}
-							}
-							break;
-						case EX_SCR:
-							/* currently does not handle the VQT: and OFF: tags
-							for the compressed pics in the DOS port. */
-							if (fileName) {
-								if (chunk.isSection(ID_BIN)) {
-									stream->read(binData, stream->size());
-								} else if (chunk.isSection(ID_VGA)) {
-									stream->read(vgaData, stream->size());
-								}
-							} else {
-								if (chunk.isSection(ID_BIN)) {
-									stream->skip(stream->size());
-								} else if (chunk.isSection(ID_VGA)) {
-									stream->skip(stream->size());
-								}
-							}
-							break;
-						case EX_BMP:
-							/* currently does not handle the VQT: and OFF: tags
-							for the compressed pics in the DOS port. */
-							if (chunk.isSection(ID_INF)) {
-								tcount = stream->readUint16LE();
-								debug("        [%u] =", tcount);
-
-								tw = new uint16[tcount];
-								th = new uint16[tcount];
-								for (uint16 k=0; k<tcount; k++)
-									tw[k] = stream->readUint16LE();
-								for (uint16 k=0; k<tcount; k++)
-									th[k] = stream->readUint16LE();
-
-								uint32 sz = 0;
-								toffsets = new uint32[tcount];
-								for (uint16 k=0; k<tcount; k++) {
-									debug("        %ux%u @%u", tw[k], th[k], sz);
-									toffsets[k] = sz;
-									sz += tw[k]*th[k];
-								}
-								debug("        BIN|VGA: %u bytes", (sz+1)/2);
-							} else if (chunk.isSection(ID_MTX)) {
-								uint32 mcount;
-
-								mw = stream->readUint16LE();
-								mh = stream->readUint16LE();
-								mcount = uint32(mw)*mh;
-								debug("        %ux%u: %u bytes", mw, mh, mcount*2);
-
-								mtx = new uint16[mcount];
-								for (uint32 k=0; k<mcount; k++) {
-									uint16 tile;
-									tile = stream->readUint16LE();
-									mtx[k] = tile;
-									//								debug("        %u", tile);
-								}
-							}
-
-							// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
-							// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-							if (fileName) {
-								if (chunk.isSection(ID_BIN)) {
-									stream->read(_binData, stream->size());
-								} else if (chunk.isSection(ID_VGA)) {
-									stream->read(_vgaData, stream->size());
-								} else if (chunk.isSection(ID_INF)) {
-									_tcount = tcount;
-									_tw = tw;
-									_th = th;
-									_toffsets = toffsets;
-								} else if (chunk.isSection(ID_MTX)) {
-									_mtx = mtx;
-									_mw = mw;
-									_mh = mh;
-								}
-							} else {
-								if (chunk.isSection(ID_BIN)) {
-									stream->skip(stream->size());
-								} else if (chunk.isSection(ID_VGA)) {
-									stream->skip(stream->size());
-								}
-							}
-							break;
-						default:
-							break;
-						}
-
-						delete stream;
-					}
-				}
-
-				debug("  [%u:%u] --", file->pos(), ctx.outSize);
+				parseFile(platform, _ex, file, name, fileName);
 
 				if (fileName) {
 				    volume.close();
