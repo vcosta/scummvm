@@ -92,22 +92,22 @@ typedef uint32 DGDS_ID;
 typedef uint32 DGDS_EX;
 
 #define ID_BIN	MKTAG('B','I','N',':')
-#define ID_VGA	MKTAG('V','G','A',':')
+#define ID_DAT	MKTAG('D','A','T',':')
+#define ID_FNM	MKTAG('F','N','M',':')
+#define ID_GAD	MKTAG('G','A','D',':')
 #define ID_INF	MKTAG('I','N','F',':')
-#define ID_TAG	MKTAG('T','A','G',':')
+#define ID_MTX	MKTAG('M','T','X',':')
+#define ID_PAG	MKTAG('P','A','G',':')
 #define ID_REQ	MKTAG('R','E','Q',':')
 #define ID_RES	MKTAG('R','E','S',':')
 #define ID_SCR	MKTAG('S','C','R',':')
-#define ID_GAD	MKTAG('G','A','D',':')
-#define ID_VER	MKTAG('V','E','R',':')
-#define ID_MTX	MKTAG('M','T','X',':')
 #define ID_SDS	MKTAG('S','D','S',':')
-#define ID_PAG	MKTAG('P','A','G',':')
-#define ID_TT3	MKTAG('T','T','3',':')
-#define ID_SSM	MKTAG('S','S','M',':')
 #define ID_SNG	MKTAG('S','N','G',':')
-#define ID_FNM	MKTAG('F','N','M',':')
-#define ID_DAT	MKTAG('D','A','T',':')
+#define ID_SSM	MKTAG('S','S','M',':')
+#define ID_TAG	MKTAG('T','A','G',':')
+#define ID_TT3	MKTAG('T','T','3',':')
+#define ID_VER	MKTAG('V','E','R',':')
+#define ID_VGA	MKTAG('V','G','A',':')
 
 #define	EX_ADH	MKTAG('.','A','D','H')
 #define	EX_ADL	MKTAG('.','A','D','L')
@@ -125,7 +125,6 @@ typedef uint32 DGDS_EX;
 #define	EX_SX	MKTAG('.','S','X', 0 )
 #define	EX_TTM	MKTAG('.','T','T','M')
 #define	EX_VIN	MKTAG('.','V','I','N')
-
 
 struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
@@ -151,34 +150,40 @@ bool DgdsChunk::isSection(DGDS_ID section) {
        return (section == _type);
 }
 
-bool isFlatfile(Common::Platform platform, const Common::String& ext) {
+bool isFlatfile(Common::Platform platform, DGDS_EX _ex) {
 	bool flat = false;
 
-	if (0) {}
-	else if (ext.equals("RST"))
-		flat = true;
+	switch (_ex) {
+		case EX_RST:
+			flat = true;
+			break;
+		default:
+			break;
+	}
 
 	switch (platform) {
 		case Common::kPlatformAmiga:
-			if (0) {}
-			else if (ext.equals("BMP"))
-				flat = true;
-			else if (ext.equals("SCR"))
-				flat = true;
-			else if (ext.equals("INS"))
-				flat = true;/*
-			else if (ext.equals("SNG"))
-				flat = true;*/
-			else if (ext.equals("AMG"))
-				flat = true;
-			break;
+			switch (_ex) {
+				case EX_BMP:
+				case EX_SCR:
+				case EX_INS:
+//				case EX_SNG:
+				case EX_AMG:
+					flat = true;
+					break;
+				default:
+					break;
+			}
 
 		case Common::kPlatformMacintosh:
 			/* SOUNDS.SX is particularly large. */
-			if (0) {}
-			else if (ext.equals("VIN"))
-				flat = true;
-			break;
+			switch (_ex) {
+				case EX_VIN:
+					flat = true;
+					break;
+				default:
+					break;
+			}
 		default:
 			break;
 	}
@@ -424,7 +429,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					continue;
 				}
 
-				if (fileName && scumm_stricmp(name, fileName) != 0) {
+				if (fileName && scumm_stricmp(name, fileName)) {
 					volume.seek(offset+13+4+inSize);
 					continue;
 				}
@@ -463,9 +468,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					ext++;
 				}
 
-				
-
-				if (isFlatfile(platform, ext)) {
+				if (isFlatfile(platform, _ex)) {
 					Common::String line;
 
 					switch (_ex) {
