@@ -35,6 +35,8 @@
 
 #include "graphics/palette.h"
 #include "graphics/surface.h"
+#include "graphics/font.h"
+#include "graphics/fontman.h"
 
 #include "engines/advancedDetector.h"
 #include "engines/util.h"
@@ -962,6 +964,8 @@ void interpret(Common::Platform platform, const char *rootName) {
 		op = code & 0xFFF0;
 
 		debugN("\tOP: 0x%4.4x %2u ", op, count);
+		Common::String txt;
+		txt += Common::String::format("OP: 0x%4.4x %2u ", op, count);
 		if (count == 0x0F) {
 			byte ch[2];
 
@@ -973,6 +977,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 			} while (ch[0] != 0 && ch[1] != 0);
 
 			debugN("\"%s\"", sval.c_str());
+			txt += "\"" + sval + "\"";
 		} else {
 			int16 ival;
 
@@ -980,10 +985,13 @@ void interpret(Common::Platform platform, const char *rootName) {
 				ival = ttm->readSint16LE();
 				ivals[k] = ival;
 
-				if (k == 0)
+				if (k == 0) {
 					debugN("%d", ival);
-				else
+					txt += Common::String::format("%d", ival);
+				} else {
 					debugN(", %d", ival);
+					txt += Common::String::format(", %d", ival);
+				}
 			}
 		}
 		debug(" ");
@@ -1130,6 +1138,18 @@ void interpret(Common::Platform platform, const char *rootName) {
 				debug("        MEEP!");
 				break;
 		}
+
+		const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kConsoleFont);
+		int w = font->getStringWidth(txt);
+		/*
+		int x = sh - w - 5; // lx + logo->w - w + 5;
+		int y = sh - font->getFontHeight() - 5; //ly + logo->h + 5;*/
+
+		dst = g_system->lockScreen();
+		Common::Rect r(0, 7, sw, font->getFontHeight()+13);
+		dst->fillRect(r, 0);
+		font->drawString(dst, txt, 10, 10, w, 2);
+		g_system->unlockScreen();
 		break;
 	}
 }
@@ -1205,6 +1225,7 @@ Common::Error DgdsEngine::run() {
 		    k++;
 		}
 		interpret(_platform, _rmfName);
+
 /*
 		// SCR:BIN|VGA viewer.
 		w = 320; h = 200;
