@@ -379,7 +379,7 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 	return count;
 }
 
-static void explode(Common::Platform platform, const char *indexName, const char *fileName, bool save) {
+static void explode(Common::Platform platform, const char *indexName, const char *fileName) {
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
 
@@ -424,15 +424,15 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					continue;
 				}
 
-				if (!save && scumm_stricmp(name, fileName) != 0) {
-				    volume.seek(offset+13+4+inSize);
-				    continue;
+				if (fileName && scumm_stricmp(name, fileName) != 0) {
+					volume.seek(offset+13+4+inSize);
+					continue;
 				}
 
 				ctx.init(inSize);
 				file = new Common::SeekableSubReadStream(&volume, offset+13+4, offset+13+4+inSize, DisposeAfterUse::NO);
 
-				if (save) {
+				if (!fileName) {
 					Common::DumpFile out;
 					char *buf;
 
@@ -544,7 +544,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 								pages = stream->readUint16LE();
 								debug("        %u", pages);
 							} else if (chunk.isSection(ID_TT3)) {
-								if (strcmp(name, fileName) == 0) {
+								if (fileName) {
 								    ttm = stream->readStream(stream->size());
 								} else {
 								    stream->skip(stream->size());
@@ -729,7 +729,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							break;
 						case EX_PAL:
 							/* DOS & Macintosh. */
-							if (scumm_stricmp(name, fileName) == 0) {
+							if (fileName) {
 								if (chunk.isSection(ID_VGA)) {
 									stream->read(palette, 256*3);
 
@@ -746,7 +746,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							}
 							break;
 						case EX_SCR:
-							if (scumm_stricmp(name, fileName) == 0) {
+							if (fileName) {
 								if (chunk.isSection(ID_BIN)) {
 									stream->read(binData, stream->size());
 								} else if (chunk.isSection(ID_VGA)) {
@@ -799,7 +799,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 							// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
 							// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-							if (scumm_stricmp(name, fileName) == 0) {
+							if (fileName) {
 								if (chunk.isSection(ID_BIN)) {
 									stream->read(_binData, stream->size());
 								} else if (chunk.isSection(ID_VGA)) {
@@ -832,7 +832,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 				debug("  [%u:%u] --", file->pos(), ctx.outSize);
 
-				if (!save) {
+				if (fileName) {
 				    volume.close();
 				    index.close();
 				    return;
@@ -908,7 +908,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 				break;
 			case 0xf050:
 				// LOAD PAL
-				explode(platform, rootName, sval.c_str(), false);
+				explode(platform, rootName, sval.c_str());
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
 
@@ -924,7 +924,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 
 			case 0x1030:
 				// SET BMP?
-				explode(platform, rootName, bmpNames[id], false);
+				explode(platform, rootName, bmpNames[id]);
 
 				bk = ivals[0];
 
@@ -941,7 +941,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 				break;
 			case 0x1090:
 				// SET PAL? UPDATE SCREEN?
-				explode(platform, rootName, scrNames[sid], false);
+				explode(platform, rootName, scrNames[sid]);
 
 				vgaData_ = vgaData;
 				binData_ = binData;
@@ -1056,11 +1056,11 @@ Common::Error DgdsEngine::run() {
 	platform = Common::kPlatformMacintosh;
 	rootName = "volume.rmf"; // volume.rmf, volume.vga
 /*
-	explode(platform, rootName, "TITLE1.TTM", true);
+	explode(platform, rootName, "TITLE1.TTM");
 	return Common::kNoError;
-	explode(platform, rootName, "DYNAMIX.SNG", false);*/
+	explode(platform, rootName, "DYNAMIX.SNG");*/
 
-//	explode(platform, rootName, true);
+//	explode(platform, rootName, 0);
 
 	g_system->fillScreen(0);
 
@@ -1097,9 +1097,9 @@ Common::Error DgdsEngine::run() {
 		    delete ttm;
 		    ttm = 0;
 		    if ((k%2) == 0)
-			explode(platform, rootName, "TITLE1.TTM", false);
+			explode(platform, rootName, "TITLE1.TTM");
 		    else
-			explode(platform, rootName, "TITLE2.TTM", false);
+			explode(platform, rootName, "TITLE2.TTM");
 		    k++;
 		}
 		interpret(platform, rootName);
