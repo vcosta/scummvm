@@ -36,9 +36,11 @@
 #include "graphics/palette.h"
 #include "graphics/surface.h"
 
+#include "engines/advancedDetector.h"
 #include "engines/util.h"
 
 #include "dgds/decompress.h"
+#include "dgds/detection_tables.h"
 
 #include "dgds/dgds.h"
 
@@ -67,6 +69,9 @@ Common::SeekableReadStream* ttm;
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
 	_console = new DgdsConsole(this);
+
+	_platform = gameDesc->desc.platform;
+	_rmfName = gameDesc->desc.filesDescriptions[0].fileName;
 }
 
 DgdsEngine::~DgdsEngine() {
@@ -434,6 +439,10 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						tag, height, planes,
 						uint(320+15)/16*200*planes);
 				input.hexdump(input.size());
+
+				if (set) {
+				    input.read(binData, input.size());
+				}
 				}
 			        break;
 			case EX_BMP: {
@@ -468,6 +477,15 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				packedSize = input.readUint32BE();
 				debug("        %u -> %u",
 						packedSize, unpackedSize);
+
+				if (set) {
+				    input.read(_binData, input.size());
+
+				    _tcount = tcount;
+				    _tw = tw;
+				    _th = th;
+				    _toffsets = toffsets;
+				}
 				}
 				break;
 			case EX_INS:
@@ -1109,9 +1127,6 @@ void interpret(Common::Platform platform, const char *rootName) {
 }
 
 Common::Error DgdsEngine::run() {
-	Common::Platform platform;
-	const char *rootName;
-
 	initGraphics(320, 200);
 
 	memset(palette, 1, 256*3);
@@ -1125,13 +1140,11 @@ Common::Error DgdsEngine::run() {
 	debug("DgdsEngine::init");
 
 	// Rise of the Dragon.
-	platform = Common::kPlatformMacintosh;
-	rootName = "volume.rmf"; // volume.rmf, volume.vga
 /*
-	explode(platform, rootName, "TITLE1.TTM");
-	explode(platform, rootName, "DYNAMIX.SNG");*/
+	explode(_platform, _rmfName, "TITLE1.TTM");
+	explode(_platform, _rmfName, "DYNAMIX.SNG");*/
 /*
-	explode(platform, rootName, 0);
+	explode(_platform, _rmfName, 0);
 	return Common::kNoError;
 */
 	g_system->fillScreen(0);
@@ -1178,12 +1191,12 @@ Common::Error DgdsEngine::run() {
 		    delete ttm;
 		    ttm = 0;
 		    if ((k%2) == 0)
-			explode(platform, rootName, "TITLE1.TTM");
+			explode(_platform, _rmfName, "TITLE1.TTM");
 		    else
-			explode(platform, rootName, "TITLE2.TTM");
+			explode(_platform, _rmfName, "TITLE2.TTM");
 		    k++;
 		}
-		interpret(platform, rootName);
+		interpret(_platform, _rmfName);
 /*
 		// SCR:BIN|VGA viewer.
 		w = 320; h = 200;

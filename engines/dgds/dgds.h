@@ -24,6 +24,7 @@
 #define DGDS_DGDS_H
 
 #include "common/error.h"
+#include "common/platform.h"
 
 #include "engines/engine.h"
 
@@ -38,6 +39,9 @@ struct DgdsGameDescription;
 class DgdsEngine : public Engine {
 private:
 	DgdsConsole *_console;
+
+	Common::Platform _platform;
+	const char *_rmfName;
 
 protected:
 	virtual Common::Error run();
