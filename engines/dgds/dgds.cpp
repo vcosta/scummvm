@@ -411,6 +411,9 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 	ctx.init(input.size());
 
 	if (isFlatfile(platform, _ex)) {
+		uint16 tcount;
+		uint16 *tw, *th;
+		uint32 *toffsets;
 		Common::String line;
 		
 		switch (_ex) {
@@ -419,20 +422,53 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				break;
 			case EX_SCR: {
 				/* Unknown image format (Amiga). */
-				char tag[5];
-				input.read(tag, sizeof(tag));		/* maybe */
+				byte tag[5];
+				input.read(tag, 4);		/* maybe */
+				tag[4] = '\0';
 
-				uint16 height, numPlanes;
+				uint16 height, planes;
+				height = input.readUint16BE();	/* always 200 (320x200 screen). */
+				planes = input.readUint16BE();	/* always 5 (32 color). */
 
-				height = input.readUint16LE();		/* always 200 (320x200 screen). */
-				numPlanes = input.readUint16LE();	/* always 5 (32 color). */
-				debug("    \"%s\" height:%u bpp:%u", tag, height, numPlanes);
+				debug("    \"%s\" height:%u bpp:%u size:~%u",
+						tag, height, planes,
+						uint(320+15)/16*200*planes);
 				input.hexdump(input.size());
 				}
 			        break;
-			case EX_BMP:
+			case EX_BMP: {
 				/* Unknown image format (Amiga). */
-				input.hexdump(64);
+				tcount = input.readUint16BE();
+				tw = new uint16[tcount];
+				th = new uint16[tcount];
+
+				uint32 packedSize, unpackedSize;
+				unpackedSize = input.readUint32BE();
+				debug("        [%u] %u =", tcount, unpackedSize);
+
+				uint32 sz = 0;
+				toffsets = new uint32[tcount];
+				for (uint16 k=0; k<tcount; k++) {
+					tw[k] = input.readUint16BE();
+					th[k] = input.readUint16BE();
+					debug("        %ux%u ~@%u", tw[k], th[k], sz);
+
+					toffsets[k] = sz;
+					sz += uint(tw[k]+15)/16*th[k]*5;
+				}
+				debug("    ~= [%u]", sz);
+
+				/* this is a wild guess. */
+				byte version[13];
+				input.read(version, 12);
+				version[12] = '\0';
+				debug("    %s", version);
+
+				unpackedSize = input.readUint32BE();
+				packedSize = input.readUint32BE();
+				debug("        %u -> %u",
+						packedSize, unpackedSize);
+				}
 				break;
 			case EX_INS:
 				/* IFF-8SVX sound sample (Amiga). */
@@ -1094,10 +1130,10 @@ Common::Error DgdsEngine::run() {
 /*
 	explode(platform, rootName, "TITLE1.TTM");
 	explode(platform, rootName, "DYNAMIX.SNG");*/
-
-//	explode(platform, rootName, 0);
-	//return Common::kNoError;
-
+/*
+	explode(platform, rootName, 0);
+	return Common::kNoError;
+*/
 	g_system->fillScreen(0);
 
 	// grayscale palette.
