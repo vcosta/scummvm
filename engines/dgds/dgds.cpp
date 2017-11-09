@@ -89,6 +89,7 @@ void DgdsFileCtx::init(uint32 size) {
 }
 
 typedef uint32 DGDS_ID;
+typedef uint32 DGDS_EX;
 
 #define ID_BIN	MKTAG('B','I','N',':')
 #define ID_VGA	MKTAG('V','G','A',':')
@@ -107,6 +108,24 @@ typedef uint32 DGDS_ID;
 #define ID_SNG	MKTAG('S','N','G',':')
 #define ID_FNM	MKTAG('F','N','M',':')
 #define ID_DAT	MKTAG('D','A','T',':')
+
+#define	EX_ADH	MKTAG('.','A','D','H')
+#define	EX_ADL	MKTAG('.','A','D','L')
+#define	EX_ADS	MKTAG('.','A','D','S')
+#define	EX_AMG	MKTAG('.','A','M','G')
+#define	EX_BMP	MKTAG('.','B','M','P')
+#define	EX_GDS	MKTAG('.','G','D','S')
+#define	EX_INS	MKTAG('.','I','N','S')
+#define	EX_PAL	MKTAG('.','P','A','L')
+#define	EX_REQ	MKTAG('.','R','E','Q')
+#define	EX_RST	MKTAG('.','R','S','T')
+#define	EX_SCR	MKTAG('.','S','C','R')
+#define	EX_SDS	MKTAG('.','S','D','S')
+#define	EX_SNG	MKTAG('.','S','N','G')
+#define	EX_SX	MKTAG('.','S','X', 0 )
+#define	EX_TTM	MKTAG('.','T','T','M')
+#define	EX_VIN	MKTAG('.','V','I','N')
+
 
 struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
@@ -431,52 +450,63 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				}
 				
 				const char *ext;
+				DGDS_EX _ex;
 
 				ext = name;
+				_ex = 0;
 				while (*ext) {
 					if (*ext == '.') {
+						_ex = MKTAG(ext[0], ext[1], ext[2], ext[3]);
 						ext++;
 						break;
 					}
 					ext++;
 				}
 
+				
+
 				if (isFlatfile(platform, ext)) {
-					if (strcmp(ext, "RST") == 0) {
+					Common::String line;
+
+					switch (_ex) {
+					case EX_RST:
 						file->hexdump(64);
-					}
-					if (strcmp(ext, "SCR") == 0) {
+						break;
+					case EX_SCR:
 						/* Unknown image format (Amiga). */
 						file->hexdump(64);
-					}
-					if (strcmp(ext, "BMP") == 0) {
+						break;
+					case EX_BMP:
 						/* Unknown image format (Amiga). */
 						file->hexdump(64);
-					}
-					if (strcmp(ext, "INS") == 0) {
+						break;
+					case EX_INS:
 						/* IFF-8SVX sound sample (Amiga). */
 						file->hexdump(16);
-					}
-					if (strcmp(ext, "SNG") == 0) {
+						break;
+					case EX_SNG:
 						/* IFF-SMUS music (Amiga). */
 						file->hexdump(16);
-					}
-					if (strcmp(ext, "AMG") == 0) {
+						break;
+					case EX_AMG:
 						/* (Amiga). */
-						Common::String line = file->readLine();
+						line = file->readLine();
 						while (!file->eos() && !line.empty()) {
 							debug("    \"%s\"", line.c_str());
 							line = file->readLine();
 						}
-					}
-					if (strcmp(ext, "VIN") == 0) {
+						break;
+					case EX_VIN:
 						/* (Macintosh). */
-						Common::String line = file->readLine();
+						line = file->readLine();
 						while (!file->eos() && !line.empty()) {
 							debug("    \"%s\"", line.c_str());
 							line = file->readLine();
 						}
 						file->hexdump(file->size());
+						break;
+					default:
+						break;
 					}
 				} else {
 					uint16 tcount;
@@ -497,13 +527,13 @@ static void explode(Common::Platform platform, const char *indexName, const char
 						/*
 								debug(">> %u:%u", stream->pos(), file->pos());
 								stream->hexdump(stream->size());*/
-
-						if (strcmp(ext, "SDS") == 0) {
+						switch (_ex) {
+						case EX_SDS:
 							if (chunk.isSection(ID_SDS)) {
 								stream->hexdump(stream->size());
 							}
-						}
-						if (strcmp(ext, "TTM") == 0) {
+							break;
+						case EX_TTM:
 							if (chunk.isSection(ID_VER)) {
 								char version[5];
 
@@ -575,8 +605,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 									debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
 								}
 							}
-						}
-						if (strcmp(ext, "GDS") == 0) {
+							break;
+						case EX_GDS:
 							if (chunk.isSection(ID_INF)) {
 								char version[7];
 
@@ -588,8 +618,10 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							} else if (chunk.isSection(ID_SDS)) {
 								stream->hexdump(stream->size());
 							}
-						}
-						if (strcmp(ext, "ADS") == 0 || strcmp(ext, "ADL") == 0 || strcmp(ext, "ADH") == 0) {
+							break;
+						case EX_ADS:
+						case EX_ADL:
+						case EX_ADH:
 							if (chunk.isSection(ID_VER)) {
 								char version[5];
 
@@ -602,9 +634,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							} else if (chunk.isSection(ID_TAG)) {
 								readStrings(stream);
 							}
-						}
-
-						if (strcmp(ext, "REQ") == 0) {
+							break;
+						case EX_REQ:
 							if (chunk.container) {
 								if (chunk.isSection(ID_TAG)) {
 									parent = DGDS_TAG;
@@ -628,11 +659,10 @@ static void explode(Common::Platform platform, const char *indexName, const char
 									}
 								}
 							}
-						}
-
-						/* DOS. */
-						if (strcmp(ext, "SNG") == 0) {
-						    debug("ENTER SNG");
+							break;
+						case EX_SNG:
+							/* DOS. */
+							debug("ENTER SNG");
 							if (chunk.isSection(ID_SSM)) {
 							    stream->hexdump(stream->size());
 							    stream->skip(stream->size());
@@ -643,9 +673,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							    stream->hexdump(stream->size());
 							    stream->skip(stream->size());
 							}
-						}
-
-						if (strcmp(ext, "SX") == 0) {
+							break;
+						case EX_SX:
+							/* Macintosh. */
 							if (chunk.isSection(ID_INF)) {
 								uint16 type, count;
 
@@ -696,10 +726,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 								delete [] buf;
 								*/
 							}
-						}
-
-						/* DOS & Macintosh. */
-						if (strcmp(ext, "PAL") == 0) {
+							break;
+						case EX_PAL:
+							/* DOS & Macintosh. */
 							if (scumm_stricmp(name, fileName) == 0) {
 								if (chunk.isSection(ID_VGA)) {
 									stream->read(palette, 256*3);
@@ -715,8 +744,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 									stream->skip(256*3);
 								}
 							}
-						}
-						if (strcmp(ext, "SCR") == 0) {
+							break;
+						case EX_SCR:
 							if (scumm_stricmp(name, fileName) == 0) {
 								if (chunk.isSection(ID_BIN)) {
 									stream->read(binData, stream->size());
@@ -730,8 +759,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 									stream->skip(stream->size());
 								}
 							}
-						}
-						if (strcmp(ext, "BMP") == 0) {
+							break;
+						case EX_BMP:
 							if (chunk.isSection(ID_INF)) {
 								tcount = stream->readUint16LE();
 								debug("        [%u] =", tcount);
@@ -792,6 +821,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 									stream->skip(stream->size());
 								}
 							}
+							break;
+						default:
+							break;
 						}
 
 						delete stream;
