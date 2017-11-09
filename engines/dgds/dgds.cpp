@@ -762,6 +762,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							}
 							break;
 						case EX_SCR:
+							/* currently does not handle the VQT: and OFF: tags
+							for the compressed pics in the DOS port. */
 							if (fileName) {
 								if (chunk.isSection(ID_BIN)) {
 									stream->read(binData, stream->size());
@@ -777,6 +779,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 							}
 							break;
 						case EX_BMP:
+							/* currently does not handle the VQT: and OFF: tags
+							for the compressed pics in the DOS port. */
 							if (chunk.isSection(ID_INF)) {
 								tcount = stream->readUint16LE();
 								debug("        [%u] =", tcount);
