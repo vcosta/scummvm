@@ -53,10 +53,13 @@ namespace Dgds {
 	typedef unsigned char byte;
 
 byte palette[256*3];
+
 byte binData[320000];
 byte vgaData[320000];
+byte ma8Data[640000];
 byte _binData[320000];
 byte _vgaData[320000];
+
 byte *imgData, *_imgData;
 
 uint16 _tcount;
@@ -112,11 +115,15 @@ typedef uint32 DGDS_EX;
 #define ID_SCR	MKTAG('S','C','R',':')
 #define ID_SDS	MKTAG('S','D','S',':')
 #define ID_SNG	MKTAG('S','N','G',':')
-#define ID_SSM	MKTAG('S','S','M',':')
 #define ID_TAG	MKTAG('T','A','G',':')
 #define ID_TT3	MKTAG('T','T','3',':')
 #define ID_VER	MKTAG('V','E','R',':')
 #define ID_VGA	MKTAG('V','G','A',':')
+
+/* Heart of China */
+#define ID_MA8	MKTAG('M','A','8',':')
+#define ID_DDS	MKTAG('D','D','S',':')
+#define ID_THD	MKTAG('T','H','D',':')
 
 #define	EX_ADH	MKTAG('.','A','D','H')
 #define	EX_ADL	MKTAG('.','A','D','L')
@@ -135,9 +142,11 @@ typedef uint32 DGDS_EX;
 #define	EX_TTM	MKTAG('.','T','T','M')
 #define	EX_VIN	MKTAG('.','V','I','N')
 
+/* Heart of China */
 #define	EX_DDS	MKTAG('.','D','D','S')
-#define	EX_OVL	MKTAG('.','O','V','L')
 #define	EX_TDS	MKTAG('.','T','D','S')
+
+#define	EX_OVL	MKTAG('.','O','V','L')
 
 struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
@@ -226,6 +235,7 @@ bool DgdsChunk::isPacked(DGDS_EX ex) {
 			if (0) {}
 			else if (_type == ID_BIN) packed = true;
 			else if (_type == ID_VGA) packed = true;
+			else if (_type == ID_MA8) packed = true;
 			break;
 		case EX_SDS:
 			if (0) {}
@@ -238,6 +248,10 @@ bool DgdsChunk::isPacked(DGDS_EX ex) {
 		case EX_TTM:
 			if (0) {}
 			else if (_type == ID_TT3) packed = true;
+			break;
+		case EX_TDS:
+			if (0) {}
+			else if (_type == ID_THD) packed = true;
 			break;
 		default:
 			break;
@@ -272,7 +286,7 @@ bool DgdsChunk::isPacked(DGDS_EX ex) {
 			break;
 		case EX_TDS:
 			if (0) {}
-			else if (strcmp(type, "TDS:") == 0) packed = true;
+			else if (strcmp(type, "TDS:") == 0) packed = true;  /* ? */
 			break;
 		default:
 			break;
@@ -538,6 +552,16 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 			 debug(">> %u:%u", stream->pos(), file->pos());
 			 stream->hexdump(stream->size());*/
 			switch (_ex) {
+				case EX_TDS:
+					if (chunk.isSection(ID_THD)) {
+						stream->hexdump(stream->size());
+					}
+					break;
+				case EX_DDS:
+					if (chunk.isSection(ID_DDS)) {
+						stream->hexdump(stream->size());
+					}
+					break;
 				case EX_SDS:
 					if (chunk.isSection(ID_SDS)) {
 						stream->hexdump(stream->size());
@@ -671,11 +695,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					break;
 				case EX_SNG:
 					/* DOS. */
-					debug("ENTER SNG");
-					if (chunk.isSection(ID_SSM)) {
-						stream->hexdump(stream->size());
-						stream->skip(stream->size());
-					} else if (chunk.isSection(ID_SNG)) {
+					if (chunk.isSection(ID_SNG)) {
 						stream->hexdump(stream->size());
 						stream->skip(stream->size());
 					} else if (chunk.isSection(ID_INF)) {
@@ -762,11 +782,15 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 							stream->read(binData, stream->size());
 						} else if (chunk.isSection(ID_VGA)) {
 							stream->read(vgaData, stream->size());
+						} else if (chunk.isSection(ID_MA8)) {
+							stream->read(ma8Data, stream->size());
 						}
 					} else {
 						if (chunk.isSection(ID_BIN)) {
 							stream->skip(stream->size());
 						} else if (chunk.isSection(ID_VGA)) {
+							stream->skip(stream->size());
+						} else if (chunk.isSection(ID_MA8)) {
 							stream->skip(stream->size());
 						}
 					}
@@ -998,6 +1022,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 
 		byte *vgaData_;
 		byte *binData_;
+		byte *ma8Data_;
 		Graphics::Surface *dst;
 		switch (op) {
 			case 0xf010:
@@ -1013,15 +1038,32 @@ void interpret(Common::Platform platform, const char *rootName) {
 				explode(platform, rootName, sval.c_str());
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
-
-			case 0x1050:
-				// SELECT BMP
-				id = ivals[0];
+			case 0xf060:
+				// LOAD SONG
 				break;
 
-			case 0x1060:
-				// SELECT SCR
-				sid = ivals[0];
+			case 0x10a0:
+				// SET SCR?
+				explode(platform, rootName, scrNames[ivals[0]]);
+
+				vgaData_ = vgaData;
+				binData_ = binData;
+				for (int i=0; i<sw*sh; i+=2) {
+					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
+					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
+					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
+					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+				}
+			/*
+				ma8Data_ = ma8Data;
+				for (int i=0; i<sw*sh; i++) {
+					imgData[i] = ma8Data_[i];
+				}*/
+				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				g_system->updateScreen();
+				break;
+
+			case 0x1090:
 				break;
 
 			case 0x1030:
@@ -1029,11 +1071,10 @@ void interpret(Common::Platform platform, const char *rootName) {
 				explode(platform, rootName, bmpNames[id]);
 
 				bk = ivals[0];
-
 				bw = _tw[bk]; bh = _th[bk];
+
 				vgaData_ = _vgaData + (_toffsets[bk]>>1);
 				binData_ = _binData + (_toffsets[bk]>>1);
-
 				for (int i=0; i<bw*bh; i+=2) {
 					_imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
 					_imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
@@ -1041,21 +1082,14 @@ void interpret(Common::Platform platform, const char *rootName) {
 					_imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
 				}
 				break;
-			case 0x1090:
-				// SET PAL? UPDATE SCREEN?
-				explode(platform, rootName, scrNames[sid]);
 
-				vgaData_ = vgaData;
-				binData_ = binData;
-
-				for (int i=0; i<sw*sh; i+=2) {
-					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
-					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
-					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
-					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
-				}
-				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
-				g_system->updateScreen();
+			case 0x1050:
+				// SELECT BMP
+				id = ivals[0];
+				break;
+			case 0x1060:
+				// SELECT SCR
+				sid = ivals[0];
 				break;
 
 			case 0x4120:
@@ -1102,10 +1136,6 @@ void interpret(Common::Platform platform, const char *rootName) {
 				// RESET AREA?
 				g_system->updateScreen();
 				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
-				break;
-
-			case 0xf060:
-				// SONG <name>?
 				break;
 
 			case 0xa500: {
@@ -1218,6 +1248,7 @@ Common::Error DgdsEngine::run() {
 		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
+	//	    explode(_platform, _rmfName, "TITLE.TTM");
 		    if ((k%2) == 0)
 			explode(_platform, _rmfName, "TITLE1.TTM");
 		    else
