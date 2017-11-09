@@ -855,7 +855,8 @@ static void explode(Common::Platform platform, const char *indexName, const char
 		index.read(salt, sizeof(salt));
 		nvolumes = index.readUint16LE();
 
-		debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
+		if (!fileName)
+			debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
 
 		for (uint i=0; i<nvolumes; i++) {
 			char name[DGDS_FILENAME_MAX+1];
@@ -868,20 +869,23 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			
 			volume.open(name);
 
-			debug("--\n#%u %s %u", i, name, nfiles);
+			if (!fileName)
+				debug("--\n#%u %s %u", i, name, nfiles);
+
 			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
 				uint32 inSize;
 
 				hash = index.readUint32LE();
 				offset = index.readUint32LE();
-				debug("  %u %u", hash, offset);
-				
+
 				volume.seek(offset);
 				volume.read(name, sizeof(name));
 				name[DGDS_FILENAME_MAX] = '\0';
 				inSize = volume.readUint32LE();
-				debug("  #%u %s %x=%x %u\n  --", j, name, hash, dgdsHash(name, salt), inSize);
+
+				if (!fileName || scumm_stricmp(name, fileName) == 0)
+					debug("  #%u %s %x=%x %u %u\n  --", j, name, hash, dgdsHash(name, salt), offset, inSize);
 				
 				if (inSize == 0xFFFFFFFF) {
 					continue;
@@ -1090,6 +1094,10 @@ void interpret(Common::Platform platform, const char *rootName) {
 				// RESET AREA?
 				g_system->updateScreen();
 				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				break;
+
+			case 0xf060:
+				// SONG <name>?
 				break;
 
 			case 0xa500: {
