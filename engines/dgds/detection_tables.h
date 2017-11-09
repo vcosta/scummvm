@@ -61,7 +61,7 @@ static const DgdsGameDescription gameDescriptions[] = {
 		},
 	},
 
-	// Rise of the Dragon (Mac)
+	// Rise of the Dragon (Macintosh)
 	{
 		{
 			"rise",
@@ -90,6 +90,23 @@ static const DgdsGameDescription gameDescriptions[] = {
 			},
 			Common::EN_ANY,
 			Common::kPlatformDOS,
+			ADGF_NO_FLAGS,
+			GUIO1(GUIO_NONE)
+		},
+	},
+
+	// Heart of China (Macintosh)
+	{
+		{
+			"china",
+			0,
+			{
+				{"volume.rmf", 0, "6bc1730f371c7330333bed4c66fe7511", 9918},
+				{"volume.001", 0, "bca16136f0fd36d25b1b1ba1870aa97f", 1240128},
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformMacintosh,
 			ADGF_NO_FLAGS,
 			GUIO1(GUIO_NONE)
 		},
