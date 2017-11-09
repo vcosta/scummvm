@@ -126,6 +126,10 @@ typedef uint32 DGDS_EX;
 #define	EX_TTM	MKTAG('.','T','T','M')
 #define	EX_VIN	MKTAG('.','V','I','N')
 
+#define	EX_DDS	MKTAG('.','D','D','S')
+#define	EX_OVL	MKTAG('.','O','V','L')
+#define	EX_TDS	MKTAG('.','T','D','S')
+
 struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
 	DGDS_ID _type;
@@ -137,7 +141,7 @@ struct DgdsChunk {
 	bool isSection(const Common::String& section);
 	bool isSection(DGDS_ID section);
 
-	bool isPacked(const Common::String& ext);
+	bool isPacked(DGDS_EX ex);
 	Common::SeekableReadStream* decode(DgdsFileCtx& ctx, Common::SeekableReadStream& file);
 	Common::SeekableReadStream* copy(DgdsFileCtx& ctx, Common::SeekableReadStream& file);
 };
@@ -190,65 +194,79 @@ bool isFlatfile(Common::Platform platform, DGDS_EX _ex) {
 	return flat;
 }
 
-bool DgdsChunk::isPacked(const Common::String& ext) {
+bool DgdsChunk::isPacked(DGDS_EX ex) {
 	bool packed = false;
 
-	if (0) {
+	switch (ex) {
+		case EX_ADS:
+		case EX_ADL:
+		case EX_ADH:
+			if (0) {}
+			else if (_type == ID_SCR) packed = true;
+			break;
+		case EX_BMP:
+			if (0) {}
+			else if (_type == ID_BIN) packed = true;
+			else if (_type == ID_VGA) packed = true;
+			break;
+		case EX_GDS:
+			if (0) {}
+			else if (_type == ID_SDS) packed = true;
+			break;
+		case EX_SCR:
+			if (0) {}
+			else if (_type == ID_BIN) packed = true;
+			else if (_type == ID_VGA) packed = true;
+			break;
+		case EX_SDS:
+			if (0) {}
+			else if (_type == ID_SDS) packed = true;
+			break;
+		case EX_SNG:
+			if (0) {}
+			else if (_type == ID_SNG) packed = true;
+			break;
+		case EX_TTM:
+			if (0) {}
+			else if (_type == ID_TT3) packed = true;
+			break;
+		default:
+			break;
 	}
-	else if (ext.equals("ADS") || ext.equals("ADL") || ext.equals("ADH")) {
-		if (0) {
-		} else if (_type == ID_SCR) packed = true;
-	}
-	else if (ext.equals("BMP")) {
-		if (0) {
-		} else if (_type == ID_BIN) packed = true;
-		else if (_type == ID_VGA) packed = true;
-	}
-	else if (ext.equals("DDS")) {
-		if (strcmp(type, "DDS:") == 0) packed = true;
-	}
-	else if (ext.equals("GDS")) {
-		if (_type == ID_SDS) packed = true;
-	}
-	else if (ext.equals("OVL")) {
-		if (0) {
-		} else if (strcmp(type, "ADL:") == 0) packed = true;
-		else if (strcmp(type, "ADS:") == 0) packed = true;
-		else if (strcmp(type, "APA:") == 0) packed = true;
-		else if (strcmp(type, "ASB:") == 0) packed = true;
-		else if (strcmp(type, "GMD:") == 0) packed = true;
-		else if (strcmp(type, "M32:") == 0) packed = true;
-		else if (strcmp(type, "NLD:") == 0) packed = true;
-		else if (strcmp(type, "PRO:") == 0) packed = true;
-		else if (strcmp(type, "PS1:") == 0) packed = true;
-		else if (strcmp(type, "SBL:") == 0) packed = true;
-		else if (strcmp(type, "SBP:") == 0) packed = true;
-		else if (strcmp(type, "STD:") == 0) packed = true;
-		else if (strcmp(type, "TAN:") == 0) packed = true;
-		else if (strcmp(type, "T3V:") == 0) packed = true;
-		else if (strcmp(type, "001:") == 0) packed = true;
-		else if (strcmp(type, "003:") == 0) packed = true;
-		else if (strcmp(type, "004:") == 0) packed = true;
-		else if (strcmp(type, "101:") == 0) packed = true;
 
-		else if (strcmp(type, "VGA:") == 0) packed = true;
-	}
-	else if (ext.equals("SCR")) {
-		if (0) {
-		} else if (_type == ID_BIN) packed = true;
-		else if (_type == ID_VGA) packed = true;
-	}
-	else if (ext.equals("SDS")) {
-		if (_type == ID_SDS) packed = true;
-	}
-	else if (ext.equals("SNG")) {
-		if (_type == ID_SNG) packed = true;
-	}
-	else if (ext.equals("TDS")) {
-		if (strcmp(type, "TDS:") == 0) packed = true;
-	}
-	else if (ext.equals("TTM")) {
-		if (_type == ID_TT3) packed = true;
+	switch (ex) {
+		case EX_DDS:
+			if (0) {}
+			else if (strcmp(type, "DDS:") == 0) packed = true;
+			break;
+		case EX_OVL:
+			if (0) {}
+			else if (strcmp(type, "ADL:") == 0) packed = true;
+			else if (strcmp(type, "ADS:") == 0) packed = true;
+			else if (strcmp(type, "APA:") == 0) packed = true;
+			else if (strcmp(type, "ASB:") == 0) packed = true;
+			else if (strcmp(type, "GMD:") == 0) packed = true;
+			else if (strcmp(type, "M32:") == 0) packed = true;
+			else if (strcmp(type, "NLD:") == 0) packed = true;
+			else if (strcmp(type, "PRO:") == 0) packed = true;
+			else if (strcmp(type, "PS1:") == 0) packed = true;
+			else if (strcmp(type, "SBL:") == 0) packed = true;
+			else if (strcmp(type, "SBP:") == 0) packed = true;
+			else if (strcmp(type, "STD:") == 0) packed = true;
+			else if (strcmp(type, "TAN:") == 0) packed = true;
+			else if (strcmp(type, "T3V:") == 0) packed = true;
+			else if (strcmp(type, "001:") == 0) packed = true;
+			else if (strcmp(type, "003:") == 0) packed = true;
+			else if (strcmp(type, "004:") == 0) packed = true;
+			else if (strcmp(type, "101:") == 0) packed = true;
+			else if (strcmp(type, "VGA:") == 0) packed = true;
+			break;
+		case EX_TDS:
+			if (0) {}
+			else if (strcmp(type, "TDS:") == 0) packed = true;
+			break;
+		default:
+			break;
 	}
 	return packed;
 }
@@ -454,18 +472,13 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					delete [] buf;
 				}
 				
-				const char *ext;
+				const char *dot;
 				DGDS_EX _ex;
 
-				ext = name;
-				_ex = 0;
-				while (*ext) {
-					if (*ext == '.') {
-						_ex = MKTAG(ext[0], ext[1], ext[2], ext[3]);
-						ext++;
-						break;
-					}
-					ext++;
+				if ((dot = strrchr(name, '.'))) {
+					_ex = MKTAG(dot[0], dot[1], dot[2], dot[3]);
+				} else {
+					_ex = 0;
 				}
 
 				if (isFlatfile(platform, _ex)) {
@@ -523,7 +536,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					while (chunk.readHeader(ctx, *file, name)) {
 						Common::SeekableReadStream *stream;
 
-						bool packed = chunk.isPacked(ext);
+						bool packed = chunk.isPacked(_ex);
 						stream = packed ? chunk.decode(ctx, *file) : chunk.copy(ctx, *file);
 						if (stream) ctx.outSize += stream->size();
 
