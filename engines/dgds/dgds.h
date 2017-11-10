@@ -49,6 +49,9 @@ protected:
 public:
 	DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc);
 	virtual ~DgdsEngine();
+
+        void playSfx(const char* fileName, byte channel, byte volume);
+        void stopSfx(byte channel);
 };
 
 class DgdsConsole : public GUI::Debugger {

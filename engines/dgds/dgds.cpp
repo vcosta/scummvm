@@ -33,6 +33,11 @@
 
 #include "common/iff_container.h"
 
+#include "audio/audiostream.h"
+#include "audio/mixer.h"
+#include "audio/decoders/iff_sound.h"
+#include "audio/decoders/aiff.h"
+
 #include "graphics/palette.h"
 #include "graphics/surface.h"
 #include "graphics/font.h"
@@ -54,13 +59,16 @@ namespace Dgds {
 
 byte palette[256*3];
 
-byte binData[320000];
-byte vgaData[320000];
-byte ma8Data[640000];
-byte _binData[320000];
-byte _vgaData[320000];
+byte binData[32000];
+byte vgaData[32000];
+
+byte ma8Data[64000];
+
+byte _binData[128000];
+byte _vgaData[128000];
 
 byte *imgData, *_imgData;
+Common::MemoryReadStream *soundData;
 
 uint16 _tcount;
 uint16 *_tw, *_th;
@@ -71,8 +79,11 @@ uint16 _mw, _mh;
 
 Common::SeekableReadStream* ttm;
 
+
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
+	 syncSoundSettings();
+
 	_console = new DgdsConsole(this);
 
 	_platform = gameDesc->desc.platform;
@@ -425,11 +436,11 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 	return count;
 }
 
-void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& input, const char* name, bool set) {
+void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& file, const char* name, bool set) {
 	struct DgdsFileCtx ctx;
 	uint parent = DGDS_NONE;
 
-	ctx.init(input.size());
+	ctx.init(file.size());
 
 	if (isFlatfile(platform, _ex)) {
 		uint16 tcount;
@@ -439,43 +450,43 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 		
 		switch (_ex) {
 			case EX_RST:
-				input.hexdump(64);
+				file.hexdump(64);
 				break;
 			case EX_SCR: {
 				/* Unknown image format (Amiga). */
 				byte tag[5];
-				input.read(tag, 4);		/* maybe */
+				file.read(tag, 4);		/* maybe */
 				tag[4] = '\0';
 
 				uint16 height, planes;
-				height = input.readUint16BE();	/* always 200 (320x200 screen). */
-				planes = input.readUint16BE();	/* always 5 (32 color). */
+				height = file.readUint16BE();	/* always 200 (320x200 screen). */
+				planes = file.readUint16BE();	/* always 5 (32 color). */
 
 				debug("    \"%s\" height:%u bpp:%u size:~%u",
 						tag, height, planes,
 						uint(320+15)/16*200*planes);
-				input.hexdump(input.size());
+				file.hexdump(file.size());
 
 				if (set) {
-				    input.read(binData, input.size());
+				    file.read(binData, file.size());
 				}
 				}
 			        break;
 			case EX_BMP: {
 				/* Unknown image format (Amiga). */
-				tcount = input.readUint16BE();
+				tcount = file.readUint16BE();
 				tw = new uint16[tcount];
 				th = new uint16[tcount];
 
 				uint32 packedSize, unpackedSize;
-				unpackedSize = input.readUint32BE();
+				unpackedSize = file.readUint32BE();
 				debug("        [%u] %u =", tcount, unpackedSize);
 
 				uint32 sz = 0;
 				toffsets = new uint32[tcount];
 				for (uint16 k=0; k<tcount; k++) {
-					tw[k] = input.readUint16BE();
-					th[k] = input.readUint16BE();
+					tw[k] = file.readUint16BE();
+					th[k] = file.readUint16BE();
 					debug("        %ux%u ~@%u", tw[k], th[k], sz);
 
 					toffsets[k] = sz;
@@ -485,17 +496,17 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 
 				/* this is a wild guess. */
 				byte version[13];
-				input.read(version, 12);
+				file.read(version, 12);
 				version[12] = '\0';
 				debug("    %s", version);
 
-				unpackedSize = input.readUint32BE();
-				packedSize = input.readUint32BE();
+				unpackedSize = file.readUint32BE();
+				packedSize = file.readUint32BE();
 				debug("        %u -> %u",
 						packedSize, unpackedSize);
 
 				if (set) {
-				    input.read(_binData, input.size());
+				    file.read(_binData, file.size());
 
 				    _tcount = tcount;
 				    _tw = tw;
@@ -504,30 +515,33 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				}
 				}
 				break;
-			case EX_INS:
-				/* IFF-8SVX sound sample (Amiga). */
-				input.hexdump(16);
+			case EX_INS: {
+				/* AIFF sound sample (Amiga). */
+			        byte *dest = new byte[file.size()];
+			        file.read(dest,file.size());
+			        soundData = new Common::MemoryReadStream(dest, file.size(), DisposeAfterUse::YES);
+				}
 				break;
 			case EX_SNG:
 				/* IFF-SMUS music (Amiga). */
-				input.hexdump(16);
+				file.hexdump(16);
 				break;
 			case EX_AMG:
 				/* (Amiga). */
-				line = input.readLine();
-				while (!input.eos() && !line.empty()) {
+				line = file.readLine();
+				while (!file.eos() && !line.empty()) {
 					debug("    \"%s\"", line.c_str());
-					line = input.readLine();
+					line = file.readLine();
 				}
 				break;
 			case EX_VIN:
 				/* (Macintosh). */
-				line = input.readLine();
-				while (!input.eos() && !line.empty()) {
+				line = file.readLine();
+				while (!file.eos() && !line.empty()) {
 					debug("    \"%s\"", line.c_str());
-					line = input.readLine();
+					line = file.readLine();
 				}
-				input.hexdump(input.size());
+				file.hexdump(file.size());
 				break;
 			default:
 				break;
@@ -541,11 +555,11 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 		uint16 mw, mh;
 		
 		struct DgdsChunk chunk;
-		while (chunk.readHeader(ctx, input, name)) {
+		while (chunk.readHeader(ctx, file, name)) {
 			Common::SeekableReadStream *stream;
 			
 			bool packed = chunk.isPacked(_ex);
-			stream = packed ? chunk.decode(ctx, input) : chunk.copy(ctx, input);
+			stream = packed ? chunk.decode(ctx, file) : chunk.copy(ctx, file);
 			if (stream) ctx.outSize += stream->size();
 			
 			/*
@@ -867,7 +881,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 		}
 	}
 
-	debug("  [%u:%u] --", input.pos(), ctx.outSize);
+	debug("  [%u:%u] --", file.pos(), ctx.outSize);
 }
 
 static void explode(Common::Platform platform, const char *indexName, const char *fileName) {
@@ -900,7 +914,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
-				uint32 inSize;
+				uint32 fileSize;
 
 				hash = index.readUint32LE();
 				offset = index.readUint32LE();
@@ -908,33 +922,33 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				volume.seek(offset);
 				volume.read(name, sizeof(name));
 				name[DGDS_FILENAME_MAX] = '\0';
-				inSize = volume.readUint32LE();
+				fileSize = volume.readUint32LE();
 
 				if (!fileName || scumm_stricmp(name, fileName) == 0)
-					debug("  #%u %s %x=%x %u %u\n  --", j, name, hash, dgdsHash(name, salt), offset, inSize);
-				
-				if (inSize == 0xFFFFFFFF) {
+					debug("  #%u %s %x=%x %u %u\n  --", j, name, hash, dgdsHash(name, salt), offset, fileSize);
+
+				if (fileSize == 0xFFFFFFFF) {
 					continue;
 				}
 
 				if (fileName && scumm_stricmp(name, fileName)) {
-					volume.seek(offset+13+4+inSize);
+					volume.skip(fileSize);
 					continue;
 				}
 
-				file = new Common::SeekableSubReadStream(&volume, offset+13+4, offset+13+4+inSize, DisposeAfterUse::NO);
+				file = new Common::SeekableSubReadStream(&volume, volume.pos(), volume.pos()+fileSize, DisposeAfterUse::NO);
 
 				if (!fileName) {
 					Common::DumpFile out;
 					char *buf;
 
-					buf = new char[inSize];
+					buf = new char[fileSize];
 
 					if (!out.open(name)) {
 						debug("Couldn't write to %s", name);
 					} else {
-						file->read(buf, inSize);
-						out.write(buf, inSize);
+						file->read(buf, fileSize);
+						out.write(buf, fileSize);
 						out.close();
 						file->seek(0);
 					}
@@ -972,7 +986,7 @@ char bmpNames[16][DGDS_FILENAME_MAX+1];
 char scrNames[16][DGDS_FILENAME_MAX+1];
 int id = 0, sid = 0;
 
-void interpret(Common::Platform platform, const char *rootName) {
+void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst) {
 	if (!ttm) return;
 
 	while (!ttm->eos()) {
@@ -1038,13 +1052,21 @@ void interpret(Common::Platform platform, const char *rootName) {
 				explode(platform, rootName, sval.c_str());
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
-			case 0xf060:
-				// LOAD SONG
+			case 0xf060: {
+				if (platform == Common::kPlatformAmiga) {
+					// LOAD SONG
+					const char *fileName = "DYNAMIX.INS";
+					byte volume = 255;
+					byte channel = 0;
+					syst->stopSfx(channel);
+					syst->playSfx(fileName, channel, volume);
+					}
+				}
 				break;
 
 			case 0x10a0:
 				// SET SCR?
-				explode(platform, rootName, scrNames[ivals[0]]);
+				explode(platform, rootName, scrNames[sid]);
 
 				vgaData_ = vgaData;
 				binData_ = binData;
@@ -1054,16 +1076,14 @@ void interpret(Common::Platform platform, const char *rootName) {
 					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
 					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
 				}
-			/*
+				/*
 				ma8Data_ = ma8Data;
 				for (int i=0; i<sw*sh; i++) {
 					imgData[i] = ma8Data_[i];
-				}*/
+				}
+				*/
 				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
 				g_system->updateScreen();
-				break;
-
-			case 0x1090:
 				break;
 
 			case 0x1030:
@@ -1088,12 +1108,15 @@ void interpret(Common::Platform platform, const char *rootName) {
 				id = ivals[0];
 				break;
 			case 0x1060:
-				// SELECT SCR
+				// SELECT SCR|PAL
 				sid = ivals[0];
+				break;
+			case 0x1090:
+				// SELECT SONG
 				break;
 
 			case 0x4120:
-				// STORE?
+				// FADE IN?
 				ivals[0] = 0;
 				ivals[1] = 0;
 				ivals[2] = 320;
@@ -1138,6 +1161,7 @@ void interpret(Common::Platform platform, const char *rootName) {
 				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
 				break;
 
+			case 0xa530:
 			case 0xa500: {
 				// DRAW BMP?
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
@@ -1184,8 +1208,35 @@ void interpret(Common::Platform platform, const char *rootName) {
 	}
 }
 
+struct Channel {
+	Audio::AudioStream *stream;
+	Audio::SoundHandle handle;
+	byte volume;
+};
+
+struct Channel _channels[2];
+
+void DgdsEngine::playSfx(const char* fileName, byte channel, byte volume) {
+	soundData = 0;
+	explode(_platform, _rmfName, fileName);
+	if (soundData) {
+		Channel *ch = &_channels[channel];
+		Audio::AudioStream *input = Audio::makeAIFFStream(soundData, DisposeAfterUse::YES);
+		_mixer->playStream(Audio::Mixer::kSFXSoundType, &ch->handle, input, -1, volume);
+	}
+}
+
+void DgdsEngine::stopSfx(byte channel) {
+	if (_mixer->isSoundHandleActive(_channels[channel].handle)) {
+	    _mixer->stopHandle(_channels[channel].handle);
+		_channels[channel].stream = 0;
+	}
+}
+
 Common::Error DgdsEngine::run() {
 	initGraphics(320, 200);
+
+	soundData = 0;
 
 	memset(palette, 1, 256*3);
 
@@ -1245,18 +1296,17 @@ Common::Error DgdsEngine::run() {
 			}
 		}
 
-		if (!ttm || ttm->eos()) {
+ 		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-	//	    explode(_platform, _rmfName, "TITLE.TTM");
+//		    explode(_platform, _rmfName, "TITLE.TTM");
 		    if ((k%2) == 0)
 			explode(_platform, _rmfName, "TITLE1.TTM");
 		    else
 			explode(_platform, _rmfName, "TITLE2.TTM");
 		    k++;
 		}
-		interpret(_platform, _rmfName);
-
+		interpret(_platform, _rmfName, this);
 /*
 		// SCR:BIN|VGA viewer.
 		w = 320; h = 200;
@@ -1315,7 +1365,6 @@ Common::Error DgdsEngine::run() {
 */
 		g_system->delayMillis(50);
 	}
-
 	return Common::kNoError;
 }
 
