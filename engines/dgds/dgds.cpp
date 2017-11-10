@@ -59,8 +59,8 @@ namespace Dgds {
 
 byte palette[256*3];
 
-byte binData[32000];
-byte vgaData[32000];
+Graphics::Surface binData;
+Graphics::Surface vgaData;
 
 byte ma8Data[64000];
 
@@ -802,9 +802,9 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					 for the compressed pics in the DOS port. */
 					if (resource == 0) {
 						if (chunk.isSection(ID_BIN)) {
-							stream->read(binData, stream->size());
+							loadBitmap4(binData, 320, 200, 0, stream);
 						} else if (chunk.isSection(ID_VGA)) {
-							stream->read(vgaData, stream->size());
+							loadBitmap4(vgaData, 320, 200, 0, stream);
 						} else if (chunk.isSection(ID_MA8)) {
 							stream->read(ma8Data, stream->size());
 						}
@@ -1075,15 +1075,17 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0x10a0:
 				// SET SCR?
+				vgaData.free();
+				binData.free();
 				explode(platform, rootName, scrNames[sid], 0);
 
-				vgaData_ = vgaData;
-				binData_ = binData;
+				vgaData_ = (byte *)vgaData.getPixels();
+				binData_ = (byte *)binData.getPixels();
 				for (int i=0; i<sw*sh; i+=2) {
-					imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
-					imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
-					imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
-					imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+					imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+					imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+					imgData[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+					imgData[i+1] |= ((binData_[i>>1] & 0x0F)     );
 				}
 				/*
 				ma8Data_ = ma8Data;
@@ -1102,8 +1104,8 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				_vgaData.free();
 				_binData.free();
 				explode(platform, rootName, bmpNames[id], bk);
-				bw = _tw; bh = _th;
 
+				bw = _tw; bh = _th;
 				vgaData_ = (byte *)_vgaData.getPixels();
 				binData_ = (byte *)_binData.getPixels();
 				for (int i=0; i<bw*bh; i+=2) {
@@ -1312,9 +1314,9 @@ Common::Error DgdsEngine::run() {
 		    ttm = 0;
 //		    explode(_platform, _rmfName, "TITLE.TTM");
 		    if ((k%2) == 0)
-			explode(_platform, _rmfName, "TITLE2.TTM", 0);
-		    else
 			explode(_platform, _rmfName, "TITLE1.TTM", 0);
+		    else
+			explode(_platform, _rmfName, "TITLE2.TTM", 0);
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
