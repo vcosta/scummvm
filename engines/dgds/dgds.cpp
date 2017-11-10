@@ -904,7 +904,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 		index.read(salt, sizeof(salt));
 		nvolumes = index.readUint16LE();
 
-		if (resource == -1)
+		if (!fileName)
 			debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
 
 		for (uint i=0; i<nvolumes; i++) {
@@ -918,7 +918,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			
 			volume.open(name);
 
-			if (resource == -1)
+			if (!fileName)
 				debug("--\n#%u %s %u", i, name, nfiles);
 
 			for (uint j=0; j<nfiles; j++) {
@@ -933,21 +933,21 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				name[DGDS_FILENAME_MAX] = '\0';
 				fileSize = volume.readUint32LE();
 
-				if (resource == -1 || scumm_stricmp(name, fileName) == 0)
+				if (!fileName || scumm_stricmp(name, fileName) == 0)
 					debug("  #%u %s %x=%x %u %u\n  --", j, name, hash, dgdsHash(name, salt), offset, fileSize);
 
 				if (fileSize == 0xFFFFFFFF) {
 					continue;
 				}
 
-				if (resource >= 0 && scumm_stricmp(name, fileName)) {
+				if (fileName && scumm_stricmp(name, fileName)) {
 					volume.skip(fileSize);
 					continue;
 				}
 
 				file = new Common::SeekableSubReadStream(&volume, volume.pos(), volume.pos()+fileSize, DisposeAfterUse::NO);
 
-				if (resource == -1) {
+				if (!fileName) {
 					Common::DumpFile out;
 					char *buf;
 
@@ -975,7 +975,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 				parseFile(platform, _ex, *file, name, resource);
 
-				if (resource >= 0) {
+				if (fileName) {
 				    volume.close();
 				    index.close();
 				    return;
