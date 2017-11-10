@@ -436,7 +436,7 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 	return count;
 }
 
-void loadBitmap4(Graphics::Surface& surf, uint16 tw, uint16 th, uint16 toffset, Common::SeekableReadStream* stream) {
+void loadBitmap4(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, Common::SeekableReadStream* stream) {
 	uint16 outPitch = tw>>1;
 	surf.create(outPitch, th, Graphics::PixelFormat::createFormatCLUT8());
 	byte *data = (byte *)surf.getPixels();
@@ -837,7 +837,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						for (uint16 k=0; k<tcount; k++) {
 							debug("        %ux%u @%u", tw[k], th[k], sz);
 							toffsets[k] = sz;
-							sz += tw[k]*th[k];
+							sz += uint32(tw[k])*th[k];
 						}
 						debug("        BIN|VGA: %u bytes", (sz+1)/2);
 					} else if (chunk.isSection(ID_MTX)) {
@@ -861,9 +861,9 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
 					if (resource >= 0) {
 						if (chunk.isSection(ID_BIN)) {
-							loadBitmap4(_binData, tw[resource], th[resource], _toffsets[resource], stream);
+							loadBitmap4(_binData, tw[resource], th[resource], toffsets[resource], stream);
 						} else if (chunk.isSection(ID_VGA)) {
-							loadBitmap4(_vgaData, tw[resource], th[resource], _toffsets[resource], stream);
+							loadBitmap4(_vgaData, tw[resource], th[resource], toffsets[resource], stream);
 						} else if (chunk.isSection(ID_INF)) {
 							_tcount = tcount;
 							_tw = tw;
@@ -1310,9 +1310,9 @@ Common::Error DgdsEngine::run() {
 		    ttm = 0;
 //		    explode(_platform, _rmfName, "TITLE.TTM");
 		    if ((k%2) == 0)
-			explode(_platform, _rmfName, "TITLE1.TTM", 0);
-		    else
 			explode(_platform, _rmfName, "TITLE2.TTM", 0);
+		    else
+			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
