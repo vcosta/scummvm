@@ -741,10 +741,10 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					/* Macintosh. */
 					if (chunk.isSection(ID_INF)) {
 						uint16 type, count;
-						
+
 						type = stream->readUint16LE();
 						count = stream->readUint16LE();
-						
+
 						debug("        %u [%u]:", type, count);
 						for (uint16 k = 0; k < count; k++) {
 							uint16 idx;
@@ -759,7 +759,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						uint16 idx;
 						idx = stream->readUint16LE();
 						debug("        %2u", idx);
-						
+
 						stream->hexdump(stream->size());
 						stream->skip(stream->size()-stream->pos());
 						/*
