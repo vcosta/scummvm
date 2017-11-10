@@ -1311,18 +1311,18 @@ public:
 };
 
 void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
-	info.start = _position._playPos;
+	//info.start = _position._playPos;
 
 	debug("MidiParser::parseNextEvent()");
-/*
-	if (_position._playPos >= _last) {
+
+	if (1/*_position._playPos >= _last*/) {
 		// fake an end-of-track meta event
 		info.delta = 0;
 		info.event = 0xFF;
 		info.ext.type = 0x2F;
 		info.length = 0;
 		return;
-	}*/
+	}
 
 //	info.length = 0;
 	/*
