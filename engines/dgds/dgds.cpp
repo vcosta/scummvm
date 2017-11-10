@@ -35,13 +35,13 @@
 
 #include "audio/audiostream.h"
 #include "audio/mixer.h"
-#include "audio/decoders/iff_sound.h"
 #include "audio/decoders/aiff.h"
 
 #include "graphics/palette.h"
-#include "graphics/surface.h"
 #include "graphics/font.h"
 #include "graphics/fontman.h"
+#include "graphics/managed_surface.h"
+#include "graphics/surface.h"
 
 #include "engines/advancedDetector.h"
 #include "engines/util.h"
@@ -66,7 +66,8 @@ Graphics::Surface ma8Data;
 Graphics::Surface _binData;
 Graphics::Surface _vgaData;
 
-Graphics::Surface imgData, _imgData;
+Graphics::ManagedSurface imgData;
+Graphics::Surface _imgData;
 
 Common::MemoryReadStream *soundData;
 
@@ -1159,20 +1160,8 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
 
-				const int rows = clippedDestRect.height();
-				const int columns = clippedDestRect.width();
-
 				dst = g_system->lockScreen();
-
-				byte *src = imgData_ + clippedDestRect.top*sw + clippedDestRect.left;
-				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
-				for (int i=0; i<rows; ++i) {
-					for (int j=0; j<columns; ++j) {
-						src[j] = ptr[j];
-					}
-					ptr += dst->pitch;
-					src += sw;
-				}
+				imgData.copyRectToSurface(*dst, clippedDestRect.left, clippedDestRect.top, clippedDestRect);
 				g_system->unlockScreen();
 				}
 				break;
@@ -1336,9 +1325,9 @@ Common::Error DgdsEngine::run() {
 		    ttm = 0;
 //		    explode(_platform, _rmfName, "TITLE.TTM", 0);
 		    if ((k&1) == 0)
-			explode(_platform, _rmfName, "TITLE1.TTM", 0);
-		    else
 			explode(_platform, _rmfName, "TITLE2.TTM", 0);
+		    else
+			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    k ^= 1;
 		}
 		interpret(_platform, _rmfName, this);
