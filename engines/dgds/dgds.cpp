@@ -71,8 +71,8 @@ byte *imgData, *_imgData;
 Common::MemoryReadStream *soundData;
 
 uint16 _tcount;
-uint16 *_tw, *_th;
-uint32 *_toffsets;
+uint16 _tw, _th;
+uint32 _toffset;
 
 uint16 *_mtx;
 uint16 _mw, _mh;
@@ -454,7 +454,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 	if (isFlatfile(platform, _ex)) {
 		uint16 tcount;
 		uint16 *tw, *th;
-		uint32 *toffsets;
+		uint32 *toffset;
 		Common::String line;
 		
 		switch (_ex) {
@@ -492,13 +492,13 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				debug("        [%u] %u =", tcount, unpackedSize);
 
 				uint32 sz = 0;
-				toffsets = new uint32[tcount];
+				toffset = new uint32[tcount];
 				for (uint16 k=0; k<tcount; k++) {
 					tw[k] = file.readUint16BE();
 					th[k] = file.readUint16BE();
 					debug("        %ux%u ~@%u", tw[k], th[k], sz);
 
-					toffsets[k] = sz;
+					toffset[k] = sz;
 					sz += uint(tw[k]+15)/16*th[k]*5;
 				}
 				debug("    ~= [%u]", sz);
@@ -518,9 +518,9 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 //				    file.read(_binData, file.size());
 
 				    _tcount = tcount;
-				    _tw = tw;
-				    _th = th;
-				    _toffsets = toffsets;
+				    _tw = tw[resource];
+				    _th = th[resource];
+				    _toffset = toffset[resource];
 				}
 				}
 				break;
@@ -557,8 +557,8 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 		}
 	} else {
 		uint16 tcount;
-		uint16 *tw, *th;
-		uint32 *toffsets;
+		uint16 *tw = 0, *th = 0;
+		uint32 *toffset = 0;
 		
 		uint16 *mtx;
 		uint16 mw, mh;
@@ -833,10 +833,10 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 							th[k] = stream->readUint16LE();
 						
 						uint32 sz = 0;
-						toffsets = new uint32[tcount];
+						toffset = new uint32[tcount];
 						for (uint16 k=0; k<tcount; k++) {
 							debug("        %ux%u @%u", tw[k], th[k], sz);
-							toffsets[k] = sz;
+							toffset[k] = sz;
 							sz += uint32(tw[k])*th[k];
 						}
 						debug("        BIN|VGA: %u bytes", (sz+1)/2);
@@ -861,14 +861,14 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
 					if (resource >= 0) {
 						if (chunk.isSection(ID_BIN)) {
-							loadBitmap4(_binData, tw[resource], th[resource], toffsets[resource], stream);
+							loadBitmap4(_binData, tw[resource], th[resource], toffset[resource], stream);
 						} else if (chunk.isSection(ID_VGA)) {
-							loadBitmap4(_vgaData, tw[resource], th[resource], toffsets[resource], stream);
+							loadBitmap4(_vgaData, tw[resource], th[resource], toffset[resource], stream);
 						} else if (chunk.isSection(ID_INF)) {
 							_tcount = tcount;
-							_tw = tw;
-							_th = th;
-							_toffsets = toffsets;
+							_tw = tw[resource];
+							_th = th[resource];
+							_toffset = toffset[resource];
 						} else if (chunk.isSection(ID_MTX)) {
 							_mtx = mtx;
 							_mw = mw;
@@ -988,7 +988,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 }
 
 int sw = 320, sh = 200;
-uint32 bw = 0, bh = 0;
+int bw = 0, bh = 0;
 int bk = 0;
 
 char bmpNames[16][DGDS_FILENAME_MAX+1];
@@ -1098,13 +1098,15 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			case 0x1030:
 				// SET BMP?
 				bk = ivals[0];
-				explode(platform, rootName, bmpNames[id], bk);
 
-				bw = _tw[bk]; bh = _th[bk];
+				_vgaData.free();
+				_binData.free();
+				explode(platform, rootName, bmpNames[id], bk);
+				bw = _tw; bh = _th;
 
 				vgaData_ = (byte *)_vgaData.getPixels();
 				binData_ = (byte *)_binData.getPixels();
-				for (uint32 i=0; i<bw*bh; i+=2) {
+				for (int i=0; i<bw*bh; i+=2) {
 					_imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
 					_imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
 					_imgData[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
