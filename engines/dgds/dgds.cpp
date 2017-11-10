@@ -1058,6 +1058,8 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 		byte *imgData_;
 		byte *_imgData_;
+		Common::Rect rect(0, 0, sw, sh);
+
 		imgData_ = (byte *)imgData.getPixels();
 		_imgData_ = (byte *)_imgData.getPixels();
 
@@ -1176,19 +1178,23 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 
-			case 0x4110: {
+			case 0x4110:
 				// FADE TO BLACK?
-				Common::Rect rect(0, 0, sw, sh);
 				imgData.fillRect(rect, 0);
-				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
+				dst = g_system->lockScreen();
+				dst->copyRectToSurface(imgData, 0, 0, rect);
+				g_system->unlockScreen();
+
 				g_system->updateScreen();
-				}
 				break;
 
 			case 0x0ff0:
-				// RESET AREA?
+				// QUEUE REFRESH?
 				g_system->updateScreen();
-				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
+
+				dst = g_system->lockScreen();
+				dst->copyRectToSurface(imgData, 0, 0, rect);
+				g_system->unlockScreen();
 				break;
 
 			case 0xa530:
