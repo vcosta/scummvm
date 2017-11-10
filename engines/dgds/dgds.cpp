@@ -20,6 +20,7 @@
  *
  */
 
+#include "common/config-manager.h"
 #include "common/debug.h"
 #include "common/debug-channels.h"
 #include "common/endian.h"
@@ -1272,16 +1273,14 @@ Common::Error DgdsEngine::run() {
 
 	ttm = 0;
 
+	// Rise of the Dragon.
 	debug("DgdsEngine::init");
 
-	// Rise of the Dragon.
-/*
-	explode(_platform, _rmfName, "TITLE1.TTM", 0);
-	explode(_platform, _rmfName, "DYNAMIX.SNG", 0);*/
-/*
-	explode(_platform, _rmfName, 0, -1);
-	return Common::kNoError;
-*/
+	if (ConfMan.getBool("dump_scripts")) {
+		explode(_platform, _rmfName, 0, -1);
+		return Common::kNoError;
+	}
+
 	g_system->fillScreen(0);
 
 	// grayscale palette.
@@ -1326,6 +1325,7 @@ Common::Error DgdsEngine::run() {
 		    delete ttm;
 		    ttm = 0;
 //		    explode(_platform, _rmfName, "TITLE.TTM", 0);
+
 		    if ((k&1) == 0)
 			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    else
@@ -1333,34 +1333,6 @@ Common::Error DgdsEngine::run() {
 		    k ^= 1;
 		}
 		interpret(_platform, _rmfName, this);
-/*
-		// SCR:BIN|VGA viewer.
-		w = 320; h = 200;
-		vgaData_ = vgaData;
-		binData_ = binData;
-
-		for (uint i=0; i<w*h; i+=2) {
-			imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
-			imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
-			imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
-			imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
-		}
-		g_system->fillScreen(0);
-		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);*/
-/*
-		// BMP:INF|BIN|VGA browser.
-		w = _tw[k]; h = _th[k];
-		vgaData_ = vgaData + (_toffsets[k]>>1);
-		binData_ = binData + (_toffsets[k]>>1);
-
-		for (uint i=0; i<w*h; i+=2) {
-			imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
-			imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
-			imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
-			imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
-		}
-		//g_system->fillScreen(0);
-		g_system->copyRectToScreen(imgData, w, 0, 0, w, h);*/
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
