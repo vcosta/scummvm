@@ -1118,7 +1118,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					syst->stopSfx(channel);
 					syst->playSfx(fileName, channel, volume);
 				} else {
-					syst->playMusic(sval.c_str());
+				//	syst->playMusic(sval.c_str());
 				}
 				break;
 
@@ -1499,79 +1499,62 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 class MidiParser_DGDS : public MidiParser {
 protected:
 	byte *_buffer;
-	bool _malformedPitchBends;
 
 protected:
-	void compressToType0();
 	void parseNextEvent(EventInfo &info);
 
 public:
-	MidiParser_DGDS() : _buffer(0), _malformedPitchBends(false) {}
+	MidiParser_DGDS() : _buffer(0){}
 	~MidiParser_DGDS();
 
 	bool loadMusic(byte *data, uint32 size);
-	void property(int property, int value);
 };
-
-
-static const byte commandLengths[8] = { 3, 3, 3, 3, 2, 2, 3, 0 };
-static const byte specialLengths[16] = { 0, 2, 3, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 };
 
 MidiParser_DGDS::~MidiParser_DGDS() {
 	free(_buffer);
 }
 
-void MidiParser_DGDS::property(int prop, int value) {
-	switch (prop) {
-	case mpMalformedPitchBends:
-		_malformedPitchBends = (value > 0);
-		break;
-	default:
-		MidiParser::property(prop, value);
-		break;
-	}
-}
-
 void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 	info.start = _position._playPos;
-	info.delta = readVLQ(_position._playPos);
+	info.delta = 0;
+	while (*_position._playPos == 0xF8) {
+		info.delta += 240;
+		_position._playPos++;
+	}
+	info.delta += *(_position._playPos++);
 
-	// Process the next info. If mpMalformedPitchBends
-	// was set, we must skip over any pitch bend events
-	// because they are from Simon games and are not
-	// real pitch bend events, they're just two-byte
-	// prefixes before the real info.
-	do {
-		if ((_position._playPos[0] & 0xF0) >= 0x80)
-			info.event = *(_position._playPos++);
-		else
-			info.event = _position._runningStatus;
-	} while (_malformedPitchBends && (info.event & 0xF0) == 0xE0 && _position._playPos++);
+	// Process the next info.
+	if ((_position._playPos[0] & 0xF0) >= 0x80)
+		info.event = *(_position._playPos++);
+	else
+		info.event = _position._runningStatus;
 	if (info.event < 0x80)
 		return;
 
 	_position._runningStatus = info.event;
 	switch (info.command()) {
-	case 0x9: // Note On
-		info.basic.param1 = *(_position._playPos++);
-		info.basic.param2 = *(_position._playPos++);
-		if (info.basic.param2 == 0)
-			info.event = info.channel() | 0x80;
-		info.length = 0;
-		break;
-
 	case 0xC:
 	case 0xD:
 		info.basic.param1 = *(_position._playPos++);
 		info.basic.param2 = 0;
 		break;
 
-	case 0x8:
-	case 0xA:
 	case 0xB:
+		info.basic.param1 = *(_position._playPos++);
+		info.basic.param2 = *(_position._playPos++);
+		info.length = 0;
+		break;
+
+	case 0x8:
+	case 0x9: 
+	case 0xA:
 	case 0xE:
 		info.basic.param1 = *(_position._playPos++);
 		info.basic.param2 = *(_position._playPos++);
+		if (info.command() == 0x9 && info.basic.param2 == 0) {
+			// NoteOn with param2==0 is a NoteOff
+			info.event = info.channel() | 0x80;
+		}
 		info.length = 0;
 		break;
 
@@ -1617,99 +1600,85 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 
 bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 	uint32 len;
-	byte midiType;
 	uint32 totalSize;
-	bool isGMF;
 
 	unloadMusic();
 	byte *pos = data;
-	isGMF = false;
 
-	if (!memcmp(pos, "RIFF", 4)) {
-		// Skip the outer RIFF header.
-		pos += 8;
+        uint32 sci_header = 0;
+	if (data[0] == 0x84 && data[1] == 0x00) sci_header = 2;
+
+	pos += sci_header;
+	if (pos[0] == 0xF0) {
+	    debug("SysEx transfer = %d bytes", pos[1]);
+	    pos += 2;
+	    pos += 6;
 	}
 
-	if (!memcmp(pos, "MThd", 4)) {
-		// SMF with MTHd information.
-		pos += 4;
-		len = read4high(pos);
-		if (len != 6) {
-			warning("MThd length 6 expected but found %d", (int)len);
-			return false;
+	_numTracks = 0;
+	while (pos[0] != 0xFF) {
+	    int idx = *pos++;
+
+	    switch(idx) {
+		case 0:	    debug("Adlib, Soundblaster");   break;
+		case 7:	    debug("General MIDI");	    break;
+		case 9:	    debug("CMS");		    break;
+		case 12:    debug("MT-32");		    break;
+		case 18:    debug("PC Speaker");	    break;
+		case 19:    debug("Tandy 1000, PS/1");	    break;
+		default:    debug("Unknown");		    break;
+	    }
+
+	    int tracksRead = 0;
+	    totalSize = 0;
+	    while (pos[0] != 0xFF) {
+		pos++;
+
+		if (pos[0] != 0) {
+		    debug("%06ld: unknown track arg1 = %d", pos-data, pos[0]);
+		}
+		pos++;
+
+		int off = read2low(pos) + sci_header;
+		len = read2low(pos);
+		totalSize += len;
+
+		debug("%06d:%d", off, len);
+
+		if (idx == 12) {
+		    _tracks[_numTracks++] = data+off;
 		}
 
-		// Verify that this MIDI either is a Type 2
-		// or has only 1 track. We do not support
-		// multitrack Type 1 files.
-		_numTracks = pos[2] << 8 | pos[3];
-		midiType = pos[1];
-		if (midiType > 2 /*|| (midiType < 2 && _numTracks > 1)*/) {
-			warning("No support for a Type %d MIDI with %d tracks", (int)midiType, (int)_numTracks);
-			return false;
+		if (_numTracks > ARRAYSIZE(_tracks)) {
+		    warning("Can only handle %d tracks but was handed %d", (int)ARRAYSIZE(_tracks), _numTracks);
+		    return false;
 		}
-		_ppqn = pos[4] << 8 | pos[5];
-		pos += len;
-	} else if (!memcmp(pos, "GMF\x1", 4)) {
-		// Older GMD/MUS file with no header info.
-		// Assume 1 track, 192 PPQN, and no MTrk headers.
-		isGMF = true;
-		midiType = 0;
-		_numTracks = 1;
-		_ppqn = 192;
-		pos += 7; // 'GMD\x1' + 3 bytes of useless (translate: unknown) information
-	} else {
-		warning("Expected MThd or GMD header but found '%c%c%c%c' instead", pos[0], pos[1], pos[2], pos[3]);
-		return false;
-	}
 
-	// Now we identify and store the location for each track.
-	if (_numTracks > ARRAYSIZE(_tracks)) {
-		warning("Can only handle %d tracks but was handed %d", (int)ARRAYSIZE(_tracks), (int)_numTracks);
-		return false;
+		tracksRead++;
+	    }
+
+	    pos++;
+
+	    debug("- Play parts = %d", tracksRead);
 	}
+	pos++;
+
+	_ppqn = 192;
 
 	totalSize = 0;
 	int tracksRead = 0;
 	while (tracksRead < _numTracks) {
-		if (memcmp(pos, "MTrk", 4) && !isGMF) {
-			warning("Position: %p ('%c')", (void *)pos, *pos);
-			warning("Hit invalid block '%c%c%c%c' while scanning for track locations", pos[0], pos[1], pos[2], pos[3]);
-			return false;
-		}
+		pos = _tracks[tracksRead];
+		debug("Header bytes");
 
-		// If needed, skip the MTrk and length bytes
-		_tracks[tracksRead] = pos + (isGMF ? 0 : 8);
-		if (!isGMF) {
-			pos += 4;
-			len = read4high(pos);
-			totalSize += len;
-			pos += len;
-		} else {
-			// An SMF End of Track meta event must be placed
-			// at the end of the stream.
-			data[size++] = 0xFF;
-			data[size++] = 0x2F;
-			data[size++] = 0x00;
-			data[size++] = 0x00;
-		}
-		++tracksRead;
-	}
+		debug("[%06d]  ", *pos);
+		debug("[%02d]  ", *pos++);
+		debug("[%02d]  ", *pos++);
 
-	// If this is a Type 1 MIDI, we need to now compress
-	// our tracks down into a single Type 0 track.
-	free(_buffer);
-	_buffer = 0;
+		_tracks[tracksRead] += 2;
 
-	if (midiType == 1) {
-		// FIXME: Doubled the buffer size to prevent crashes with the
-		// Inherit the Earth MIDIs. Jamieson630 said something about a
-		// better fix, but this will have to do in the meantime.
-	    debug("OHSHIT");
-		_buffer = (byte *)malloc(size * 2);
-		compressToType0();
-		_numTracks = 1;
-		_tracks[0] = _buffer;
+		totalSize += len;
+		tracksRead++;
 	}
 
 	// Note that we assume the original data passed in
@@ -1719,135 +1688,6 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 	setTempo(500000);
 	setTrack(0);
 	return true;
-}
-
-void MidiParser_DGDS::compressToType0() {
-	// We assume that _buffer has been allocated
-	// to sufficient size for this operation.
-
-	// using 0xFF since it could write trackPos[0 to _numTracks] here
-	// this would cause some illegal writes and could lead to segfaults
-	// (it crashed for some midis for me, they're not used in any game
-	// scummvm supports though). *Maybe* handle this in another way,
-	// it's at the moment only to be sure, that nothing goes wrong.
-	byte *trackPos[0xFF];
-	byte runningStatus[0xFF];
-	uint32 trackTimer[0xFF];
-	uint32 delta;
-	int i;
-
-	for (i = 0; i < _numTracks; ++i) {
-		runningStatus[i] = 0;
-		trackPos[i] = _tracks[i];
-		trackTimer[i] = readVLQ(trackPos[i]);
-		runningStatus[i] = 0;
-	}
-
-	int bestTrack;
-	uint32 length;
-	byte *output = _buffer;
-	byte *pos, *pos2;
-	byte event;
-	uint32 copyBytes;
-	bool write;
-	byte activeTracks = (byte)_numTracks;
-
-	while (activeTracks) {
-		write = true;
-		bestTrack = 255;
-		for (i = 0; i < _numTracks; ++i) {
-			if (trackPos[i] && (bestTrack == 255 || trackTimer[i] < trackTimer[bestTrack]))
-				bestTrack = i;
-		}
-		if (bestTrack == 255) {
-			warning("Premature end of tracks");
-			break;
-		}
-
-		// Initial VLQ delta computation
-		delta = 0;
-		length = trackTimer[bestTrack];
-		for (i = 0; length; ++i) {
-			delta = (delta << 8) | (length & 0x7F) | (i ? 0x80 : 0);
-			length >>= 7;
-		}
-
-		// Process MIDI event.
-		bool implicitEvent = false;
-		copyBytes = 0;
-		pos = trackPos[bestTrack];
-		do {
-			event = *(pos++);
-			if (event < 0x80) {
-				event = runningStatus[bestTrack];
-				implicitEvent = true;
-			}
-		} while (_malformedPitchBends && (event & 0xF0) == 0xE0 && pos++);
-		runningStatus[bestTrack] = event;
-
-		if (commandLengths[(event >> 4) - 8] > 0) {
-			copyBytes = commandLengths[(event >> 4) - 8];
-		} else if (specialLengths[(event & 0x0F)] > 0) {
-			copyBytes = specialLengths[(event & 0x0F)];
-		} else if (event == 0xF0) {
-			// SysEx
-			pos2 = pos;
-			length = readVLQ(pos);
-			copyBytes = 1 + (pos - pos2) + length;
-		} else if (event == 0xFF) {
-			// META
-			event = *(pos++);
-			if (event == 0x2F && activeTracks > 1) {
-				trackPos[bestTrack] = 0;
-				write = false;
-			} else {
-				pos2 = pos;
-				length = readVLQ(pos);
-				copyBytes = 2 + (pos - pos2) + length;
-			}
-			if (event == 0x2F)
-				--activeTracks;
-		} else {
-			warning("Bad MIDI command %02X", (int)event);
-			trackPos[bestTrack] = 0;
-		}
-
-		// Update all tracks' deltas
-		if (write) {
-			for (i = 0; i < _numTracks; ++i) {
-				if (trackPos[i] && i != bestTrack)
-					trackTimer[i] -= trackTimer[bestTrack];
-			}
-		}
-
-		if (trackPos[bestTrack]) {
-			if (write) {
-				trackTimer[bestTrack] = 0;
-
-				// Write VLQ delta
-				while (delta & 0x80) {
-					*output++ = (byte)(delta & 0xFF);
-					delta >>= 8;
-				}
-				*output++ = (byte)(delta & 0xFF);
-
-				// Write MIDI data
-				if (!implicitEvent)
-					++trackPos[bestTrack];
-				--copyBytes;
-				*output++ = runningStatus[bestTrack];
-				memcpy(output, trackPos[bestTrack], copyBytes);
-				output += copyBytes;
-			}
-
-			// Fetch new VLQ delta for winning track
-			trackPos[bestTrack] += copyBytes;
-			if (activeTracks)
-				trackTimer[bestTrack] += readVLQ(trackPos[bestTrack]);
-		}
-	}
-
-	*output++ = 0x00;
 }
 
 MidiParser *createParser_DGDS() { return new MidiParser_DGDS; }
@@ -1872,17 +1712,6 @@ void DgdsMidiPlayer::play(byte *data, uint32 size) {
 
 	stop();
 	if (!data) return;
-
-
-
-	Common::File f;
-
-	if (f.open("1.mid")) {
-	    size = f.size();
-	    data = (uint8 *)malloc(size);
-	    f.read(data, size);
-	    f.close();
-	}
 
 	MidiParser *parser = createParser_DGDS();
 	if (parser->loadMusic(data, size)) {
@@ -1943,6 +1772,8 @@ Common::Error DgdsEngine::run() {
 
 	g_system->fillScreen(0);
 
+
+//	playMusic("RISE.SNG");
 	// grayscale palette.
 /*
 	for (uint i=0; i<256; i++) {
@@ -1980,7 +1811,7 @@ Common::Error DgdsEngine::run() {
 				}
 			}
 		}
-
+#if 0
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
@@ -1993,6 +1824,7 @@ Common::Error DgdsEngine::run() {
 		    k ^= 1;
 		}
 		interpret(_platform, _rmfName, this);
+#endif
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
