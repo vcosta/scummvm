@@ -64,8 +64,8 @@ byte vgaData[32000];
 
 byte ma8Data[64000];
 
-byte _vgaData[128000];
 Graphics::Surface* _binData = 0;
+Graphics::Surface* _vgaData = 0;
 
 byte *imgData, *_imgData;
 Common::MemoryReadStream *soundData;
@@ -860,7 +860,13 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 							stream->skip(_toffsets[resource]>>1);
 							stream->read(data, uint32(outPitch)*th[resource]);
 						} else if (chunk.isSection(ID_VGA)) {
-							stream->read(_vgaData, stream->size());
+							uint16 outPitch = tw[resource]>>1;
+							_vgaData = new Graphics::Surface();
+							_vgaData->create(outPitch, th[resource], Graphics::PixelFormat::createFormatCLUT8());
+							byte *data = (byte *)_vgaData->getPixels();
+
+							stream->skip(_toffsets[resource]>>1);
+							stream->read(data, uint32(outPitch)*th[resource]);
 						} else if (chunk.isSection(ID_INF)) {
 							_tcount = tcount;
 							_tw = tw;
@@ -985,7 +991,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 }
 
 int sw = 320, sh = 200;
-int bw = 0, bh = 0;
+uint32 bw = 0, bh = 0;
 int bk = 0;
 
 char bmpNames[16][DGDS_FILENAME_MAX+1];
@@ -1097,17 +1103,18 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				bk = ivals[0];
 
 				delete _binData;
+				delete _vgaData;
 				explode(platform, rootName, bmpNames[id], bk);
 
 				bw = _tw[bk]; bh = _th[bk];
 
-				vgaData_ = _vgaData + (_toffsets[bk]>>1);
+				vgaData_ = (byte *)_vgaData->getPixels();
 				binData_ = (byte *)_binData->getPixels();
-				for (int i=0; i<bw*bh; i+=2) {
-					_imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
-					_imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
-					_imgData[i+1]  = ((vgaData_[i/2] & 0x0F) << 4);
-					_imgData[i+1] |= ((binData_[i/2] & 0x0F)     );
+				for (uint32 i=0; i<bw*bh; i+=2) {
+					_imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+					_imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+					_imgData[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+					_imgData[i+1] |= ((binData_[i>>1] & 0x0F)     );
 				}
 				break;
 
