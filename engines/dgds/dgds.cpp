@@ -62,7 +62,7 @@ byte palette[256*3];
 Graphics::Surface binData;
 Graphics::Surface vgaData;
 
-byte ma8Data[64000];
+Graphics::Surface ma8Data;
 
 Graphics::Surface _binData;
 Graphics::Surface _vgaData;
@@ -445,6 +445,15 @@ void loadBitmap4(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
+void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, Common::SeekableReadStream* stream) {
+	uint16 outPitch = tw;
+	surf.create(outPitch, th, Graphics::PixelFormat::createFormatCLUT8());
+	byte *data = (byte *)surf.getPixels();
+
+	stream->skip(toffset);
+	stream->read(data, uint32(outPitch)*th);
+}
+
 void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& file, const char* name, int resource) {
 	struct DgdsFileCtx ctx;
 	uint parent = DGDS_NONE;
@@ -806,7 +815,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						} else if (chunk.isSection(ID_VGA)) {
 							loadBitmap4(vgaData, 320, 200, 0, stream);
 						} else if (chunk.isSection(ID_MA8)) {
-							stream->read(ma8Data, stream->size());
+							loadBitmap8(ma8Data, 320, 200, 0, stream);
 						}
 					} else {
 						if (chunk.isSection(ID_BIN)) {
@@ -1077,22 +1086,24 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				// SET SCR?
 				vgaData.free();
 				binData.free();
+				ma8Data.free();
 				explode(platform, rootName, scrNames[sid], 0);
 
-				vgaData_ = (byte *)vgaData.getPixels();
-				binData_ = (byte *)binData.getPixels();
-				for (int i=0; i<sw*sh; i+=2) {
-					imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-					imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-					imgData[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-					imgData[i+1] |= ((binData_[i>>1] & 0x0F)     );
+				if (ma8Data.h != 0) {
+					ma8Data_ = (byte *)ma8Data.getPixels();
+					for (int i=0; i<sw*sh; i++) {
+						imgData[i] = ma8Data_[i];
+					}
+				} else {
+					vgaData_ = (byte *)vgaData.getPixels();
+					binData_ = (byte *)binData.getPixels();
+					for (int i=0; i<sw*sh; i+=2) {
+						imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+						imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+						imgData[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+						imgData[i+1] |= ((binData_[i>>1] & 0x0F)     );
+					}
 				}
-				/*
-				ma8Data_ = ma8Data;
-				for (int i=0; i<sw*sh; i++) {
-					imgData[i] = ma8Data_[i];
-				}
-				*/
 				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
 				g_system->updateScreen();
 				break;
@@ -1312,12 +1323,12 @@ Common::Error DgdsEngine::run() {
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-//		    explode(_platform, _rmfName, "TITLE.TTM");
-		    if ((k%2) == 0)
+//		    explode(_platform, _rmfName, "TITLE.TTM", 0);
+		    if ((k&1) == 0)
 			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    else
 			explode(_platform, _rmfName, "TITLE2.TTM", 0);
-		    k++;
+		    k ^= 1;
 		}
 		interpret(_platform, _rmfName, this);
 /*
