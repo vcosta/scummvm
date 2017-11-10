@@ -736,7 +736,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					if (chunk.isSection(ID_SNG)) {
 						byte *dest = new byte[stream->size()];
 
-						debug("        2%u: %u", scount, stream->size());
+						debug("        %2u: %u", scount, stream->size());
 						stream->read(dest, stream->size());
 						musicData = new Common::MemoryReadStream(dest, stream->size(), DisposeAfterUse::YES);
 						scount++;
