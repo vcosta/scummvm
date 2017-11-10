@@ -71,6 +71,7 @@ Graphics::ManagedSurface imgData;
 Graphics::Surface _imgData;
 
 Common::MemoryReadStream *soundData;
+Common::MemoryReadStream *musicData;
 
 uint16 _tcount;
 uint16 _tw, _th;
@@ -538,7 +539,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 			case EX_INS: {
 				/* AIFF sound sample (Amiga). */
 			        byte *dest = new byte[file.size()];
-			        file.read(dest,file.size());
+			        file.read(dest, file.size());
 			        soundData = new Common::MemoryReadStream(dest, file.size(), DisposeAfterUse::YES);
 				}
 				break;
@@ -568,12 +569,15 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 		}
 	} else {
 		uint16 tcount;
+		uint16 scount;
 		uint16 *tw = 0, *th = 0;
 		uint32 *toffset = 0;
 		
 		uint16 *mtx;
 		uint16 mw, mh;
-		
+
+		scount = 0;
+
 		struct DgdsChunk chunk;
 		while (chunk.readHeader(ctx, file, name)) {
 			Common::SeekableReadStream *stream;
@@ -730,11 +734,22 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				case EX_SNG:
 					/* DOS. */
 					if (chunk.isSection(ID_SNG)) {
-						stream->hexdump(stream->size());
-						stream->skip(stream->size());
+						byte *dest = new byte[stream->size()];
+
+						debug("        2%u: %u", scount, stream->size());
+						stream->read(dest, stream->size());
+						musicData = new Common::MemoryReadStream(dest, stream->size(), DisposeAfterUse::YES);
+						scount++;
 					} else if (chunk.isSection(ID_INF)) {
+						uint32 count;
+						count = stream->size()/2;
+						debug("        [%u]", count);
+						for (uint32 k = 0; k < count; k++) {
+							uint16 idx;
+							idx = stream->readUint16LE();
+							debug("        %2u: %u", k, idx);
+						}
 						stream->hexdump(stream->size());
-						stream->skip(stream->size());
 					}
 					break;
 				case EX_SX:
@@ -749,7 +764,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						for (uint16 k = 0; k < count; k++) {
 							uint16 idx;
 							idx = stream->readUint16LE();
-							debug("        %2u: %2u", k, idx);
+							debug("        %2u: %u", k, idx);
 						}
 					} else if (chunk.isSection(ID_TAG)) {
 						readStrings(stream);
@@ -1080,7 +1095,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				explode(platform, rootName, sval.c_str(), 0);
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
-			case 0xf060: {
+			case 0xf060:
 				if (platform == Common::kPlatformAmiga) {
 					// LOAD SONG
 					const char *fileName = "DYNAMIX.INS";
@@ -1088,6 +1103,13 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					byte channel = 0;
 					syst->stopSfx(channel);
 					syst->playSfx(fileName, channel, volume);
+				} else {
+					explode(platform, rootName, sval.c_str(), 0);
+					if (musicData) {
+						debug("YES!");
+						txt += "START ME UP!";
+						delete musicData;
+						musicData = 0;
 					}
 				}
 				break;
@@ -1265,6 +1287,7 @@ Common::Error DgdsEngine::run() {
 	initGraphics(320, 200);
 
 	soundData = 0;
+	musicData = 0;
 
 	memset(palette, 1, 256*3);
 
