@@ -64,8 +64,8 @@ byte vgaData[32000];
 
 byte ma8Data[64000];
 
-byte _binData[128000];
 byte _vgaData[128000];
+Graphics::Surface* _binData = 0;
 
 byte *imgData, *_imgData;
 Common::MemoryReadStream *soundData;
@@ -436,7 +436,7 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 	return count;
 }
 
-void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& file, const char* name, bool set) {
+void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& file, const char* name, int resource) {
 	struct DgdsFileCtx ctx;
 	uint parent = DGDS_NONE;
 
@@ -467,8 +467,8 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						uint(320+15)/16*200*planes);
 				file.hexdump(file.size());
 
-				if (set) {
-				    file.read(binData, file.size());
+				if (resource == 0) {
+				    //file.read(binData, file.size());
 				}
 				}
 			        break;
@@ -505,8 +505,8 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				debug("        %u -> %u",
 						packedSize, unpackedSize);
 
-				if (set) {
-				    file.read(_binData, file.size());
+				if (resource >= 0) {
+//				    file.read(_binData, file.size());
 
 				    _tcount = tcount;
 				    _tw = tw;
@@ -592,7 +592,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 						pages = stream->readUint16LE();
 						debug("        %u", pages);
 					} else if (chunk.isSection(ID_TT3)) {
-						if (set) {
+						if (resource == 0) {
 							ttm = stream->readStream(stream->size());
 						} else {
 							while (!stream->eos()) {
@@ -772,7 +772,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					break;
 				case EX_PAL:
 					/* DOS & Macintosh. */
-					if (set) {
+					if (resource == 0) {
 						if (chunk.isSection(ID_VGA)) {
 							stream->read(palette, 256*3);
 							
@@ -791,7 +791,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				case EX_SCR:
 					/* currently does not handle the VQT: and OFF: chunks
 					 for the compressed pics in the DOS port. */
-					if (set) {
+					if (resource == 0) {
 						if (chunk.isSection(ID_BIN)) {
 							stream->read(binData, stream->size());
 						} else if (chunk.isSection(ID_VGA)) {
@@ -850,9 +850,15 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					
 					// DCORNERS.BMP, DICONS.BMP, HELICOP2.BMP, WALKAWAY.BMP, KARWALK.BMP, BLGREND.BMP, FLAMDEAD.BMP, W.BMP, ARCADE.BMP
 					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
-					if (set) {
+					if (resource >= 0) {
 						if (chunk.isSection(ID_BIN)) {
-							stream->read(_binData, stream->size());
+							uint16 outPitch = tw[resource]>>1;
+							_binData = new Graphics::Surface();
+							_binData->create(outPitch, th[resource], Graphics::PixelFormat::createFormatCLUT8());
+							byte *data = (byte *)_binData->getPixels();
+
+							stream->skip(_toffsets[resource]>>1);
+							stream->read(data, uint32(outPitch)*th[resource]);
 						} else if (chunk.isSection(ID_VGA)) {
 							stream->read(_vgaData, stream->size());
 						} else if (chunk.isSection(ID_INF)) {
@@ -884,7 +890,7 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 	debug("  [%u:%u] --", file.pos(), ctx.outSize);
 }
 
-static void explode(Common::Platform platform, const char *indexName, const char *fileName) {
+static void explode(Common::Platform platform, const char *indexName, const char *fileName, int resource) {
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
 
@@ -895,7 +901,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 		index.read(salt, sizeof(salt));
 		nvolumes = index.readUint16LE();
 
-		if (!fileName)
+		if (resource == -1)
 			debug("(%u,%u,%u,%u) %u", salt[0], salt[1], salt[2], salt[3], nvolumes);
 
 		for (uint i=0; i<nvolumes; i++) {
@@ -909,7 +915,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			
 			volume.open(name);
 
-			if (!fileName)
+			if (resource == -1)
 				debug("--\n#%u %s %u", i, name, nfiles);
 
 			for (uint j=0; j<nfiles; j++) {
@@ -924,21 +930,21 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				name[DGDS_FILENAME_MAX] = '\0';
 				fileSize = volume.readUint32LE();
 
-				if (!fileName || scumm_stricmp(name, fileName) == 0)
+				if (resource == -1 || scumm_stricmp(name, fileName) == 0)
 					debug("  #%u %s %x=%x %u %u\n  --", j, name, hash, dgdsHash(name, salt), offset, fileSize);
 
 				if (fileSize == 0xFFFFFFFF) {
 					continue;
 				}
 
-				if (fileName && scumm_stricmp(name, fileName)) {
+				if (resource >= 0 && scumm_stricmp(name, fileName)) {
 					volume.skip(fileSize);
 					continue;
 				}
 
 				file = new Common::SeekableSubReadStream(&volume, volume.pos(), volume.pos()+fileSize, DisposeAfterUse::NO);
 
-				if (!fileName) {
+				if (resource == -1) {
 					Common::DumpFile out;
 					char *buf;
 
@@ -964,9 +970,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					_ex = 0;
 				}
 
-				parseFile(platform, _ex, *file, name, fileName);
+				parseFile(platform, _ex, *file, name, resource);
 
-				if (fileName) {
+				if (resource >= 0) {
 				    volume.close();
 				    index.close();
 				    return;
@@ -1049,7 +1055,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 			case 0xf050:
 				// LOAD PAL
-				explode(platform, rootName, sval.c_str());
+				explode(platform, rootName, sval.c_str(), 0);
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
 			case 0xf060: {
@@ -1066,7 +1072,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0x10a0:
 				// SET SCR?
-				explode(platform, rootName, scrNames[sid]);
+				explode(platform, rootName, scrNames[sid], 0);
 
 				vgaData_ = vgaData;
 				binData_ = binData;
@@ -1088,13 +1094,15 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0x1030:
 				// SET BMP?
-				explode(platform, rootName, bmpNames[id]);
-
 				bk = ivals[0];
+
+				delete _binData;
+				explode(platform, rootName, bmpNames[id], bk);
+
 				bw = _tw[bk]; bh = _th[bk];
 
 				vgaData_ = _vgaData + (_toffsets[bk]>>1);
-				binData_ = _binData + (_toffsets[bk]>>1);
+				binData_ = (byte *)_binData->getPixels();
 				for (int i=0; i<bw*bh; i+=2) {
 					_imgData[i+0]  = ((vgaData_[i/2] & 0xF0)     );
 					_imgData[i+0] |= ((binData_[i/2] & 0xF0) >> 4);
@@ -1218,7 +1226,7 @@ struct Channel _channels[2];
 
 void DgdsEngine::playSfx(const char* fileName, byte channel, byte volume) {
 	soundData = 0;
-	explode(_platform, _rmfName, fileName);
+	explode(_platform, _rmfName, fileName, 0);
 	if (soundData) {
 		Channel *ch = &_channels[channel];
 		Audio::AudioStream *input = Audio::makeAIFFStream(soundData, DisposeAfterUse::YES);
@@ -1250,10 +1258,10 @@ Common::Error DgdsEngine::run() {
 
 	// Rise of the Dragon.
 /*
-	explode(_platform, _rmfName, "TITLE1.TTM");
-	explode(_platform, _rmfName, "DYNAMIX.SNG");*/
+	explode(_platform, _rmfName, "TITLE1.TTM", 0);
+	explode(_platform, _rmfName, "DYNAMIX.SNG", 0);*/
 /*
-	explode(_platform, _rmfName, 0);
+	explode(_platform, _rmfName, 0, -1);
 	return Common::kNoError;
 */
 	g_system->fillScreen(0);
@@ -1301,9 +1309,9 @@ Common::Error DgdsEngine::run() {
 		    ttm = 0;
 //		    explode(_platform, _rmfName, "TITLE.TTM");
 		    if ((k%2) == 0)
-			explode(_platform, _rmfName, "TITLE1.TTM");
+			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    else
-			explode(_platform, _rmfName, "TITLE2.TTM");
+			explode(_platform, _rmfName, "TITLE2.TTM", 0);
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
