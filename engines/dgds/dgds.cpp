@@ -36,6 +36,8 @@
 
 #include "audio/audiostream.h"
 #include "audio/mixer.h"
+#include "audio/midiparser.h"
+#include "audio/midiplayer.h"
 #include "audio/decoders/aiff.h"
 
 #include "graphics/palette.h"
@@ -71,7 +73,8 @@ Graphics::ManagedSurface imgData;
 Graphics::Surface _imgData;
 
 Common::MemoryReadStream *soundData;
-Common::MemoryReadStream *musicData;
+byte *musicData;
+uint32 musicSize;
 
 uint16 _tcount;
 uint16 _tw, _th;
@@ -734,11 +737,11 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 				case EX_SNG:
 					/* DOS. */
 					if (chunk.isSection(ID_SNG)) {
-						byte *dest = new byte[stream->size()];
+						musicSize = stream->size();
+						musicData = (uint8 *)malloc(musicSize);
 
-						debug("        %2u: %u", scount, stream->size());
-						stream->read(dest, stream->size());
-						musicData = new Common::MemoryReadStream(dest, stream->size(), DisposeAfterUse::YES);
+						debug("        %2u: %u bytes", scount, musicSize);
+						stream->read(musicData, musicSize);
 						scount++;
 					} else if (chunk.isSection(ID_INF)) {
 						uint32 count;
@@ -1104,13 +1107,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					syst->stopSfx(channel);
 					syst->playSfx(fileName, channel, volume);
 				} else {
-					explode(platform, rootName, sval.c_str(), 0);
-					if (musicData) {
-						debug("YES!");
-						txt += "START ME UP!";
-						delete musicData;
-						musicData = 0;
-					}
+					syst->playMusic(sval.c_str());
 				}
 				break;
 
@@ -1267,12 +1264,12 @@ struct Channel {
 struct Channel _channels[2];
 
 void DgdsEngine::playSfx(const char* fileName, byte channel, byte volume) {
-	soundData = 0;
 	explode(_platform, _rmfName, fileName, 0);
 	if (soundData) {
 		Channel *ch = &_channels[channel];
 		Audio::AudioStream *input = Audio::makeAIFFStream(soundData, DisposeAfterUse::YES);
 		_mixer->playStream(Audio::Mixer::kSFXSoundType, &ch->handle, input, -1, volume);
+		soundData = 0;
 	}
 }
 
@@ -1283,11 +1280,173 @@ void DgdsEngine::stopSfx(byte channel) {
 	}
 }
 
+class MidiParser_DGDS : public MidiParser {
+protected:
+	byte *_init;
+	byte *_last;
+
+protected:
+	void parseNextEvent(EventInfo &info);
+
+public:
+	MidiParser_DGDS();
+	~MidiParser_DGDS();
+
+	bool loadMusic(byte *data, uint32 size);
+};
+
+MidiParser_DGDS::MidiParser_DGDS() : _init(0), _last(0) {
+}
+
+MidiParser_DGDS::~MidiParser_DGDS() {
+	free(_init);
+}
+
+class DgdsMidiPlayer : public Audio::MidiPlayer {
+public:
+	DgdsMidiPlayer();
+
+	void play(byte *data, uint32 size);
+	void stop();
+};
+
+void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
+	info.start = _position._playPos;
+
+	debug("MidiParser::parseNextEvent()");
+/*
+	if (_position._playPos >= _last) {
+		// fake an end-of-track meta event
+		info.delta = 0;
+		info.event = 0xFF;
+		info.ext.type = 0x2F;
+		info.length = 0;
+		return;
+	}*/
+
+//	info.length = 0;
+	/*
+	info.delta = readVLQ(_position._playPos);
+	info.event = read1(_position._playPos);
+	*/
+/*
+	if (info.event == 0xFF) {
+		parseMetaEvent(info);
+		return;
+	}
+
+	if (info.event < 0x80) {
+		_position._playpos--;
+		info.event = _lastevent;
+	}
+
+	if (info.event < 0x80)
+		return;
+*/
+/*
+	_position._runningStatus = info.event;
+*/
+	uint8 type;// = info.command();
+	//uint8 type = read1(_position._playPos);
+	//uint8 len = read1(_position._playPos);
+	//_position._playPos += len;
+		//info.ext.data = _position._playPos;
+		//info.ext.type = 0;
+		//info.basic.param1 = read1(_position._playPos);
+		//info.basic.param2 = read1(_position._playPos);
+
+	switch (type) {
+
+	default:
+		break;
+	}
+}
+
+bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
+	unloadMusic();
+
+	//_beats = ;
+	_ppqn = 0;
+	/*
+	_beats = read1(pos);
+	_ppqn = read2low(pos);*/
+
+	_init = data;
+	_last = data+size;
+
+	_numTracks = 1;
+	_tracks[0] = data;
+
+	resetTracking();
+	setTempo(500000);
+	setTrack(0);
+	debug("MidiParser::LoadMusic()");
+	return true;
+}
+
+DgdsMidiPlayer::DgdsMidiPlayer() {
+	MidiPlayer::createDriver();
+
+	int ret = _driver->open();
+	if (ret == 0) {
+		if (_nativeMT32)
+			_driver->sendMT32Reset();
+		else
+			_driver->sendGMReset();
+		_driver->setTimerCallback(this, &timerCallback);
+	}
+	debug("MidiPlayer()");
+}
+
+MidiParser *createParser_DGDS() { return new MidiParser_DGDS; }
+
+void DgdsMidiPlayer::play(byte *data, uint32 size) {
+	Common::StackLock lock(_mutex);
+
+	stop();
+	if (!data) return;
+
+	MidiParser *parser = createParser_DGDS();
+	if (parser->loadMusic(data, size)) {
+		parser->setTrack(0);
+		parser->setMidiDriver(this);
+		parser->setTimerRate(_driver->getBaseTempo());
+//		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);
+
+		_parser = parser;
+		syncVolume();
+
+		_isLooping = true;
+		_isPlaying = true;
+		debug("Playing music track");
+	} else {
+		debug("Cannot play music track");
+		delete parser;
+	}
+}
+
+void DgdsMidiPlayer::stop() {
+	Audio::MidiPlayer::stop();
+	debug("Stopping track");
+}
+
+void DgdsEngine::playMusic(const char* fileName) {
+	//stopMusic();
+
+	explode(_platform, _rmfName, fileName, 0);
+	if (musicData) {
+		_midiPlayer->play(musicData, musicSize);
+	}
+}
+
 Common::Error DgdsEngine::run() {
 	initGraphics(320, 200);
 
 	soundData = 0;
 	musicData = 0;
+
+	_midiPlayer = new DgdsMidiPlayer();
+	assert(_midiPlayer);
 
 	memset(palette, 1, 256*3);
 

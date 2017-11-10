@@ -35,6 +35,7 @@ namespace Dgds {
 class DgdsConsole;
 
 struct DgdsGameDescription;
+struct DgdsMidiPlayer;
 
 class DgdsEngine : public Engine {
 private:
@@ -42,6 +43,8 @@ private:
 
 	Common::Platform _platform;
 	const char *_rmfName;
+
+	DgdsMidiPlayer *_midiPlayer;
 
 protected:
 	virtual Common::Error run();
@@ -52,6 +55,8 @@ public:
 
         void playSfx(const char* fileName, byte channel, byte volume);
         void stopSfx(byte channel);
+
+	void playMusic(const char* fileName);
 };
 
 class DgdsConsole : public GUI::Debugger {
