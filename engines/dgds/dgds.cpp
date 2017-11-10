@@ -33,6 +33,7 @@
 #include "common/platform.h"
 
 #include "common/iff_container.h"
+#include "sci/sound/midiparser_sci.h"
 
 #include "audio/audiostream.h"
 #include "audio/mixer.h"
@@ -742,6 +743,17 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 
 						debug("        %2u: %u bytes", scount, musicSize);
 						stream->read(musicData, musicSize);
+
+						Common::DumpFile out;
+						Common::String dname = Common::String::format("%s-%u.SND", name, scount);
+
+						if (!out.open(dname)) {
+							debug("Couldn't write to %s", name);
+						} else {
+							out.write(musicData, musicSize);
+							out.close();
+						}
+
 						scount++;
 					} else if (chunk.isSection(ID_INF)) {
 						uint32 count;
@@ -1311,11 +1323,93 @@ public:
 };
 
 void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
-	//info.start = _position._playPos;
-
 	debug("MidiParser::parseNextEvent()");
 
-	if (1/*_position._playPos >= _last*/) {
+	info.start = _position._playPos;
+	info.delta = 0;
+	while (*_position._playPos == 0xF8) {
+		info.delta += 240;
+		_position._playPos++;
+	}
+
+	// Process the next info.
+	if ((_position._playPos[0] & 0xF0) >= 0x80)
+		info.event = *(_position._playPos++);
+	else
+		info.event = _position._runningStatus;
+	if (info.event < 0x80)
+		return;
+
+	_position._runningStatus = info.event;
+	uint8 type = info.command();
+	switch (type) {
+		case 0xC:
+			info.basic.param1 = *(_position._playPos++);
+			info.basic.param2 = 0;
+			break;
+		case 0xD:
+			info.basic.param1 = *(_position._playPos++);
+			info.basic.param2 = 0;
+			break;
+
+		case 0xB:
+			info.basic.param1 = *(_position._playPos++);
+			info.basic.param2 = *(_position._playPos++);
+			info.length = 0;
+			break;
+
+		case 0x8:
+		case 0x9:
+		case 0xA:
+		case 0xE:
+			info.basic.param1 = *(_position._playPos++);
+			info.basic.param2 = *(_position._playPos++);
+			if (info.command() == 0x9 && info.basic.param2 == 0) {
+				// NoteOn with param2==0 is a NoteOff
+				info.event = info.channel() | 0x80;
+			}
+			info.length = 0;
+			break;
+
+		case 0xF: // System Common, Meta or SysEx event
+			switch (info.event & 0x0F) {
+				case 0x2: // Song Position Pointer
+					info.basic.param1 = *(_position._playPos++);
+					info.basic.param2 = *(_position._playPos++);
+					break;
+
+				case 0x3: // Song Select
+					info.basic.param1 = *(_position._playPos++);
+					info.basic.param2 = 0;
+					break;
+
+				case 0x6:
+				case 0x8:
+				case 0xA:
+				case 0xB:
+				case 0xC:
+				case 0xE:
+					info.basic.param1 = info.basic.param2 = 0;
+					break;
+
+				case 0x0: // SysEx
+					info.length = readVLQ(_position._playPos);
+					info.ext.data = _position._playPos;
+					_position._playPos += info.length;
+					break;
+
+				case 0xF: // META event
+					info.ext.type = *(_position._playPos++);
+					info.length = readVLQ(_position._playPos);
+					info.ext.data = _position._playPos;
+					_position._playPos += info.length;
+					break;
+				default:
+					break;
+			}
+	}
+#if 0
+	if (0/*_position._playPos >= _last*/) {
 		// fake an end-of-track meta event
 		info.delta = 0;
 		info.event = 0xFF;
@@ -1323,7 +1417,7 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 		info.length = 0;
 		return;
 	}
-
+#endif
 //	info.length = 0;
 	/*
 	info.delta = readVLQ(_position._playPos);
@@ -1346,7 +1440,6 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 /*
 	_position._runningStatus = info.event;
 */
-	uint8 type;// = info.command();
 	//uint8 type = read1(_position._playPos);
 	//uint8 len = read1(_position._playPos);
 	//_position._playPos += len;
@@ -1354,30 +1447,45 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 		//info.ext.type = 0;
 		//info.basic.param1 = read1(_position._playPos);
 		//info.basic.param2 = read1(_position._playPos);
-
-	switch (type) {
-
-	default:
-		break;
-	}
 }
 
 bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 	unloadMusic();
+
+	_init = data;
+	_last = data+size;
 
 	//_beats = ;
 	_ppqn = 0;
 	/*
 	_beats = read1(pos);
 	_ppqn = read2low(pos);*/
+        uint32 sci_header = 0;
+	if (data[0] == 0x84 && data[1] == 0x00) sci_header = 2;
 
-	_init = data;
-	_last = data+size;
+	data += sci_header;
+	/*
+	if (data[0] == 0xF0) {
+		debug("SysEx transfer = %u bytes", data[1]);
+		data += 2;
+		data += 6;
+	}
+
+	while (buf[0] != 0xFF) {
+	}
+*/
+	/*
+	for (int i = 0; i < 16; i++) {
+		_channelUsed[i] = false;
+		_channelMuted[i] = false;
+		_channelVolume[i] = 127;
+	}*/
 
 	_numTracks = 1;
 	_tracks[0] = data;
 
 	resetTracking();
+	//setTempo(16667);
 	setTempo(500000);
 	setTrack(0);
 	debug("MidiParser::LoadMusic()");
@@ -1406,12 +1514,12 @@ void DgdsMidiPlayer::play(byte *data, uint32 size) {
 	stop();
 	if (!data) return;
 
-	MidiParser *parser = createParser_DGDS();
+	MidiParser *parser = MidiParser::createParser_SMF();
 	if (parser->loadMusic(data, size)) {
 		parser->setTrack(0);
 		parser->setMidiDriver(this);
 		parser->setTimerRate(_driver->getBaseTempo());
-//		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);
+		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);
 
 		_parser = parser;
 		syncVolume();
