@@ -1103,7 +1103,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					for (int i=0; i<sw*sh; i++) {
 						imgData_[i] = ma8Data_[i];
 					}
-				} else {
+				} else if (vgaData.h != 0) {
 					vgaData_ = (byte *)vgaData.getPixels();
 					binData_ = (byte *)binData.getPixels();
 					for (int i=0; i<sw*sh; i+=2) {
@@ -1125,14 +1125,16 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				_binData.free();
 				explode(platform, rootName, bmpNames[id], bk);
 
-				bw = _tw; bh = _th;
-				vgaData_ = (byte *)_vgaData.getPixels();
-				binData_ = (byte *)_binData.getPixels();
-				for (int i=0; i<bw*bh; i+=2) {
-					_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-					_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-					_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-					_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+				if (_vgaData.h != 0) {
+					bw = _tw; bh = _th;
+					vgaData_ = (byte *)_vgaData.getPixels();
+					binData_ = (byte *)_binData.getPixels();
+					for (int i=0; i<bw*bh; i+=2) {
+						_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+						_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+						_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+						_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+					}
 				}
 				break;
 
@@ -1325,9 +1327,9 @@ Common::Error DgdsEngine::run() {
 		    ttm = 0;
 //		    explode(_platform, _rmfName, "TITLE.TTM", 0);
 		    if ((k&1) == 0)
-			explode(_platform, _rmfName, "TITLE2.TTM", 0);
-		    else
 			explode(_platform, _rmfName, "TITLE1.TTM", 0);
+		    else
+			explode(_platform, _rmfName, "TITLE2.TTM", 0);
 		    k ^= 1;
 		}
 		interpret(_platform, _rmfName, this);
