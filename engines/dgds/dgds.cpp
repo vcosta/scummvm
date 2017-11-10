@@ -64,8 +64,8 @@ byte vgaData[32000];
 
 byte ma8Data[64000];
 
-Graphics::Surface* _binData = 0;
-Graphics::Surface* _vgaData = 0;
+Graphics::Surface _binData;
+Graphics::Surface _vgaData;
 
 byte *imgData, *_imgData;
 Common::MemoryReadStream *soundData;
@@ -434,6 +434,15 @@ uint16 readStrings(Common::SeekableReadStream* stream){
 		debug("        %2u: %2u, \"%s\"", k, idx, str.c_str());
 	}
 	return count;
+}
+
+void loadBitmap4(Graphics::Surface& surf, uint16 tw, uint16 th, uint16 toffset, Common::SeekableReadStream* stream) {
+	uint16 outPitch = tw>>1;
+	surf.create(outPitch, th, Graphics::PixelFormat::createFormatCLUT8());
+	byte *data = (byte *)surf.getPixels();
+	
+	stream->skip(toffset>>1);
+	stream->read(data, uint32(outPitch)*th);
 }
 
 void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& file, const char* name, int resource) {
@@ -852,21 +861,9 @@ void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStrea
 					// MTX: SCROLL.BMP (intro title), SCROLL2.BMP
 					if (resource >= 0) {
 						if (chunk.isSection(ID_BIN)) {
-							uint16 outPitch = tw[resource]>>1;
-							_binData = new Graphics::Surface();
-							_binData->create(outPitch, th[resource], Graphics::PixelFormat::createFormatCLUT8());
-							byte *data = (byte *)_binData->getPixels();
-
-							stream->skip(_toffsets[resource]>>1);
-							stream->read(data, uint32(outPitch)*th[resource]);
+							loadBitmap4(_binData, tw[resource], th[resource], _toffsets[resource], stream);
 						} else if (chunk.isSection(ID_VGA)) {
-							uint16 outPitch = tw[resource]>>1;
-							_vgaData = new Graphics::Surface();
-							_vgaData->create(outPitch, th[resource], Graphics::PixelFormat::createFormatCLUT8());
-							byte *data = (byte *)_vgaData->getPixels();
-
-							stream->skip(_toffsets[resource]>>1);
-							stream->read(data, uint32(outPitch)*th[resource]);
+							loadBitmap4(_vgaData, tw[resource], th[resource], _toffsets[resource], stream);
 						} else if (chunk.isSection(ID_INF)) {
 							_tcount = tcount;
 							_tw = tw;
@@ -1101,15 +1098,12 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			case 0x1030:
 				// SET BMP?
 				bk = ivals[0];
-
-				delete _binData;
-				delete _vgaData;
 				explode(platform, rootName, bmpNames[id], bk);
 
 				bw = _tw[bk]; bh = _th[bk];
 
-				vgaData_ = (byte *)_vgaData->getPixels();
-				binData_ = (byte *)_binData->getPixels();
+				vgaData_ = (byte *)_vgaData.getPixels();
+				binData_ = (byte *)_binData.getPixels();
 				for (uint32 i=0; i<bw*bh; i+=2) {
 					_imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
 					_imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
