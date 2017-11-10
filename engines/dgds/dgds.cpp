@@ -61,13 +61,13 @@ byte palette[256*3];
 
 Graphics::Surface binData;
 Graphics::Surface vgaData;
-
 Graphics::Surface ma8Data;
 
 Graphics::Surface _binData;
 Graphics::Surface _vgaData;
 
-byte *imgData, *_imgData;
+Graphics::Surface imgData, _imgData;
+
 Common::MemoryReadStream *soundData;
 
 uint16 _tcount;
@@ -1055,6 +1055,12 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 		byte *vgaData_;
 		byte *binData_;
 		byte *ma8Data_;
+
+		byte *imgData_;
+		byte *_imgData_;
+		imgData_ = (byte *)imgData.getPixels();
+		_imgData_ = (byte *)_imgData.getPixels();
+
 		Graphics::Surface *dst;
 		switch (op) {
 			case 0xf010:
@@ -1092,19 +1098,19 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				if (ma8Data.h != 0) {
 					ma8Data_ = (byte *)ma8Data.getPixels();
 					for (int i=0; i<sw*sh; i++) {
-						imgData[i] = ma8Data_[i];
+						imgData_[i] = ma8Data_[i];
 					}
 				} else {
 					vgaData_ = (byte *)vgaData.getPixels();
 					binData_ = (byte *)binData.getPixels();
 					for (int i=0; i<sw*sh; i+=2) {
-						imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-						imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-						imgData[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-						imgData[i+1] |= ((binData_[i>>1] & 0x0F)     );
+						imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+						imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+						imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+						imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
 					}
 				}
-				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
 				g_system->updateScreen();
 				break;
 
@@ -1120,10 +1126,10 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				vgaData_ = (byte *)_vgaData.getPixels();
 				binData_ = (byte *)_binData.getPixels();
 				for (int i=0; i<bw*bh; i+=2) {
-					_imgData[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-					_imgData[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-					_imgData[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-					_imgData[i+1] |= ((binData_[i>>1] & 0x0F)     );
+					_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+					_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+					_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+					_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
 				}
 				break;
 
@@ -1156,7 +1162,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 				dst = g_system->lockScreen();
 
-				byte *src = imgData + clippedDestRect.top*sw + clippedDestRect.left;
+				byte *src = imgData_ + clippedDestRect.top*sw + clippedDestRect.left;
 				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
 				for (int i=0; i<rows; ++i) {
 					for (int j=0; j<columns; ++j) {
@@ -1170,19 +1176,19 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 
-			case 0x4110:
+			case 0x4110: {
 				// FADE TO BLACK?
-				memset(imgData, 0, 320*200);
-				g_system->fillScreen(0);
-
-				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				Common::Rect rect(0, 0, sw, sh);
+				imgData.fillRect(rect, 0);
+				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
 				g_system->updateScreen();
+				}
 				break;
 
 			case 0x0ff0:
 				// RESET AREA?
 				g_system->updateScreen();
-				g_system->copyRectToScreen(imgData, sw, 0, 0, sw, sh);
+				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
 				break;
 
 			case 0xa530:
@@ -1199,7 +1205,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 				dst = g_system->lockScreen();
 
-				byte *src = _imgData + croppedBy.y * bw + croppedBy.x;
+				byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
 				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
 				for (int i=0; i<rows; ++i) {
 					for (int j=0; j<columns; ++j) {
@@ -1264,10 +1270,9 @@ Common::Error DgdsEngine::run() {
 
 	memset(palette, 1, 256*3);
 
-	imgData = new byte[320*200];
-	_imgData = new byte[320*200];
-	memset(imgData, 0, 320*200);
-	memset(_imgData, 0, 320*200);
+	imgData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+	_imgData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+
 	ttm = 0;
 
 	debug("DgdsEngine::init");
