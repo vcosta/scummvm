@@ -460,8 +460,18 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
-void parseFile(Common::Platform platform, DGDS_EX _ex, Common::SeekableReadStream& file, const char* name, int resource) {
+void parseFile(Common::Platform platform, Common::SeekableReadStream& file, const char* name, int resource) {
 	struct DgdsFileCtx ctx;
+
+	const char *dot;
+	DGDS_EX _ex;
+
+	if ((dot = strrchr(name, '.'))) {
+		_ex = MKTAG(dot[0], dot[1], dot[2], dot[3]);
+	} else {
+		_ex = 0;
+	}
+
 	uint parent = DGDS_NONE;
 
 	ctx.init(file.size());
@@ -937,6 +947,12 @@ static void explode(Common::Platform platform, const char *indexName, const char
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
 
+	if (fileName && volume.open(fileName)) {
+		parseFile(platform, volume, fileName, resource);
+		volume.close();
+		return;
+	}
+
 	if (index.open(indexName)) {
 		byte salt[4];
 		uint16 nvolumes;
@@ -1004,16 +1020,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 					delete [] buf;
 				}
 				
-				const char *dot;
-				DGDS_EX _ex;
-
-				if ((dot = strrchr(name, '.'))) {
-					_ex = MKTAG(dot[0], dot[1], dot[2], dot[3]);
-				} else {
-					_ex = 0;
-				}
-
-				parseFile(platform, _ex, *file, name, resource);
+				parseFile(platform, *file, name, resource);
 
 				if (fileName) {
 				    volume.close();
@@ -1468,7 +1475,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 
 		debug("%06d:%d", off, len);
 
-		    _tracks[_numTracks++] = data+off;
+		_tracks[_numTracks++] = data+off;
 
 		if (_numTracks > ARRAYSIZE(_tracks)) {
 		    warning("Can only handle %d tracks but was handed %d", (int)ARRAYSIZE(_tracks), _numTracks);
@@ -1592,7 +1599,6 @@ Common::Error DgdsEngine::run() {
 	}
 
 	g_system->fillScreen(0);
-
 
 	//playMusic("DYNAMIX.SNG");
 	// grayscale palette.
