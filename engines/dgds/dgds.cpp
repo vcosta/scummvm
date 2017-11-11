@@ -1231,7 +1231,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0xa500: {
 				// DRAW BMP: x,y,tile-id,bmp-id:int [-n,+n] (CHINA)
-				// This is kind of file system intensive, will likely have to change to string the BMPs.
+				// This is kind of file system intensive, will likely have to change to store all the BMPs.
 				if (count == 4) {
 					_vgaData.free();
 					_binData.free();
@@ -1302,13 +1302,16 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 //				g_system->updateScreen();
 				break;
 
+			case 0x1020: //DELAY?:	    i:int   [0..n]
+				g_system->delayMillis(ivals[0]*10);
+				break;
+
 			case 0xa530:	// CHINA
 				// DRAW BMP4:	x,y,tile-id,bmp-id:int	[-n,+n] (CHINA)
 				// arguments similar to DRAW BMP but it draws the same BMP multiple times with radial simmetry? you can see this in the Dynamix logo star.
 			case 0x2000: //SET FRAME1?: i,j:int [0,0]
 			case 0x0110: //PURGE IMGS?  void
 			case 0x0080: //DRAW BG:	    void
-			case 0x1020: //DELAY?:	    i:int   [0..n]
 			case 0x1100: //?	    i:int   [9]
 			case 0x1300: //?	    i:int   [72,98,99,100,107]
 			case 0xa050: //GFX?	    i,j,k,l:int	[i<k,j<l]
@@ -1751,7 +1754,7 @@ Common::Error DgdsEngine::run() {
 			cx += w;
 		}
 */
-		g_system->delayMillis(50);
+		g_system->delayMillis(40);
 	}
 	return Common::kNoError;
 }
