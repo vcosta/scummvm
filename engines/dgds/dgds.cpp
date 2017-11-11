@@ -120,50 +120,52 @@ void DgdsFileCtx::init(uint32 size) {
 typedef uint32 DGDS_ID;
 typedef uint32 DGDS_EX;
 
-#define ID_BIN	MKTAG('B','I','N',':')
-#define ID_DAT	MKTAG('D','A','T',':')
-#define ID_FNM	MKTAG('F','N','M',':')
-#define ID_GAD	MKTAG('G','A','D',':')
-#define ID_INF	MKTAG('I','N','F',':')
-#define ID_MTX	MKTAG('M','T','X',':')
-#define ID_PAG	MKTAG('P','A','G',':')
-#define ID_REQ	MKTAG('R','E','Q',':')
-#define ID_RES	MKTAG('R','E','S',':')
-#define ID_SCR	MKTAG('S','C','R',':')
-#define ID_SDS	MKTAG('S','D','S',':')
-#define ID_SNG	MKTAG('S','N','G',':')
-#define ID_TAG	MKTAG('T','A','G',':')
-#define ID_TT3	MKTAG('T','T','3',':')
-#define ID_VER	MKTAG('V','E','R',':')
-#define ID_VGA	MKTAG('V','G','A',':')
+#define MKTAG24(a0,a1,a2) ((uint32)((a2) | (a1) << 8 | ((a0) << 16)))
+
+#define ID_BIN	MKTAG24('B','I','N')
+#define ID_DAT	MKTAG24('D','A','T')
+#define ID_FNM	MKTAG24('F','N','M')
+#define ID_GAD	MKTAG24('G','A','D')
+#define ID_INF	MKTAG24('I','N','F')
+#define ID_MTX	MKTAG24('M','T','X')
+#define ID_PAG	MKTAG24('P','A','G')
+#define ID_REQ	MKTAG24('R','E','Q')
+#define ID_RES	MKTAG24('R','E','S')
+#define ID_SCR	MKTAG24('S','C','R')
+#define ID_SDS	MKTAG24('S','D','S')
+#define ID_SNG	MKTAG24('S','N','G')
+#define ID_TAG	MKTAG24('T','A','G')
+#define ID_TT3	MKTAG24('T','T','3')
+#define ID_VER	MKTAG24('V','E','R')
+#define ID_VGA	MKTAG24('V','G','A')
 
 /* Heart of China */
-#define ID_MA8	MKTAG('M','A','8',':')
-#define ID_DDS	MKTAG('D','D','S',':')
-#define ID_THD	MKTAG('T','H','D',':')
+#define ID_MA8	MKTAG24('M','A','8')
+#define ID_DDS	MKTAG24('D','D','S')
+#define ID_THD	MKTAG24('T','H','D')
 
-#define	EX_ADH	MKTAG('.','A','D','H')
-#define	EX_ADL	MKTAG('.','A','D','L')
-#define	EX_ADS	MKTAG('.','A','D','S')
-#define	EX_AMG	MKTAG('.','A','M','G')
-#define	EX_BMP	MKTAG('.','B','M','P')
-#define	EX_GDS	MKTAG('.','G','D','S')
-#define	EX_INS	MKTAG('.','I','N','S')
-#define	EX_PAL	MKTAG('.','P','A','L')
-#define	EX_REQ	MKTAG('.','R','E','Q')
-#define	EX_RST	MKTAG('.','R','S','T')
-#define	EX_SCR	MKTAG('.','S','C','R')
-#define	EX_SDS	MKTAG('.','S','D','S')
-#define	EX_SNG	MKTAG('.','S','N','G')
-#define	EX_SX	MKTAG('.','S','X', 0 )
-#define	EX_TTM	MKTAG('.','T','T','M')
-#define	EX_VIN	MKTAG('.','V','I','N')
+#define	EX_ADH	MKTAG24('A','D','H')
+#define	EX_ADL	MKTAG24('A','D','L')
+#define	EX_ADS	MKTAG24('A','D','S')
+#define	EX_AMG	MKTAG24('A','M','G')
+#define	EX_BMP	MKTAG24('B','M','P')
+#define	EX_GDS	MKTAG24('G','D','S')
+#define	EX_INS	MKTAG24('I','N','S')
+#define	EX_PAL	MKTAG24('P','A','L')
+#define	EX_REQ	MKTAG24('R','E','Q')
+#define	EX_RST	MKTAG24('R','S','T')
+#define	EX_SCR	MKTAG24('S','C','R')
+#define	EX_SDS	MKTAG24('S','D','S')
+#define	EX_SNG	MKTAG24('S','N','G')
+#define	EX_SX	MKTAG24('S','X', 0 )
+#define	EX_TTM	MKTAG24('T','T','M')
+#define	EX_VIN	MKTAG24('V','I','N')
 
 /* Heart of China */
-#define	EX_DDS	MKTAG('.','D','D','S')
-#define	EX_TDS	MKTAG('.','T','D','S')
+#define	EX_DDS	MKTAG24('D','D','S')
+#define	EX_TDS	MKTAG24('T','D','S')
 
-#define	EX_OVL	MKTAG('.','O','V','L')
+#define	EX_OVL	MKTAG24('O','V','L')
 
 struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
@@ -325,7 +327,7 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, c
 		return false;
 	}
 	type[DGDS_TYPENAME_MAX] = '\0';
-	_type = MKTAG(uint32(type[0]), uint32(type[1]), uint32(type[2]), uint32(type[3]));
+	_type = MKTAG24(uint32(type[0]), uint32(type[1]), uint32(type[2]));
 
 	chunkSize = file.readUint32LE();
 	if (chunkSize & 0x80000000) {
@@ -467,7 +469,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 	DGDS_EX _ex;
 
 	if ((dot = strrchr(name, '.'))) {
-		_ex = MKTAG(dot[0], dot[1], dot[2], dot[3]);
+		_ex = MKTAG24(dot[1], dot[2], dot[3]);
 	} else {
 		_ex = 0;
 	}
@@ -1303,7 +1305,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 			case 0x1020: //DELAY?:	    i:int   [0..n]
-				g_system->delayMillis(ivals[0]*10);
+//				g_system->delayMillis(ivals[0]*10);
 				break;
 
 			case 0xa530:	// CHINA
@@ -1324,6 +1326,8 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				debug("        unimplemented opcode: 0x%04X", op);
 				break;
 		}
+
+//		g_system->displayMessageOnOSD(txt.c_str());
 #if 0
 		const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kConsoleFont);
 		int w = font->getStringWidth(txt);
@@ -1710,8 +1714,9 @@ Common::Error DgdsEngine::run() {
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-		    explode(_platform, _rmfName, "TITLE.TTM", 0);
 
+		    explode(_platform, _rmfName, "TITLE.TTM", 0);
+/*
 		    switch ((k&3)) {
 		    case 0:
 			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
@@ -1722,7 +1727,7 @@ Common::Error DgdsEngine::run() {
 		    case 2:
 			    explode(_platform, _rmfName, "INTRO.TTM", 0);
 			    break;
-		    }
+		    }*/
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
