@@ -1103,21 +1103,25 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 		Graphics::Surface *dst;
 		switch (op) {
+			case 0x0000:
+				// FINISH:	void
+				return;
+
 			case 0xf010:
-				// LOAD SCR
+				// LOAD SCR:	filename:str
 				Common::strlcpy(scrNames[sid], sval.c_str(), sizeof(scrNames[sid]));
 				break;
 			case 0xf020:
-				// LOAD BMP
+				// LOAD BMP:	filename:str
 				Common::strlcpy(bmpNames[id], sval.c_str(), sizeof(bmpNames[id]));
 				break;
 			case 0xf050:
-				// LOAD PAL
+				// LOAD PAL:	filename:str
 				explode(platform, rootName, sval.c_str(), 0);
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
 			case 0xf060:
-				// LOAD SONG
+				// LOAD SONG:	filename:str
 				if (platform == Common::kPlatformAmiga) {
 					const char *fileName = "DYNAMIX.INS";
 					byte volume = 255;
@@ -1130,39 +1134,41 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 			case 0x1030:
-				// SET BMP?
+				// SET BMP:	id:int [-1:n]
 				bk = ivals[0];
 
 				_vgaData.free();
 				_binData.free();
-				explode(platform, rootName, bmpNames[id], bk);
+				if (bk != -1) {
+					explode(platform, rootName, bmpNames[id], bk);
 
-				if (_vgaData.h != 0) {
-					bw = _tw; bh = _th;
-					vgaData_ = (byte *)_vgaData.getPixels();
-					binData_ = (byte *)_binData.getPixels();
-					for (int i=0; i<bw*bh; i+=2) {
-						_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-						_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-						_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-						_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+					if (_vgaData.h != 0) {
+						bw = _tw; bh = _th;
+						vgaData_ = (byte *)_vgaData.getPixels();
+						binData_ = (byte *)_binData.getPixels();
+						for (int i=0; i<bw*bh; i+=2) {
+							_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+							_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+							_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+							_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+						}
 					}
 				}
 				break;
 			case 0x1050:
-				// SELECT BMP
+				// SELECT BMP:	    id:int [0:n]
 				id = ivals[0];
 				break;
 			case 0x1060:
-				// SELECT SCR|PAL
+				// SELECT SCR|PAL:  id:int [0]
 				sid = ivals[0];
 				break;
 			case 0x1090:
-				// SELECT SONG
+				// SELECT SONG:	    id:int [0]
 				break;
 
 			case 0x10a0:
-				// SET SCR|PAL?
+				// SET SCR|PAL:	    id:int [0]
 				vgaData.free();
 				binData.free();
 				ma8Data.free();
@@ -1188,23 +1194,22 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 			case 0x4110:
-				// FADE TO BLACK?
+				// FADE OUT:	?,?,?,?:byte
 				imgData.fillRect(rect, 0);
 				dst = g_system->lockScreen();
 				dst->copyRectToSurface(imgData, 0, 0, rect);
 				g_system->unlockScreen();
-
 				g_system->updateScreen();
 				break;
 			case 0x4120:
-				// FADE IN?
+				// FADE IN:	?,?,?,?:byte
 				dst = g_system->lockScreen();
 				imgData.copyRectToSurface(*dst, rect.left, rect.top, rect);
 				g_system->unlockScreen();
 				break;
 
 			case 0x4200: {
-				// STORE AREA?
+				// STORE AREA:	x,y,w,h:int [0..n]
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
@@ -1216,7 +1221,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 			case 0x0ff0:
-				// QUEUE REFRESH?
+				// REFRESH:	void
 				g_system->updateScreen();
 
 				dst = g_system->lockScreen();
@@ -1225,7 +1230,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 			case 0xa500: {
-				// DRAW BMP?
+				// DRAW BMP0:	x,y:int [-n,+n]
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
@@ -1251,30 +1256,22 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
-			case 0x0020:
-			case 0x0080:
-			case 0x1110:
-			case 0x1020:
-				break;
+			case 0x0020: //SAVE BG?:    void
+			case 0x0080: //DRAW BG:	    void
+			case 0x1020: //DELAY?:	    i:int   [0..n]
+			case 0x1110: //SET SCENE?:  i:int   [1..n]
+			case 0x1100: //?	    i:int   [9]
+			case 0x1300: //?	    i:int   [72]
+			case 0x2000: //SET FRAME1?: i,j:int [0,0]
 
-			case 0x1300: /*?*/
-			case 0x1100: /*?*/
-			case 0x2000:
-			case 0xa050: /*?*/
-			case 0xa100: /*?*/
-				break;
+			case 0xa050: //?	    i,j,k,l:int	[]  : perhaps a draw call.
+			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0..320,0..200]
 
-			case 0x0110:
-				break;
+			case 0x0110: //PURGE IMAGES?	void
 
-				break;
+			case 0xa520: //DRAW BMP2
+			case 0xa530: //DRAW BMP3
 
-			case 0xa520:
-			case 0xa530:
-				break;
-
-			case 0x0000:
-			case 0x1310:
 			default:
 				debug("        unimplemented opcode: %4X", op);
 				break;
