@@ -1118,7 +1118,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					syst->stopSfx(channel);
 					syst->playSfx(fileName, channel, volume);
 				} else {
-				//	syst->playMusic(sval.c_str());
+//					syst->playMusic(sval.c_str());
 				}
 				break;
 
@@ -1663,7 +1663,8 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 	}
 	pos++;
 
-	_ppqn = 192;
+	_ppqn = 1;
+	setTempo(16667);
 
 	totalSize = 0;
 	int tracksRead = 0;
@@ -1679,13 +1680,16 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 
 		totalSize += len;
 		tracksRead++;
+		data[size++] = 0xFF;
+		data[size++] = 0x2F;
+		data[size++] = 0x00;
+		data[size++] = 0x00;
 	}
 
 	// Note that we assume the original data passed in
 	// will persist beyond this call, i.e. we do NOT
 	// copy the data to our own buffer. Take warning....
 	resetTracking();
-	setTempo(500000);
 	setTrack(0);
 	return true;
 }
@@ -1773,7 +1777,7 @@ Common::Error DgdsEngine::run() {
 	g_system->fillScreen(0);
 
 
-//	playMusic("RISE.SNG");
+//	playMusic("DYNAMIX.SNG");
 	// grayscale palette.
 /*
 	for (uint i=0; i<256; i++) {
@@ -1811,7 +1815,7 @@ Common::Error DgdsEngine::run() {
 				}
 			}
 		}
-#if 0
+
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
@@ -1824,7 +1828,7 @@ Common::Error DgdsEngine::run() {
 		    k ^= 1;
 		}
 		interpret(_platform, _rmfName, this);
-#endif
+
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
