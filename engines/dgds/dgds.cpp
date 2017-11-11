@@ -1105,7 +1105,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 		switch (op) {
 			case 0x0000:
 				// FINISH:	void
-				return;
+				break;
 
 			case 0xf010:
 				// LOAD SCR:	filename:str
@@ -1256,24 +1256,24 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
+			case 0x2000: //SET FRAME1?: i,j:int [0,0]
+			case 0x0110: //PURGE IMGS?  void
 			case 0x0020: //SAVE BG?:    void
 			case 0x0080: //DRAW BG:	    void
 			case 0x1020: //DELAY?:	    i:int   [0..n]
 			case 0x1110: //SET SCENE?:  i:int   [1..n]
 			case 0x1100: //?	    i:int   [9]
-			case 0x1300: //?	    i:int   [72]
-			case 0x2000: //SET FRAME1?: i,j:int [0,0]
+			case 0x1300: //?	    i:int   [72,98,99,100,107]
+			case 0xa050: //GFX?	    i,j,k,l:int	[i<k,j<l]
+			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0,320,0,200]
 
-			case 0xa050: //?	    i,j,k,l:int	[]  : perhaps a draw call.
-			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0..320,0..200]
+			case 0xa520: //DRAW BMP2    i,j:int ; happens once in INTRO.TTM
 
-			case 0x0110: //PURGE IMAGES?	void
-
-			case 0xa520: //DRAW BMP2
+			case 0x1310: //?	    i:int   [107]
 			case 0xa530: //DRAW BMP3
 
 			default:
-				debug("        unimplemented opcode: %4X", op);
+				debug("        unimplemented opcode: 0x%04X", op);
 				break;
 		}
 
@@ -1661,15 +1661,18 @@ Common::Error DgdsEngine::run() {
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-//		    explode(_platform, _rmfName, "INTRO.TTM", 0);
-
+		    explode(_platform, _rmfName, "INTRO.TTM", 0);
+/*
 		    if ((k&1) == 0)
 			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    else
 			explode(_platform, _rmfName, "TITLE2.TTM", 0);
-		    k ^= 1;
+		    k ^= 1;*/
 		}
 		interpret(_platform, _rmfName, this);
+ 		if (ttm->eos()) {
+			break;
+		}
 
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
@@ -1699,7 +1702,7 @@ Common::Error DgdsEngine::run() {
 			cx += w;
 		}
 */
-		g_system->delayMillis(50);
+		g_system->delayMillis(1000);
 	}
 	return Common::kNoError;
 }
