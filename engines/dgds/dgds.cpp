@@ -1195,8 +1195,11 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
-				/*g_system->fillScreen(0);
-				g_system->updateScreen();*/
+				imgData.fillRect(rect, 0);
+				dst = g_system->lockScreen();
+				dst->copyRectToSurface(imgData, 0, 0, rect);
+				g_system->unlockScreen();
+				g_system->updateScreen();
 				break;
 			case 0x4120:
 				// FADE IN:	?,?,?,?:byte
@@ -1207,7 +1210,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->updateScreen();*/
 				break;
 
-			case 0x4200: { // FIXME
+			case 0x4200: {
 				// STORE AREA:	x,y,w,h:int [0..n]
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
@@ -1219,7 +1222,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
-			case 0x0ff0: // FIXME
+			case 0x0ff0:
 				// REFRESH:	void
 				dst = g_system->lockScreen();
 				dst->copyRectToSurface(imgData, 0, 0, rect);
@@ -1258,14 +1261,27 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				debug("SET SCENE: %u", ivals[0]);
 				// DESCRIPTION IN TTM TAGS.
 				break;
+/*
+				imgData.fillRect(rect, 0);
+				dst = g_system->lockScreen();
+				dst->copyRectToSurface(imgData, 0, 0, rect);
+				g_system->unlockScreen();
+				g_system->updateScreen();
+				break;
+*/
+			case 0x0020: //SAVE BG?:    void
+				dst = g_system->lockScreen();
+				imgData.copyRectToSurface(*dst, 0, 0, rect);
+				g_system->unlockScreen();
+				break;
 
 			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0,320,0,200]
 				g_system->fillScreen(0);
+//				g_system->updateScreen();
 				break;
 
 			case 0x2000: //SET FRAME1?: i,j:int [0,0]
 			case 0x0110: //PURGE IMGS?  void
-			case 0x0020: //SAVE BG?:    void
 			case 0x0080: //DRAW BG:	    void
 			case 0x1020: //DELAY?:	    i:int   [0..n]
 			case 0x1100: //?	    i:int   [9]
@@ -1666,19 +1682,22 @@ Common::Error DgdsEngine::run() {
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-		    explode(_platform, _rmfName, "INTRO.TTM", 0);
-/*
-		    if ((k&1) == 0)
-			explode(_platform, _rmfName, "TITLE1.TTM", 0);
-		    else
-			explode(_platform, _rmfName, "TITLE2.TTM", 0);
-		    k ^= 1;*/
+//		    explode(_platform, _rmfName, "TITLE2.TTM", 0);
+
+		    switch ((k&3)) {
+		    case 0:
+			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
+			    break;
+		    case 1:
+			    explode(_platform, _rmfName, "TITLE2.TTM", 0);
+			    break;
+		    case 2:
+			    explode(_platform, _rmfName, "INTRO.TTM", 0);
+			    break;
+		    }
+		    k++;
 		}
 		interpret(_platform, _rmfName, this);
- 		if (ttm->eos()) {
-			break;
-		}
-
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
