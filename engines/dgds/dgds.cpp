@@ -1049,7 +1049,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 		uint16 code;
 		byte count;
 		uint op;
-		int16 ivals[16];
+		int16 ivals[8];
 
 		Common::String sval;
 
@@ -1229,41 +1229,14 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->unlockScreen();
 				break;
 
-//			case 0xa530:	// CHINA
-			case 0xa500:	// RISE,CHINA
-				if (1) {
-					// DRAW BMP2:	x,y:int		[-n,+n]	(RISE)
-					const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
-					Common::Rect clippedDestRect(0, 0, sw, sh);
-					clippedDestRect.clip(destRect);
-
-					const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
-
-					const int rows = clippedDestRect.height();
-					const int columns = clippedDestRect.width();
-
-					dst = g_system->lockScreen();
-
-					byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
-					byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
-					for (int i=0; i<rows; ++i) {
-						for (int j=0; j<columns; ++j) {
-							if (src[j])
-								ptr[j] = src[j];
-						}
-						ptr += dst->pitch;
-						src += bw;
-					}
-					g_system->unlockScreen();
-					g_system->updateScreen();
-				} else {
-					// DRAW BMP4:	x,y,tile-id,bmp-id:int	[-n,+n] (CHINA)
-					bk = ivals[2];
-
+			case 0xa500: {
+				// DRAW BMP: x,y,tile-id,bmp-id:int [-n,+n] (CHINA)
+				// This is kind of file system intensive, will likely have to change to string the BMPs.
+				if (count == 4) {
 					_vgaData.free();
 					_binData.free();
-					if (bk != -1) {
-						explode(platform, rootName, bmpNames[ivals[3]], bk);
+					if (ivals[2] != -1) {
+						explode(platform, rootName, bmpNames[ivals[3]], ivals[2]);
 
 						if (_vgaData.h != 0) {
 							bw = _tw; bh = _th;
@@ -1277,30 +1250,32 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 							}
 						}
 					}
+				}
 
-					const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
-					Common::Rect clippedDestRect(0, 0, sw, sh);
-					clippedDestRect.clip(destRect);
+				// DRAW BMP: x,y:int [-n,+n] (RISE)
+				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
+				Common::Rect clippedDestRect(0, 0, sw, sh);
+				clippedDestRect.clip(destRect);
 
-					const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
+				const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
 
-					const int rows = clippedDestRect.height();
-					const int columns = clippedDestRect.width();
+				const int rows = clippedDestRect.height();
+				const int columns = clippedDestRect.width();
 
-					dst = g_system->lockScreen();
+				dst = g_system->lockScreen();
 
-					byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
-					byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
-					for (int i=0; i<rows; ++i) {
-						for (int j=0; j<columns; ++j) {
-							if (src[j])
-								ptr[j] = src[j];
-						}
-						ptr += dst->pitch;
-						src += bw;
+				byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
+				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
+				for (int i=0; i<rows; ++i) {
+					for (int j=0; j<columns; ++j) {
+						if (src[j])
+							ptr[j] = src[j];
 					}
-					g_system->unlockScreen();
-					g_system->updateScreen();
+					ptr += dst->pitch;
+					src += bw;
+				}
+				g_system->unlockScreen();
+				g_system->updateScreen();
 				}
 				break;
 
@@ -1327,6 +1302,9 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 //				g_system->updateScreen();
 				break;
 
+			case 0xa530:	// CHINA
+				// DRAW BMP4:	x,y,tile-id,bmp-id:int	[-n,+n] (CHINA)
+				// arguments similar to DRAW BMP but it draws the same BMP multiple times with radial simmetry? you can see this in the Dynamix logo star.
 			case 0x2000: //SET FRAME1?: i,j:int [0,0]
 			case 0x0110: //PURGE IMGS?  void
 			case 0x0080: //DRAW BG:	    void
@@ -1343,7 +1321,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				debug("        unimplemented opcode: 0x%04X", op);
 				break;
 		}
-
+#if 0
 		const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kConsoleFont);
 		int w = font->getStringWidth(txt);
 		/*
@@ -1355,6 +1333,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 		dst->fillRect(r, 0);
 		font->drawString(dst, txt, 10, 10, w, 2);
 		g_system->unlockScreen();
+#endif
 		break;
 	}
 }
