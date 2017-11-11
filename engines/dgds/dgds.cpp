@@ -752,7 +752,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 
 						debug("        %2u: %u bytes", scount, musicSize);
 						stream->read(musicData, musicSize);
-
+/*
 						Common::DumpFile out;
 						Common::String dname = Common::String::format("%s-%u.SND", name, scount);
 
@@ -762,7 +762,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							out.write(musicData, musicSize);
 							out.close();
 						}
-
+*/
 						scount++;
 					} else if (chunk.isSection(ID_INF)) {
 						uint32 count;
@@ -946,13 +946,13 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 static void explode(Common::Platform platform, const char *indexName, const char *fileName, int resource) {
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
-
+/*
 	if (fileName && volume.open(fileName)) {
 		parseFile(platform, volume, fileName, resource);
 		volume.close();
 		return;
 	}
-
+*/
 	if (index.open(indexName)) {
 		byte salt[4];
 		uint16 nvolumes;
@@ -1125,7 +1125,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					syst->stopSfx(channel);
 					syst->playSfx(fileName, channel, volume);
 				} else {
-					syst->playMusic(sval.c_str());
+//					syst->playMusic(sval.c_str());
 				}
 				break;
 
@@ -1419,7 +1419,7 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 			break;
 
 		default:
-			warning("MidiParser_DGDS::parseNextEvent: Unsupported event code %x", info.event);
+			warning("Unexpected midi event 0x%02X in midi data", info.event);
 		}
 	}
 }
@@ -1642,13 +1642,13 @@ Common::Error DgdsEngine::run() {
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-//		    explode(_platform, _rmfName, "TITLE.TTM", 0);
-
+		    explode(_platform, _rmfName, "INTRO.TTM", 0);
+/*
 		    if ((k&1) == 0)
 			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    else
 			explode(_platform, _rmfName, "TITLE2.TTM", 0);
-		    k ^= 1;
+		    k ^= 1;*/
 		}
 		interpret(_platform, _rmfName, this);
 
