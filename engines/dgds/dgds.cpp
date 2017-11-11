@@ -1207,26 +1207,23 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->updateScreen();*/
 				break;
 
-			case 0x4200: {
+			case 0x4200: { // FIXME
 				// STORE AREA:	x,y,w,h:int [0..n]
-					     /*
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
 
 				dst = g_system->lockScreen();
 				imgData.copyRectToSurface(*dst, clippedDestRect.left, clippedDestRect.top, clippedDestRect);
-				g_system->unlockScreen();*/
+				g_system->unlockScreen();
 				}
 				break;
 
-			case 0x0ff0:
+			case 0x0ff0: // FIXME
 				// REFRESH:	void
-				/*
 				dst = g_system->lockScreen();
 				dst->copyRectToSurface(imgData, 0, 0, rect);
 				g_system->unlockScreen();
-				*/
 				break;
 
 			case 0xa500: {
@@ -1262,11 +1259,11 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				// DESCRIPTION IN TTM TAGS.
 				break;
 
-			case 0x2000: //SET FRAME1?: i,j:int [0,0]
+			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0,320,0,200]
 				g_system->fillScreen(0);
 				break;
 
-			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0,320,0,200]
+			case 0x2000: //SET FRAME1?: i,j:int [0,0]
 			case 0x0110: //PURGE IMGS?  void
 			case 0x0020: //SAVE BG?:    void
 			case 0x0080: //DRAW BG:	    void
