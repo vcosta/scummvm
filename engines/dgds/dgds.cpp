@@ -1117,8 +1117,8 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
 			case 0xf060:
+				// LOAD SONG
 				if (platform == Common::kPlatformAmiga) {
-					// LOAD SONG
 					const char *fileName = "DYNAMIX.INS";
 					byte volume = 255;
 					byte channel = 0;
@@ -1129,8 +1129,40 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
+			case 0x1030:
+				// SET BMP?
+				bk = ivals[0];
+
+				_vgaData.free();
+				_binData.free();
+				explode(platform, rootName, bmpNames[id], bk);
+
+				if (_vgaData.h != 0) {
+					bw = _tw; bh = _th;
+					vgaData_ = (byte *)_vgaData.getPixels();
+					binData_ = (byte *)_binData.getPixels();
+					for (int i=0; i<bw*bh; i+=2) {
+						_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+						_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+						_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+						_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+					}
+				}
+				break;
+			case 0x1050:
+				// SELECT BMP
+				id = ivals[0];
+				break;
+			case 0x1060:
+				// SELECT SCR|PAL
+				sid = ivals[0];
+				break;
+			case 0x1090:
+				// SELECT SONG
+				break;
+
 			case 0x10a0:
-				// SET SCR?
+				// SET SCR|PAL?
 				vgaData.free();
 				binData.free();
 				ma8Data.free();
@@ -1155,45 +1187,22 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->updateScreen();
 				break;
 
-			case 0x1030:
-				// SET BMP?
-				bk = ivals[0];
+			case 0x4110:
+				// FADE TO BLACK?
+				imgData.fillRect(rect, 0);
+				dst = g_system->lockScreen();
+				dst->copyRectToSurface(imgData, 0, 0, rect);
+				g_system->unlockScreen();
 
-				_vgaData.free();
-				_binData.free();
-				explode(platform, rootName, bmpNames[id], bk);
-
-				if (_vgaData.h != 0) {
-					bw = _tw; bh = _th;
-					vgaData_ = (byte *)_vgaData.getPixels();
-					binData_ = (byte *)_binData.getPixels();
-					for (int i=0; i<bw*bh; i+=2) {
-						_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-						_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-						_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-						_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
-					}
-				}
+				g_system->updateScreen();
 				break;
-
-			case 0x1050:
-				// SELECT BMP
-				id = ivals[0];
-				break;
-			case 0x1060:
-				// SELECT SCR|PAL
-				sid = ivals[0];
-				break;
-			case 0x1090:
-				// SELECT SONG
-				break;
-
 			case 0x4120:
 				// FADE IN?
-				ivals[0] = 0;
-				ivals[1] = 0;
-				ivals[2] = 320;
-				ivals[3] = 200;
+				dst = g_system->lockScreen();
+				imgData.copyRectToSurface(*dst, rect.left, rect.top, rect);
+				g_system->unlockScreen();
+				break;
+
 			case 0x4200: {
 				// STORE AREA?
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
@@ -1206,17 +1215,6 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
-
-			case 0x4110:
-				// FADE TO BLACK?
-				imgData.fillRect(rect, 0);
-				dst = g_system->lockScreen();
-				dst->copyRectToSurface(imgData, 0, 0, rect);
-				g_system->unlockScreen();
-
-				g_system->updateScreen();
-				break;
-
 			case 0x0ff0:
 				// QUEUE REFRESH?
 				g_system->updateScreen();
@@ -1226,7 +1224,6 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->unlockScreen();
 				break;
 
-			case 0xa530:
 			case 0xa500: {
 				// DRAW BMP?
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
@@ -1253,8 +1250,33 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->unlockScreen();
 				}
 				break;
+
+			case 0x0020:
+			case 0x0080:
+			case 0x1110:
+			case 0x1020:
+				break;
+
+			case 0x1300: /*?*/
+			case 0x1100: /*?*/
+			case 0x2000:
+			case 0xa050: /*?*/
+			case 0xa100: /*?*/
+				break;
+
+			case 0x0110:
+				break;
+
+				break;
+
+			case 0xa520:
+			case 0xa530:
+				break;
+
+			case 0x0000:
+			case 0x1310:
 			default:
-				debug("        MEEP!");
+				debug("        unimplemented opcode: %4X", op);
 				break;
 		}
 
@@ -1642,13 +1664,13 @@ Common::Error DgdsEngine::run() {
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-		    explode(_platform, _rmfName, "INTRO.TTM", 0);
-/*
+//		    explode(_platform, _rmfName, "INTRO.TTM", 0);
+
 		    if ((k&1) == 0)
 			explode(_platform, _rmfName, "TITLE1.TTM", 0);
 		    else
 			explode(_platform, _rmfName, "TITLE2.TTM", 0);
-		    k ^= 1;*/
+		    k ^= 1;
 		}
 		interpret(_platform, _rmfName, this);
 
