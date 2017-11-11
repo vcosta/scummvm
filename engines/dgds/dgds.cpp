@@ -1229,31 +1229,78 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				g_system->unlockScreen();
 				break;
 
-			case 0xa500: {
-				// DRAW BMP0:	x,y:int [-n,+n]
-				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
-				Common::Rect clippedDestRect(0, 0, sw, sh);
-				clippedDestRect.clip(destRect);
+//			case 0xa530:	// CHINA
+			case 0xa500:	// RISE,CHINA
+				if (1) {
+					// DRAW BMP2:	x,y:int		[-n,+n]	(RISE)
+					const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
+					Common::Rect clippedDestRect(0, 0, sw, sh);
+					clippedDestRect.clip(destRect);
 
-				const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
+					const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
 
-				const int rows = clippedDestRect.height();
-				const int columns = clippedDestRect.width();
+					const int rows = clippedDestRect.height();
+					const int columns = clippedDestRect.width();
 
-				dst = g_system->lockScreen();
+					dst = g_system->lockScreen();
 
-				byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
-				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
-				for (int i=0; i<rows; ++i) {
-					for (int j=0; j<columns; ++j) {
-						if (src[j])
-							ptr[j] = src[j];
+					byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
+					byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
+					for (int i=0; i<rows; ++i) {
+						for (int j=0; j<columns; ++j) {
+							if (src[j])
+								ptr[j] = src[j];
+						}
+						ptr += dst->pitch;
+						src += bw;
 					}
-					ptr += dst->pitch;
-					src += bw;
-				}
-				g_system->unlockScreen();
-				g_system->updateScreen();
+					g_system->unlockScreen();
+					g_system->updateScreen();
+				} else {
+					// DRAW BMP4:	x,y,tile-id,bmp-id:int	[-n,+n] (CHINA)
+					bk = ivals[2];
+
+					_vgaData.free();
+					_binData.free();
+					if (bk != -1) {
+						explode(platform, rootName, bmpNames[ivals[3]], bk);
+
+						if (_vgaData.h != 0) {
+							bw = _tw; bh = _th;
+							vgaData_ = (byte *)_vgaData.getPixels();
+							binData_ = (byte *)_binData.getPixels();
+							for (int i=0; i<bw*bh; i+=2) {
+								_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+								_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+								_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+								_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+							}
+						}
+					}
+
+					const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
+					Common::Rect clippedDestRect(0, 0, sw, sh);
+					clippedDestRect.clip(destRect);
+
+					const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
+
+					const int rows = clippedDestRect.height();
+					const int columns = clippedDestRect.width();
+
+					dst = g_system->lockScreen();
+
+					byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
+					byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
+					for (int i=0; i<rows; ++i) {
+						for (int j=0; j<columns; ++j) {
+							if (src[j])
+								ptr[j] = src[j];
+						}
+						ptr += dst->pitch;
+						src += bw;
+					}
+					g_system->unlockScreen();
+					g_system->updateScreen();
 				}
 				break;
 
@@ -1291,7 +1338,6 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			case 0xa520: //DRAW BMP2    i,j:int ; happens once in INTRO.TTM
 
 			case 0x1310: //?	    i:int   [107]
-			case 0xa530: //DRAW BMP3
 
 			default:
 				debug("        unimplemented opcode: 0x%04X", op);
@@ -1682,7 +1728,7 @@ Common::Error DgdsEngine::run() {
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
-//		    explode(_platform, _rmfName, "TITLE2.TTM", 0);
+		    explode(_platform, _rmfName, "TITLE.TTM", 0);
 
 		    switch ((k&3)) {
 		    case 0:
@@ -1726,7 +1772,7 @@ Common::Error DgdsEngine::run() {
 			cx += w;
 		}
 */
-		g_system->delayMillis(40);
+		g_system->delayMillis(50);
 	}
 	return Common::kNoError;
 }
