@@ -27,6 +27,23 @@ struct DgdsGameDescription {
 };
 
 static const DgdsGameDescription gameDescriptions[] = {
+	// Rise of the Dragon (PC) : GOG
+	{
+		{
+			"rise",
+			0,
+			{
+				{"volume.vga", 0, "2d08870dbfeff4f5e06061dd277d666d", 8992},
+				{"volume.001", 0, "5210b0a77f89bfa2544970d56b23f9e4", 1153936},
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformDOS,
+			ADGF_NO_FLAGS,
+			GUIO1(GUIO_NONE)
+		},
+	},
+
 	// Rise of the Dragon (PC)
 	{
 		{
@@ -73,6 +90,23 @@ static const DgdsGameDescription gameDescriptions[] = {
 			},
 			Common::EN_ANY,
 			Common::kPlatformMacintosh,
+			ADGF_NO_FLAGS,
+			GUIO1(GUIO_NONE)
+		},
+	},
+
+	// Heart of China (PC) : GOG
+	{
+		{
+			"china",
+			0,
+			{
+				{"volume.rmf", 0, "94402b65f07606a2fb5591f9dc514c19", 10008},
+				{"volume.001", 0, "26354d54b9f2e220620b0c1d31ed5a83", 1096322},
+				AD_LISTEND
+			},
+			Common::EN_ANY,
+			Common::kPlatformDOS,
 			ADGF_NO_FLAGS,
 			GUIO1(GUIO_NONE)
 		},

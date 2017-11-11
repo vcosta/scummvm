@@ -492,12 +492,12 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				file.read(tag, 4);		/* maybe */
 				tag[4] = '\0';
 
-				uint16 height, planes;
-				height = file.readUint16BE();	/* always 200 (320x200 screen). */
+				uint16 pitch, planes;
+				pitch = file.readUint16BE();	/* always 200 (320x200 screen). */
 				planes = file.readUint16BE();	/* always 5 (32 color). */
 
-				debug("    \"%s\" height:%u bpp:%u size:~%u",
-						tag, height, planes,
+				debug("    \"%s\" pitch:%u bpp:%u size:~%u",
+						tag, pitch, planes,
 						uint(320+15)/16*200*planes);
 				file.hexdump(file.size());
 
