@@ -1110,6 +1110,28 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			case 0xf010:
 				// LOAD SCR:	filename:str
 				Common::strlcpy(scrNames[sid], sval.c_str(), sizeof(scrNames[sid]));
+				vgaData.free();
+				binData.free();
+				ma8Data.free();
+				explode(platform, rootName, scrNames[sid], 0);
+
+				if (ma8Data.h != 0) {
+					ma8Data_ = (byte *)ma8Data.getPixels();
+					for (int i=0; i<sw*sh; i++) {
+						imgData_[i] = ma8Data_[i];
+					}
+				} else if (vgaData.h != 0) {
+					vgaData_ = (byte *)vgaData.getPixels();
+					binData_ = (byte *)binData.getPixels();
+					for (int i=0; i<sw*sh; i+=2) {
+						imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+						imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+						imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+						imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+					}
+				}
+				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
+				g_system->updateScreen();
 				break;
 			case 0xf020:
 				// LOAD BMP:	filename:str
@@ -1169,64 +1191,42 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0x10a0:
 				// SET SCR|PAL:	    id:int [0]
-				vgaData.free();
-				binData.free();
-				ma8Data.free();
-				explode(platform, rootName, scrNames[sid], 0);
-
-				if (ma8Data.h != 0) {
-					ma8Data_ = (byte *)ma8Data.getPixels();
-					for (int i=0; i<sw*sh; i++) {
-						imgData_[i] = ma8Data_[i];
-					}
-				} else if (vgaData.h != 0) {
-					vgaData_ = (byte *)vgaData.getPixels();
-					binData_ = (byte *)binData.getPixels();
-					for (int i=0; i<sw*sh; i+=2) {
-						imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-						imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-						imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-						imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
-					}
-				}
-				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
-				g_system->updateScreen();
 				break;
 
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
-				imgData.fillRect(rect, 0);
-				dst = g_system->lockScreen();
-				dst->copyRectToSurface(imgData, 0, 0, rect);
-				g_system->unlockScreen();
-				g_system->updateScreen();
+				/*g_system->fillScreen(0);
+				g_system->updateScreen();*/
 				break;
 			case 0x4120:
 				// FADE IN:	?,?,?,?:byte
+				/*
 				dst = g_system->lockScreen();
 				imgData.copyRectToSurface(*dst, rect.left, rect.top, rect);
 				g_system->unlockScreen();
+				g_system->updateScreen();*/
 				break;
 
 			case 0x4200: {
 				// STORE AREA:	x,y,w,h:int [0..n]
+					     /*
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
 
 				dst = g_system->lockScreen();
 				imgData.copyRectToSurface(*dst, clippedDestRect.left, clippedDestRect.top, clippedDestRect);
-				g_system->unlockScreen();
+				g_system->unlockScreen();*/
 				}
 				break;
 
 			case 0x0ff0:
 				// REFRESH:	void
-				g_system->updateScreen();
-
+				/*
 				dst = g_system->lockScreen();
 				dst->copyRectToSurface(imgData, 0, 0, rect);
 				g_system->unlockScreen();
+				*/
 				break;
 
 			case 0xa500: {
@@ -1253,19 +1253,27 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					src += bw;
 				}
 				g_system->unlockScreen();
+				g_system->updateScreen();
 				}
 				break;
 
+			case 0x1110: //SET SCENE?:  i:int   [1..n]
+				debug("SET SCENE: %u", ivals[0]);
+				// DESCRIPTION IN TTM TAGS.
+				break;
+
 			case 0x2000: //SET FRAME1?: i,j:int [0,0]
+				g_system->fillScreen(0);
+				break;
+
+			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0,320,0,200]
 			case 0x0110: //PURGE IMGS?  void
 			case 0x0020: //SAVE BG?:    void
 			case 0x0080: //DRAW BG:	    void
 			case 0x1020: //DELAY?:	    i:int   [0..n]
-			case 0x1110: //SET SCENE?:  i:int   [1..n]
 			case 0x1100: //?	    i:int   [9]
 			case 0x1300: //?	    i:int   [72,98,99,100,107]
 			case 0xa050: //GFX?	    i,j,k,l:int	[i<k,j<l]
-			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0,320,0,200]
 
 			case 0xa520: //DRAW BMP2    i,j:int ; happens once in INTRO.TTM
 
@@ -1702,7 +1710,7 @@ Common::Error DgdsEngine::run() {
 			cx += w;
 		}
 */
-		g_system->delayMillis(1000);
+		g_system->delayMillis(40);
 	}
 	return Common::kNoError;
 }
