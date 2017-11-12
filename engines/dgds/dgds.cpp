@@ -61,6 +61,7 @@ namespace Dgds {
 	typedef unsigned char byte;
 
 byte palette[256*3];
+byte blacks[256*3];
 
 Graphics::Surface binData;
 Graphics::Surface vgaData;
@@ -1147,7 +1148,6 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			case 0xf050:
 				// LOAD PAL:	filename:str
 				explode(platform, rootName, sval.c_str(), 0);
-				g_system->getPaletteManager()->setPalette(palette, 0, 256);
 				break;
 			case 0xf060:
 				// LOAD SONG:	filename:str
@@ -1196,11 +1196,16 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				// SELECT SONG:	    id:int [0]
 				break;
 
+			case 0x4120:
+				// FADE IN:	?,?,?,?:byte
+				g_system->getPaletteManager()->setPalette(palette, 0, 256);
+				break;
+
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
 				g_system->delayMillis(delay);
+				g_system->getPaletteManager()->setPalette(blacks, 0, 256);
 				scrData.fillRect(rect, 0);
-				bmpData.fillRect(rect, 0);
 				break;
 
 			case 0x4200: {
@@ -1280,8 +1285,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0xa050: {//GFX?	    i,j,k,l:int	[i<k,j<l] // HAPPENS IN INTRO.TTM:INTRO9
 				resData.blitFrom(scrData);
-				Graphics::Surface bmpSub = bmpData.getSubArea(bmpWin);
-				resData.transBlitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
+				resData.transBlitFrom(bmpData);
 				bmpData.copyFrom(resData);
 				break;
 				}
@@ -1308,8 +1312,6 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				delay = ivals[0]*10;
 				break;
 
-			case 0x4120:
-				// FADE IN:	?,?,?,?:byte
 			case 0x10a0:
 				// SET SCR|PAL:	    id:int [0]
 			case 0x2000: //SET FRAME1?: i,j:int [0..255]
@@ -1664,7 +1666,8 @@ Common::Error DgdsEngine::run() {
 	_midiPlayer = new DgdsMidiPlayer();
 	assert(_midiPlayer);
 
-	memset(palette, 1, 256*3);
+	memset(palette, 0, 256*3);
+	memset(blacks, 0, 256*3);
 
 	_bmpData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
 
