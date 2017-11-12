@@ -1273,7 +1273,8 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					byte *ptr = (byte *)bmpData.getBasePtr(clippedDestRect.left, clippedDestRect.top);
 					for (int i=0; i<rows; ++i) {
 						for (int j=0; j<columns; ++j) {
-							ptr[j] |= src[j];
+							if (src[j])
+								ptr[j] = src[j];
 						}
 						ptr += bmpData.pitch;
 						src += bw;
@@ -1734,7 +1735,7 @@ Common::Error DgdsEngine::run() {
 
 		    switch ((k&3)) {
 		    case 0:
-			    explode(_platform, _rmfName, "INTRO.TTM", 0);
+			    explode(_platform, _rmfName, "TITLE.TTM", 0);
 			    break;
 		    case 1:
 			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
