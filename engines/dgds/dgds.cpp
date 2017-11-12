@@ -1213,12 +1213,9 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			case 0x4200: {
 				// STORE AREA:	x,y,w,h:int [0..n]
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
-				Common::Rect clippedDestRect(0, 0, sw, sh);
-				clippedDestRect.clip(destRect);
 				resData.blitFrom(scrData);
-				Graphics::Surface bmpSub = bmpData.getSubArea(bmpWin);
-				resData.transBlitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
-				scrData.copyRectToSurface(resData, clippedDestRect.left, clippedDestRect.top, clippedDestRect);
+				resData.transBlitFrom(bmpData);
+				scrData.copyRectToSurface(resData, destRect.left, destRect.top, destRect);
 				}
 				break;
 
@@ -1276,7 +1273,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					byte *ptr = (byte *)bmpData.getBasePtr(clippedDestRect.left, clippedDestRect.top);
 					for (int i=0; i<rows; ++i) {
 						for (int j=0; j<columns; ++j) {
-							ptr[j] = src[j];
+							ptr[j] |= src[j];
 						}
 						ptr += bmpData.pitch;
 						src += bw;
