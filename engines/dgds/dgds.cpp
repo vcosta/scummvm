@@ -1196,18 +1196,11 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				// SELECT SONG:	    id:int [0]
 				break;
 
-			case 0x10a0:
-				// SET SCR|PAL:	    id:int [0]
-				break;
-
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
 				g_system->delayMillis(delay);
 				scrData.fillRect(rect, 0);
 				bmpData.fillRect(rect, 0);
-				break;
-			case 0x4120:
-				// FADE IN:	?,?,?,?:byte
 				break;
 
 			case 0x4200: {
@@ -1306,9 +1299,6 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
-			case 0x2000: //SET FRAME1?: i,j:int [0..255]
-				break;
-
 			case 0xa100:
 				//SET WINDOW? x,y,w,h:int	[0..320,0..200]
 				bmpWin = Common::Rect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
@@ -1317,6 +1307,12 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			case 0x1020: //DELAY?:	    i:int   [0..n]
 				delay = ivals[0]*10;
 				break;
+
+			case 0x4120:
+				// FADE IN:	?,?,?,?:byte
+			case 0x10a0:
+				// SET SCR|PAL:	    id:int [0]
+			case 0x2000: //SET FRAME1?: i,j:int [0..255]
 
 			case 0xa530:	// CHINA
 				// DRAW BMP4:	x,y,tile-id,bmp-id:int	[-n,+n] (CHINA)
@@ -1731,11 +1727,11 @@ Common::Error DgdsEngine::run() {
 		    delete ttm;
 		    ttm = 0;
 
-		    //explode(_platform, _rmfName, "TVLMAP.TTM", 0);
+//		    explode(_platform, _rmfName, "TVLMAP.TTM", 0);
 
 		    switch ((k&3)) {
 		    case 0:
-			    explode(_platform, _rmfName, "TITLE.TTM", 0);
+			    explode(_platform, _rmfName, "INTRO.TTM", 0);
 			    break;
 		    case 1:
 			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
