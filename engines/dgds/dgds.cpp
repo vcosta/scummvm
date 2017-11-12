@@ -71,8 +71,8 @@ Graphics::Surface _binData;
 Graphics::Surface _vgaData;
 Graphics::Surface _bmpData;
 
-Graphics::Surface scrData;
-Graphics::Surface bmpData;
+Graphics::Surface bottomBuffer;
+Graphics::Surface topBuffer;
 
 Graphics::ManagedSurface resData;
 
@@ -1106,7 +1106,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 		byte *scrData_;
 		byte *_bmpData_;
 
-		scrData_ = (byte *)scrData.getPixels();
+		scrData_ = (byte *)bottomBuffer.getPixels();
 		_bmpData_ = (byte *)_bmpData.getPixels();
 
 		Common::Rect bmpWin(0, 0, sw, sh);
@@ -1205,30 +1205,45 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				// FADE OUT:	?,?,?,?:byte
 				g_system->delayMillis(delay);
 				g_system->getPaletteManager()->setPalette(blacks, 0, 256);
-				scrData.fillRect(rect, 0);
+				bottomBuffer.fillRect(rect, 0);
 				break;
 
+			// these 3 ops do interaction between the topBuffer (imgData) and the bottomBuffer (scrData) but... it might turn out this uses z values!
+			case 0xa050: {//GFX?	    i,j,k,l:int	[i<k,j<l] // HAPPENS IN INTRO.TTM:INTRO9
+				// it works like a bitblit, but it doesn't write if there's something already at the destination?
+				resData.blitFrom(bottomBuffer);
+				resData.transBlitFrom(topBuffer);
+				topBuffer.copyFrom(resData);
+				break;
+				}
+			case 0x0020: {//SAVE BG?:    void // OR PERHAPS SWAPBUFFERS ; it makes bmpData persist in the next frames.
+				bottomBuffer.copyFrom(topBuffer);
+				}
+				break;
 			case 0x4200: {
-				// STORE AREA:	x,y,w,h:int [0..n]
+				// STORE AREA:	x,y,w,h:int [0..n]		; it makes this area of bmpData persist in the next frames.
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
-				resData.blitFrom(scrData);
-				resData.transBlitFrom(bmpData);
-				scrData.copyRectToSurface(resData, destRect.left, destRect.top, destRect);
+				resData.blitFrom(bottomBuffer);
+				resData.transBlitFrom(topBuffer);
+				bottomBuffer.copyRectToSurface(resData, destRect.left, destRect.top, destRect);
 				}
 				break;
 
 			case 0x0ff0: {
 				// REFRESH:	void
-				resData.blitFrom(scrData);
-				Graphics::Surface bmpSub = bmpData.getSubArea(bmpWin);
+				resData.blitFrom(bottomBuffer);
+				Graphics::Surface bmpSub = topBuffer.getSubArea(bmpWin);
 				resData.transBlitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
-				bmpData.fillRect(bmpWin, 0);
+				topBuffer.fillRect(bmpWin, 0);
+				debug("FLUSH");
 				}
 				goto EXIT;
 
 			case 0xa520:
 				//DRAW BMP: x,y:int ; happens once in INTRO.TTM
 			case 0xa500: {
+				debug("DRAW \"%s\"", bmpNames[id]);
+
 				// DRAW BMP: x,y,tile-id,bmp-id:int [-n,+n] (CHINA)
 				// This is kind of file system intensive, will likely have to change to store all the BMPs.
 				if (count == 4) {
@@ -1268,13 +1283,13 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					const int columns = clippedDestRect.width();
 
 					byte *src = _bmpData_ + croppedBy.y * bw + croppedBy.x;
-					byte *ptr = (byte *)bmpData.getBasePtr(clippedDestRect.left, clippedDestRect.top);
+					byte *ptr = (byte *)topBuffer.getBasePtr(clippedDestRect.left, clippedDestRect.top);
 					for (int i=0; i<rows; ++i) {
 						for (int j=0; j<columns; ++j) {
 							if (src[j])
 								ptr[j] = src[j];
 						}
-						ptr += bmpData.pitch;
+						ptr += topBuffer.pitch;
 						src += bw;
 					}
 				} else {
@@ -1283,24 +1298,12 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
-			case 0xa050: {//GFX?	    i,j,k,l:int	[i<k,j<l] // HAPPENS IN INTRO.TTM:INTRO9
-				resData.blitFrom(scrData);
-				resData.transBlitFrom(bmpData);
-				bmpData.copyFrom(resData);
-				break;
-				}
-
 			case 0x1110: //SET SCENE?:  i:int   [1..n]
 				// DESCRIPTION IN TTM TAGS.
 				debug("SET SCENE: %u", ivals[0]);
 				/*
 				scrData.fillRect(rect, 0);
 				bmpData.fillRect(rect, 0);*/
-				break;
-
-			case 0x0020: {//SAVE BG?:    void // OR PERHAPS SWAPBUFFERS
-				scrData.copyFrom(bmpData);
-				}
 				break;
 
 			case 0xa100:
@@ -1671,8 +1674,8 @@ Common::Error DgdsEngine::run() {
 
 	_bmpData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
 
-	scrData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
-	bmpData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+	bottomBuffer.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+	topBuffer.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
 	resData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
 
 	ttm = 0;
