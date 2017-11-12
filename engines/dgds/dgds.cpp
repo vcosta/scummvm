@@ -68,9 +68,12 @@ Graphics::Surface ma8Data;
 
 Graphics::Surface _binData;
 Graphics::Surface _vgaData;
+Graphics::Surface _bmpData;
 
-Graphics::ManagedSurface imgData;
-Graphics::Surface _imgData;
+Graphics::Surface scrData;
+Graphics::Surface bmpData;
+
+Graphics::ManagedSurface resData;
 
 Common::MemoryReadStream *soundData;
 byte *musicData;
@@ -1038,11 +1041,14 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 int sw = 320, sh = 200;
 int bw = 0, bh = 0;
-int bk = 0;
+int bk = -1;
 
 char bmpNames[16][DGDS_FILENAME_MAX+1];
 char scrNames[16][DGDS_FILENAME_MAX+1];
 int id = 0, sid = 0;
+const Common::Rect rect(0, 0, sw, sh);
+
+int delay = 0;
 
 void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst) {
 	if (!ttm) return;
@@ -1096,18 +1102,18 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 		byte *binData_;
 		byte *ma8Data_;
 
-		byte *imgData_;
-		byte *_imgData_;
-		Common::Rect rect(0, 0, sw, sh);
+		byte *scrData_;
+		byte *_bmpData_;
 
-		imgData_ = (byte *)imgData.getPixels();
-		_imgData_ = (byte *)_imgData.getPixels();
+		scrData_ = (byte *)scrData.getPixels();
+		_bmpData_ = (byte *)_bmpData.getPixels();
 
-		Graphics::Surface *dst;
+		Common::Rect bmpWin(0, 0, sw, sh);
+
 		switch (op) {
 			case 0x0000:
 				// FINISH:	void
-				break;
+				goto EXIT;
 
 			case 0xf010:
 				// LOAD SCR:	filename:str
@@ -1120,20 +1126,19 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				if (ma8Data.h != 0) {
 					ma8Data_ = (byte *)ma8Data.getPixels();
 					for (int i=0; i<sw*sh; i++) {
-						imgData_[i] = ma8Data_[i];
+						scrData_[i] = ma8Data_[i];
 					}
 				} else if (vgaData.h != 0) {
 					vgaData_ = (byte *)vgaData.getPixels();
 					binData_ = (byte *)binData.getPixels();
 					for (int i=0; i<sw*sh; i+=2) {
-						imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-						imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-						imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-						imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+						scrData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+						scrData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+						scrData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+						scrData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
 					}
 				}
-				g_system->copyRectToScreen(imgData_, sw, 0, 0, sw, sh);
-				g_system->updateScreen();
+//				resData.copyRectToSurface(scrData, 0, 0, rect);
 				break;
 			case 0xf020:
 				// LOAD BMP:	filename:str
@@ -1171,10 +1176,10 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 						vgaData_ = (byte *)_vgaData.getPixels();
 						binData_ = (byte *)_binData.getPixels();
 						for (int i=0; i<bw*bh; i+=2) {
-							_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-							_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-							_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-							_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+							_bmpData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+							_bmpData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+							_bmpData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+							_bmpData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
 						}
 					}
 				}
@@ -1197,19 +1202,12 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
-				imgData.fillRect(rect, 0);
-				dst = g_system->lockScreen();
-				dst->copyRectToSurface(imgData, 0, 0, rect);
-				g_system->unlockScreen();
-				g_system->updateScreen();
+				g_system->delayMillis(delay);
+				scrData.fillRect(rect, 0);
+				bmpData.fillRect(rect, 0);
 				break;
 			case 0x4120:
 				// FADE IN:	?,?,?,?:byte
-				/*
-				dst = g_system->lockScreen();
-				imgData.copyRectToSurface(*dst, rect.left, rect.top, rect);
-				g_system->unlockScreen();
-				g_system->updateScreen();*/
 				break;
 
 			case 0x4200: {
@@ -1217,40 +1215,48 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
-
-				dst = g_system->lockScreen();
-				imgData.copyRectToSurface(*dst, clippedDestRect.left, clippedDestRect.top, clippedDestRect);
-				g_system->unlockScreen();
+				resData.blitFrom(scrData);
+				Graphics::Surface bmpSub = bmpData.getSubArea(bmpWin);
+				resData.transBlitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
+				scrData.copyRectToSurface(resData, clippedDestRect.left, clippedDestRect.top, clippedDestRect);
 				}
 				break;
 
-			case 0x0ff0:
+			case 0x0ff0: {
 				// REFRESH:	void
-				dst = g_system->lockScreen();
-				dst->copyRectToSurface(imgData, 0, 0, rect);
-				g_system->unlockScreen();
-				break;
+				resData.blitFrom(scrData);
+				Graphics::Surface bmpSub = bmpData.getSubArea(bmpWin);
+				resData.transBlitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
+				bmpData.fillRect(bmpWin, 0);
+				}
+				goto EXIT;
 
+			case 0xa520:
+				//DRAW BMP: x,y:int ; happens once in INTRO.TTM
 			case 0xa500: {
 				// DRAW BMP: x,y,tile-id,bmp-id:int [-n,+n] (CHINA)
 				// This is kind of file system intensive, will likely have to change to store all the BMPs.
 				if (count == 4) {
 					_vgaData.free();
 					_binData.free();
-					if (ivals[2] != -1) {
-						explode(platform, rootName, bmpNames[ivals[3]], ivals[2]);
+					bk = ivals[2];
+					id = ivals[3];
+					if (bk != -1) {
+						explode(platform, rootName, bmpNames[id], bk);
 
 						if (_vgaData.h != 0) {
 							bw = _tw; bh = _th;
 							vgaData_ = (byte *)_vgaData.getPixels();
 							binData_ = (byte *)_binData.getPixels();
 							for (int i=0; i<bw*bh; i+=2) {
-								_imgData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-								_imgData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-								_imgData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-								_imgData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+								_bmpData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+								_bmpData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+								_bmpData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+								_bmpData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
 							}
 						}
+					} else {
+					    bw = bh = 0;
 					}
 				}
 
@@ -1259,66 +1265,68 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
 
-				const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
+				if (bk != -1) {
+					// DRAW BMP: x,y:int [-n,+n] (RISE)
+					const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
 
-				const int rows = clippedDestRect.height();
-				const int columns = clippedDestRect.width();
+					const int rows = clippedDestRect.height();
+					const int columns = clippedDestRect.width();
 
-				dst = g_system->lockScreen();
-
-				byte *src = _imgData_ + croppedBy.y * bw + croppedBy.x;
-				byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
-				for (int i=0; i<rows; ++i) {
-					for (int j=0; j<columns; ++j) {
-						if (src[j])
+					byte *src = _bmpData_ + croppedBy.y * bw + croppedBy.x;
+					byte *ptr = (byte *)bmpData.getBasePtr(clippedDestRect.left, clippedDestRect.top);
+					for (int i=0; i<rows; ++i) {
+						for (int j=0; j<columns; ++j) {
 							ptr[j] = src[j];
+						}
+						ptr += bmpData.pitch;
+						src += bw;
 					}
-					ptr += dst->pitch;
-					src += bw;
+				} else {
+//					bmpData.fillRect(rect, 0);?
 				}
-				g_system->unlockScreen();
-				g_system->updateScreen();
 				}
 				break;
+
+			case 0xa050: {//GFX?	    i,j,k,l:int	[i<k,j<l] // HAPPENS IN INTRO.TTM:INTRO9
+				resData.blitFrom(scrData);
+				Graphics::Surface bmpSub = bmpData.getSubArea(bmpWin);
+				resData.transBlitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
+				bmpData.copyFrom(resData);
+				break;
+				}
 
 			case 0x1110: //SET SCENE?:  i:int   [1..n]
-				debug("SET SCENE: %u", ivals[0]);
 				// DESCRIPTION IN TTM TAGS.
-				break;
-/*
-				imgData.fillRect(rect, 0);
-				dst = g_system->lockScreen();
-				dst->copyRectToSurface(imgData, 0, 0, rect);
-				g_system->unlockScreen();
-				g_system->updateScreen();
-				break;
-*/
-			case 0x0020: //SAVE BG?:    void
-				dst = g_system->lockScreen();
-				imgData.copyRectToSurface(*dst, 0, 0, rect);
-				g_system->unlockScreen();
+				debug("SET SCENE: %u", ivals[0]);
+				/*
+				scrData.fillRect(rect, 0);
+				bmpData.fillRect(rect, 0);*/
 				break;
 
-			case 0xa100: //SET WINDOW2? x,y,w,h:int	[0,320,0,200]
-				g_system->fillScreen(0);
-//				g_system->updateScreen();
+			case 0x0020: {//SAVE BG?:    void // OR PERHAPS SWAPBUFFERS
+				scrData.copyFrom(bmpData);
+				}
+				break;
+
+			case 0x2000: //SET FRAME1?: i,j:int [0..255]
+				break;
+
+			case 0xa100:
+				//SET WINDOW? x,y,w,h:int	[0..320,0..200]
+				bmpWin = Common::Rect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
 				break;
 
 			case 0x1020: //DELAY?:	    i:int   [0..n]
-//				g_system->delayMillis(ivals[0]*10);
+				delay = ivals[0]*10;
 				break;
 
 			case 0xa530:	// CHINA
 				// DRAW BMP4:	x,y,tile-id,bmp-id:int	[-n,+n] (CHINA)
 				// arguments similar to DRAW BMP but it draws the same BMP multiple times with radial simmetry? you can see this in the Dynamix logo star.
-			case 0x2000: //SET FRAME1?: i,j:int [0,0]
 			case 0x0110: //PURGE IMGS?  void
 			case 0x0080: //DRAW BG:	    void
 			case 0x1100: //?	    i:int   [9]
 			case 0x1300: //?	    i:int   [72,98,99,100,107]
-			case 0xa050: //GFX?	    i,j,k,l:int	[i<k,j<l]
-
-			case 0xa520: //DRAW BMP2    i,j:int ; happens once in INTRO.TTM
 
 			case 0x1310: //?	    i:int   [107]
 
@@ -1343,6 +1351,13 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 #endif
 		break;
 	}
+EXIT:
+	    Graphics::Surface *dst;
+	    dst = g_system->lockScreen();
+	    dst->copyRectToSurface(resData, 0, 0, rect);
+	    g_system->unlockScreen();
+	    g_system->updateScreen();
+
 }
 
 struct Channel {
@@ -1657,8 +1672,11 @@ Common::Error DgdsEngine::run() {
 
 	memset(palette, 1, 256*3);
 
-	imgData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
-	_imgData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+	_bmpData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+
+	scrData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+	bmpData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
+	resData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
 
 	ttm = 0;
 
@@ -1715,19 +1733,19 @@ Common::Error DgdsEngine::run() {
 		    delete ttm;
 		    ttm = 0;
 
-		    explode(_platform, _rmfName, "TITLE.TTM", 0);
-/*
+		    //explode(_platform, _rmfName, "TVLMAP.TTM", 0);
+
 		    switch ((k&3)) {
 		    case 0:
-			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
-			    break;
-		    case 1:
-			    explode(_platform, _rmfName, "TITLE2.TTM", 0);
-			    break;
-		    case 2:
 			    explode(_platform, _rmfName, "INTRO.TTM", 0);
 			    break;
-		    }*/
+		    case 1:
+			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
+			    break;
+		    case 2:
+			    explode(_platform, _rmfName, "TITLE2.TTM", 0);
+			    break;
+		    }
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
