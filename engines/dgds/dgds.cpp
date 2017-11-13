@@ -501,9 +501,9 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						if (i != 0) debugN(", ");
 						debugN("%u", vals[i]);
 					}
-					debug("");
+					debug(".");
 				}
-				debug("");
+				debug("-");
 
 				while (!file.eos()) {
 					uint16 idx;
@@ -515,10 +515,10 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						if (i != 0) debugN(", ");
 						debugN("%u", vals[i]);
 					}
-					debug("");
+					debug(".");
 					if (idx == 0) break;
 				}
-				debug("");
+				debug("-");
 				}
 				break;
 			case EX_SCR: {
@@ -705,8 +705,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				case EX_SDS:
 					if (chunk.isSection(ID_SDS)) {
 						uint32 mark;
-						uint16 len;
-						uint count;
 
 						mark = stream->readUint32LE();
 						debug("    0x%X", mark);
@@ -720,6 +718,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						debug("    S%d.SDS", idx);
 #if 0
 						// probe for the .ADS name. are these shorts?
+						uint count;
 						count = 0;
 						while (1) {
 							uint16 x;
@@ -759,6 +758,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						stream->seek(-4, SEEK_CUR);
 						// here we are.
 
+						uint16 len;
 						len = stream->readSint16LE();
 						Common::String txt;
 						for (uint16 j=0; j<len; j++) {
@@ -867,7 +867,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 									debugN("        %u: %u|%u, ", x2, (x2&0xF), (x2>>4));
 									if (stream->pos() >= stream->size()) break;
 								} while ((x2 & 0x80) != 0x80);
-								debug("");
+								debug("-");
 								if (stream->pos() >= stream->size()) break;
 							} while ((x2 & 0xF0) != 0xF0);
 						}
@@ -900,12 +900,12 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 									case 0xFE98:
 									case 0xFF88:
 									case 0xFF10:
-										debug("          INT %4.4X;", code);
+										debug("          INT 0x%4.4X\t;", code);
 										continue;
 
 									case 0xFFFF:
-										debug("          INT %4.4X;\treturn", code);
-										debug("");
+										debug("          INT 0x%4.4X\t;return", code);
+										debug("-");
 										continue;
 
 									case 0x0190:
@@ -935,7 +935,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 									default:
 										break;
 								}
-								debug("          OP 0x%4.4X;\t%s", code, desc);
+								debug("          OP 0x%4.4X\t;%s", code, desc);
 							}
 						}
 						assert(stream->size()==stream->pos());
