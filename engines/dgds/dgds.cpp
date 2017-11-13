@@ -603,8 +603,8 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				break;
 			case EX_VIN:
 				line = file.readLine();
-				while (!file.eos() && !line.empty()) {
-					debug("    \"%s\"", line.c_str());
+				while (!file.eos()) {
+					if (!line.empty()) debug("    \"%s\"", line.c_str());
 					line = file.readLine();
 				}
 				break;
@@ -904,7 +904,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 										continue;
 
 									case 0xFFFF:
-										debug("          INT 0x%4.4X\t;return", code);
+										debug("          INT 0x%4.4X\t; return", code);
 										debug("-");
 										continue;
 
