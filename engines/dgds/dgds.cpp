@@ -428,8 +428,6 @@ uint32 dgdsHash(const char *s, byte *idx) {
 	return c;
 }
 
-enum {DGDS_NONE, DGDS_TAG, DGDS_REQ};
-
 uint16 readStrings(Common::SeekableReadStream* stream){
 	uint16 count;
 	
@@ -478,7 +476,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 		_ex = 0;
 	}
 
-	uint parent = DGDS_NONE;
+	uint parent = 0;
 
 	ctx.init(file.size());
 
@@ -599,6 +597,11 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 
 		struct DgdsChunk chunk;
 		while (chunk.readHeader(ctx, file, name)) {
+			if (chunk.container) {
+				parent = chunk._type;
+				continue;
+			}
+
 			Common::SeekableReadStream *stream;
 			
 			bool packed = chunk.isPacked(_ex);
@@ -843,27 +846,19 @@ break;
 					}
 					break;
 				case EX_REQ:
-					if (chunk.container) {
-						if (chunk.isSection(ID_TAG)) {
-							parent = DGDS_TAG;
-						} else if (chunk.isSection(ID_REQ)) {
-							parent = DGDS_REQ;
+					if (parent == ID_TAG) {
+						if (chunk.isSection(ID_REQ)) {
+							readStrings(stream);
+						} else if (chunk.isSection(ID_GAD)) {
+							readStrings(stream);
 						}
-					} else  {
-						if (parent == DGDS_TAG) {
-							if (chunk.isSection(ID_REQ)) {
-								readStrings(stream);
-							} else if (chunk.isSection(ID_GAD)) {
-								readStrings(stream);
-							}
-						} else if (parent == DGDS_REQ) {
-							stream->hexdump(stream->size());
-							
-							if (chunk.isSection(ID_REQ)) {
-								stream->skip(stream->size());
-							} else if (chunk.isSection(ID_GAD)) {
-								stream->skip(stream->size());
-							}
+					} else if (parent == ID_REQ) {
+						stream->hexdump(stream->size());
+
+						if (chunk.isSection(ID_REQ)) {
+							stream->skip(stream->size());
+						} else if (chunk.isSection(ID_GAD)) {
+							stream->skip(stream->size());
 						}
 					}
 					break;
