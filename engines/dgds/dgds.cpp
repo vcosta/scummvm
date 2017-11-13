@@ -318,6 +318,9 @@ bool DgdsChunk::isPacked(DGDS_EX ex) {
 }
 
 bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name) {
+	memset(type, 0, sizeof(type));
+	_type = 0;
+
 	if (file.pos() >= file.size()) {
 		return false;
 	}
@@ -325,8 +328,6 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, c
 	file.read(type, DGDS_TYPENAME_MAX);
 
 	if (type[DGDS_TYPENAME_MAX-1] != ':') {
-		type[0] = '\0';
-		_type = 0;
 		debug("bad header in: %s", name);
 		return false;
 	}
