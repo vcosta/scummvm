@@ -142,6 +142,7 @@ typedef uint32 DGDS_EX;
 #define ID_TT3	MKTAG24('T','T','3')
 #define ID_VER	MKTAG24('V','E','R')
 #define ID_VGA	MKTAG24('V','G','A')
+#define ID_VQT	MKTAG24('V','Q','T')
 
 /* Heart of China */
 #define ID_MA8	MKTAG24('M','A','8')
@@ -166,6 +167,7 @@ typedef uint32 DGDS_EX;
 #define	EX_VIN	MKTAG24('V','I','N')
 
 /* Heart of China */
+#define	EX_DAT	MKTAG24('D','A','T')
 #define	EX_DDS	MKTAG24('D','D','S')
 #define	EX_TDS	MKTAG24('T','D','S')
 
@@ -200,6 +202,8 @@ bool isFlatfile(Common::Platform platform, DGDS_EX _ex) {
 
 	switch (_ex) {
 		case EX_RST:
+		case EX_VIN:
+		case EX_DAT:
 			flat = true;
 			break;
 		default:
@@ -214,16 +218,6 @@ bool isFlatfile(Common::Platform platform, DGDS_EX _ex) {
 				case EX_INS:
 //				case EX_SNG:
 				case EX_AMG:
-					flat = true;
-					break;
-				default:
-					break;
-			}
-
-		case Common::kPlatformMacintosh:
-			/* SOUNDS.SX is particularly large. */
-			switch (_ex) {
-				case EX_VIN:
 					flat = true;
 					break;
 				default:
@@ -488,8 +482,44 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 		Common::String line;
 		
 		switch (_ex) {
-			case EX_RST:
-				file.hexdump(64);
+			case EX_RST: {
+				uint32 mark;
+
+				mark = file.readUint32LE();
+				debug("    0x%X", mark);
+
+				// elaborate guesswork. who knows it might be true.
+				while (!file.eos()) {
+					uint16 idx;
+					uint16 vals[7];
+
+					idx = file.readUint16LE();
+					debugN("  #%u:\t", idx);
+					if (idx == 0) break;
+					for (int i=0; i<ARRAYSIZE(vals); i++) {
+						vals[i] = file.readUint16LE();
+						if (i != 0) debugN(", ");
+						debugN("%u", vals[i]);
+					}
+					debug("");
+				}
+				debug("");
+
+				while (!file.eos()) {
+					uint16 idx;
+					uint16 vals[2];
+					idx = file.readUint16LE();
+					debugN("  #%u:\t", idx);
+					for (int i=0; i<ARRAYSIZE(vals); i++) {
+						vals[i] = file.readUint16LE();
+						if (i != 0) debugN(", ");
+						debugN("%u", vals[i]);
+					}
+					debug("");
+					if (idx == 0) break;
+				}
+				debug("");
+				}
 				break;
 			case EX_SCR: {
 				/* Unknown image format (Amiga). */
@@ -504,7 +534,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				debug("    \"%s\" pitch:%u bpp:%u size:~%u",
 						tag, pitch, planes,
 						uint(320+15)/16*200*planes);
-				file.hexdump(file.size());
 
 				if (resource == 0) {
 				    //file.read(binData, file.size());
@@ -563,7 +592,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				break;
 			case EX_SNG:
 				/* IFF-SMUS music (Amiga). */
-				file.hexdump(16);
 				break;
 			case EX_AMG:
 				/* (Amiga). */
@@ -574,17 +602,18 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				}
 				break;
 			case EX_VIN:
-				/* (Macintosh). */
 				line = file.readLine();
 				while (!file.eos() && !line.empty()) {
 					debug("    \"%s\"", line.c_str());
 					line = file.readLine();
 				}
-				file.hexdump(file.size());
 				break;
 			default:
 				break;
 		}
+		int leftover = file.size()-file.pos();
+		file.hexdump(leftover);
+		file.skip(leftover);
 	} else {
 		uint16 tcount;
 		uint16 scount;
@@ -631,106 +660,112 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 
 			switch (_ex) {
 				case EX_TDS:
+					/* Heart of China. */
 					if (chunk.isSection(ID_THD)) {
+						uint32 mark;
+
+						mark = stream->readUint32LE();
+						debug("    0x%X", mark);
+
+						char version[7];
+						stream->read(version, sizeof(version));
+						debug("    \"%s\"", version);
+
+						byte ch;
+						Common::String bmpName;
+						while ((ch = stream->readByte()))
+							bmpName += ch;
+						debug("    \"%s\"", bmpName.c_str());
+
+						Common::String personName;
+						while ((ch = stream->readByte()))
+							personName += ch;
+						debug("    \"%s\"", personName.c_str());
 					}
 					break;
 				case EX_DDS:
+					/* Heart of China. */
 					if (chunk.isSection(ID_DDS)) {
+						uint32 mark;
+
+						mark = stream->readUint32LE();
+						debug("    0x%X", mark);
+
+						char version[7];
+						stream->read(version, sizeof(version));
+						debug("    \"%s\"", version);
+
+						byte ch;
+						Common::String tag;
+						while ((ch = stream->readByte()))
+							tag += ch;
+						debug("    \"%s\"", tag.c_str());
 					}
 					break;
 				case EX_SDS:
 					if (chunk.isSection(ID_SDS)) {
+						uint32 mark;
+						uint16 len;
+						uint count;
+
+						mark = stream->readUint32LE();
+						debug("    0x%X", mark);
+
+						char version[7];
+						stream->read(version, sizeof(version));
+						debug("    %s", version);
+
+						uint16 idx;
+						idx = stream->readUint16LE();
+						debug("    S%d.SDS", idx);
 #if 0
-						if (strcmp(name ,"S55.SDS")==0) {
-						stream->seek(0);
+						// probe for the .ADS name. are these shorts?
+						count = 0;
+						while (1) {
+							uint16 x;
+							x = stream->readUint16LE();
+							if ((x & 0xFF00) != 0)
+								break;
+							debug("      %u: %u|0x%4.4X", count++, x, x);
+						}
+						stream->seek(-2, SEEK_CUR);
 
-						stream->hexdump(10);
-						stream->skip(10);
-
-						stream->hexdump(85);
-						stream->skip(85);
-
-						Common::String str;
+						// .ADS name.
+						Common::String ads;
 						byte ch;
-						str.clear();
 						while ((ch = stream->readByte()))
-							str += ch;
-						debug("        : \"%s\"", str.c_str());
+							ads += ch;
+						debug("    %s", ads.c_str());
 
 						stream->hexdump(6);
 						stream->skip(6);
 
-						int w,h,x,y,size;
+						int w, h;
 
 						w = stream->readSint16LE();
 						h = stream->readSint16LE();
-						debug("        %dx%d", w, h);
+						debug("    %dx%d", w, h);
 
-						// START
-						uint16 s1;
-						s1 = stream->readUint16LE();
-						debug("%u: entries", s1);
-
-						uint16 s2;
-						s2 = stream->readUint16LE();
-						debug("%u: bytes", s2);
-
-						uint k, sz;
-						sz=0;
-						for (k=0;k<3; k++) {
-							stream->hexdump(28); // s2-4
-							stream->skip(28);
-
-							stream->hexdump(22); // s2-4
-							stream->skip(22);
-							sz+=50;
-
-							int16 len = stream->readSint16LE();
-							sz+=2;
-							str.clear();
-							for (uint16 j=0; j<len; j++) {
-								ch = stream->readByte();
-								str += ch;
-							}
-							sz+=len;
-							debug("        %u,%u: [%d]= \"%s\"", k, sz, len, str.c_str());
-
-							stream->hexdump(2);
-							stream->skip(2);
-							sz+=2;
+						// probe for the strings. are these shorts?
+						count = 0;
+						while (1) {
+							uint16 x;
+							x = stream->readUint16LE();
+							if ((x & 0xFF00) != 0)
+								break;
+							if (stream->pos() >= stream->size()) break;
+							debug("      %u: %u|0x%4.4X", count++, x, x);
 						}
+						stream->seek(-4, SEEK_CUR);
+						// here we are.
 
-						stream->hexdump(12);
-						stream->skip(12);
-
-						size = stream->readSint16LE();
-						debug("        %u", size);
-
-						s2 = 48;
-
-						k=0;
-						sz = 0;
-						while (!stream->eos()) {
-							stream->hexdump(s2-4); // 44...
-							stream->skip(s2-4);
-
-							int16 len = stream->readSint16LE();
-							sz+=4;
-							str.clear();
-							for (uint16 j=0; j<len; j++) {
-								ch = stream->readByte();
-								str += ch;
-							}
-							sz+=len;
-							debug("        %u,%u: [%d]= \"%s\"", k, sz, len, str.c_str());
-							k++;
-
-							stream->hexdump(2);
-							stream->skip(2);
-							sz+=46;
+						len = stream->readSint16LE();
+						Common::String txt;
+						for (uint16 j=0; j<len; j++) {
+							ch = stream->readByte();
+							txt += ch;
+							debug("      \"%s\"", txt.c_str());
 						}
-						}
-						stream->hexdump(stream->size());
 #endif
 					}
 					break;
@@ -786,7 +821,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							}
 						}
 					} else if (chunk.isSection(ID_TAG)) {
-						stream->hexdump(stream->size());
 						uint16 count;
 
 						count = stream->readUint16LE();
@@ -809,12 +843,14 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				case EX_GDS:
 					if (chunk.isSection(ID_INF)) {
 						stream->hexdump(stream->size());
+						uint32 mark;
 						char version[7];
-						
-						// guess. 
-						uint dummy = stream->readUint32LE();
+
+						mark = stream->readUint32LE();
+						debug("    0x%X", mark);
+
 						stream->read(version, sizeof(version));
-						debug("        %u, \"%s\"", dummy, version);
+						debug("    \"%s\"", version);
 						
 					} else if (chunk.isSection(ID_SDS)) {
 						stream->hexdump(stream->size());
@@ -828,7 +864,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							do {
 								do {
 									x2 = stream->readUint16LE();
-									debug("        %u: (%u, %u)", x2, (x2&0xF), (x2>>4));
+									debugN("        %u: %u|%u, ", x2, (x2&0xF), (x2>>4));
 									if (stream->pos() >= stream->size()) break;
 								} while ((x2 & 0x80) != 0x80);
 								debug("");
@@ -999,6 +1035,8 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							loadBitmap4(vgaData, 320, 200, 0, stream);
 						} else if (chunk.isSection(ID_MA8)) {
 							loadBitmap8(ma8Data, 320, 200, 0, stream);
+						} else if (chunk.isSection(ID_VQT)) {
+							stream->skip(stream->size());
 						}
 					} else {
 						if (chunk.isSection(ID_BIN)) {
@@ -1006,6 +1044,8 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						} else if (chunk.isSection(ID_VGA)) {
 							stream->skip(stream->size());
 						} else if (chunk.isSection(ID_MA8)) {
+							stream->skip(stream->size());
+						} else if (chunk.isSection(ID_VQT)) {
 							stream->skip(stream->size());
 						}
 					}
@@ -1056,6 +1096,8 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							loadBitmap4(_binData, tw[resource], th[resource], toffset[resource], stream);
 						} else if (chunk.isSection(ID_VGA)) {
 							loadBitmap4(_vgaData, tw[resource], th[resource], toffset[resource], stream);
+						} else if (chunk.isSection(ID_VQT)) {
+							stream->skip(stream->size());
 						} else if (chunk.isSection(ID_INF)) {
 							_tcount = tcount;
 							_tw = tw[resource];
@@ -1070,6 +1112,8 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						if (chunk.isSection(ID_BIN)) {
 							stream->skip(stream->size());
 						} else if (chunk.isSection(ID_VGA)) {
+							stream->skip(stream->size());
+						} else if (chunk.isSection(ID_VQT)) {
 							stream->skip(stream->size());
 						}
 					}
@@ -1883,13 +1927,13 @@ Common::Error DgdsEngine::run() {
 
 		    switch ((k&3)) {
 		    case 0:
-			    explode(_platform, _rmfName, "INTRO.TTM", 0);
-			    break;
-		    case 1:
 			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
 			    break;
-		    case 2:
+		    case 1:
 			    explode(_platform, _rmfName, "TITLE2.TTM", 0);
+			    break;
+		    case 2:
+			    explode(_platform, _rmfName, "INTRO.TTM", 0);
 			    break;
 		    }
 		    k++;
