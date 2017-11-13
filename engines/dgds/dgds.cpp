@@ -1096,8 +1096,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							loadBitmap4(_binData, tw[resource], th[resource], toffset[resource], stream);
 						} else if (chunk.isSection(ID_VGA)) {
 							loadBitmap4(_vgaData, tw[resource], th[resource], toffset[resource], stream);
-						} else if (chunk.isSection(ID_VQT)) {
-							stream->skip(stream->size());
 						} else if (chunk.isSection(ID_INF)) {
 							_tcount = tcount;
 							_tw = tw[resource];
@@ -1108,14 +1106,13 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							_mw = mw;
 							_mh = mh;
 						}
-					} else {
-						if (chunk.isSection(ID_BIN)) {
-							stream->skip(stream->size());
-						} else if (chunk.isSection(ID_VGA)) {
-							stream->skip(stream->size());
-						} else if (chunk.isSection(ID_VQT)) {
-							stream->skip(stream->size());
-						}
+					}
+					if (chunk.isSection(ID_BIN)) {
+						stream->skip(stream->size()-stream->pos());
+					} else if (chunk.isSection(ID_VGA)) {
+						stream->skip(stream->size()-stream->pos());
+					} else if (chunk.isSection(ID_VQT)) {
+						stream->skip(stream->size()-stream->pos());
 					}
 					break;
 				default:
