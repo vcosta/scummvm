@@ -818,6 +818,23 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						
 					} else if (chunk.isSection(ID_SDS)) {
 						stream->hexdump(stream->size());
+
+						uint32 x;
+						x = stream->readUint32LE();
+						debug("    %u", x);
+
+						while (!stream->eos()) {
+							uint16 x2;
+							do {
+								do {
+									x2 = stream->readUint16LE();
+									debug("        %u: (%u, %u)", x2, (x2&0xF), (x2>>4));
+									if (stream->pos() >= stream->size()) break;
+								} while ((x2 & 0x80) != 0x80);
+								debug("");
+								if (stream->pos() >= stream->size()) break;
+							} while ((x2 & 0xF0) != 0xF0);
+						}
 					}
 					break;
 				case EX_ADS:
