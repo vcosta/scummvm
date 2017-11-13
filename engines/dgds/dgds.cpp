@@ -831,32 +831,57 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					} else if (chunk.isSection(ID_RES)) {
 						readStrings(stream);
 					} else if (chunk.isSection(ID_SCR)) {
+						/* this is either a script, or a property sheet, i can't decide. */
 						while (!stream->eos()) {
 							uint16 code;
 							code = stream->readUint16LE();
-							uint16 c1 = (code>>8), c2 = (code&0xFF);
-
-							if (c1 == 0) {
+							if ((code&0xFF00) == 0) {
 								uint16 tag = (code&0xFF);
-								debug("          ZZZ %d (VAL)", tag); // ADS:TAG or TTM:TAG id.
+								debug("          PUSH %d", tag); // ADS:TAG or TTM:TAG id.
 							} else {
+								const char *desc = "";
 								switch (code) {
 									case 0xF010:
 									case 0xF200:
 									case 0xFDA8:
 									case 0xFE98:
 									case 0xFF88:
-
 									case 0xFF10:
+										debug("          INT %4.4X;", code);
+										continue;
 
-									case 0xFFFF:		// TTM END
-										debug("          XXX %X (OP)", code);
+									case 0xFFFF:
+										debug("          INT %4.4X;\treturn", code);
 										debug("");
-										break;
+										continue;
+
+									case 0x0190:
+									case 0x1070:
+									case 0x1340:
+									case 0x1360:
+									case 0x1370:
+									case 0x1420:
+									case 0x1430:
+									case 0x1500:
+									case 0x1520:
+									case 0x2000:
+									case 0x2010:
+									case 0x2020:
+									case 0x3010:
+									case 0x3020:
+									case 0x30FF:
+									case 0x4000:
+									case 0x4010:	desc = "?";			break;
+
+									case 0x1330:	desc = "? (?,rtag)";		break;
+									case 0x1350:	desc = "? (?,tag)";		break;
+									case 0x1510:	desc = "? ()";			break;
+									case 0x2005:	desc = "? (?,rtag,?,?)";	break;
+
 									default:
-										debug("          YYY (%X|%d,%X|%d):", c1, c1, c2, c2);
 										break;
 								}
+								debug("          OP 0x%4.4X;\t%s", code, desc);
 							}
 						}
 						assert(stream->size()==stream->pos());
