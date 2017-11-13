@@ -609,8 +609,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			if (stream) ctx.outSize += stream->size();
 			
 			/*
-			 debug(">> %u:%u", stream->pos(), file->pos());
-			 stream->hexdump(stream->size());*/
+			 debug(">> %u:%u", stream->pos(), file->pos());*/
 
 			Common::DumpFile out;
 
@@ -632,18 +631,15 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			switch (_ex) {
 				case EX_TDS:
 					if (chunk.isSection(ID_THD)) {
-						stream->hexdump(stream->size());
 					}
 					break;
 				case EX_DDS:
 					if (chunk.isSection(ID_DDS)) {
-						stream->hexdump(stream->size());
 					}
 					break;
 				case EX_SDS:
 					if (chunk.isSection(ID_SDS)) {
 #if 0
-						//	stream->hexdump(stream->size());
 						if (strcmp(name ,"S55.SDS")==0) {
 						stream->seek(0);
 
@@ -853,12 +849,8 @@ break;
 							readStrings(stream);
 						}
 					} else if (parent == ID_REQ) {
-						stream->hexdump(stream->size());
-
 						if (chunk.isSection(ID_REQ)) {
-							stream->skip(stream->size());
 						} else if (chunk.isSection(ID_GAD)) {
-							stream->skip(stream->size());
 						}
 					}
 					break;
@@ -880,7 +872,6 @@ break;
 							idx = stream->readUint16LE();
 							debug("        %2u: %u", k, idx);
 						}
-						stream->hexdump(stream->size());
 					}
 					break;
 				case EX_SX:
@@ -905,9 +896,6 @@ break;
 						uint16 idx;
 						idx = stream->readUint16LE();
 						debug("        %2u", idx);
-
-						stream->hexdump(stream->size());
-						stream->skip(stream->size()-stream->pos());
 						/*
 						 uint unpackSize = 1000;
 						 byte *dest = new byte[unpackSize];
@@ -1022,6 +1010,9 @@ break;
 				default:
 					break;
 			}
+			int leftover = stream->size()-stream->pos();
+			stream->hexdump(leftover);
+			stream->skip(leftover);
 			
 			delete stream;
 		}
