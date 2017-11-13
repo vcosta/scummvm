@@ -608,6 +608,24 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			/*
 			 debug(">> %u:%u", stream->pos(), file->pos());
 			 stream->hexdump(stream->size());*/
+
+			Common::DumpFile out;
+
+			if (stream) {
+				uint siz = stream->size();
+				byte *dest = new byte[siz];
+				Common::String cname = Common::String::format("%s:%s", name, chunk.type);
+
+				if (!out.open(cname)) {
+					debug("Couldn't write to %s", cname.c_str());
+				} else {
+					stream->read(dest, siz);
+					out.write(dest, siz);
+					stream->seek(0);
+					out.close();
+				}
+			}
+
 			switch (_ex) {
 				case EX_TDS:
 					if (chunk.isSection(ID_THD)) {
@@ -621,7 +639,99 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					break;
 				case EX_SDS:
 					if (chunk.isSection(ID_SDS)) {
+#if 0
+						//	stream->hexdump(stream->size());
+						if (strcmp(name ,"S55.SDS")==0) {
+						stream->seek(0);
+
+						stream->hexdump(10);
+						stream->skip(10);
+
+						stream->hexdump(85);
+						stream->skip(85);
+
+						Common::String str;
+						byte ch;
+						str.clear();
+						while ((ch = stream->readByte()))
+							str += ch;
+						debug("        : \"%s\"", str.c_str());
+
+						stream->hexdump(6);
+						stream->skip(6);
+
+						int w,h,x,y,size;
+
+						w = stream->readSint16LE();
+						h = stream->readSint16LE();
+						debug("        %dx%d", w, h);
+
+						// START
+						uint16 s1;
+						s1 = stream->readUint16LE();
+						debug("%u: entries", s1);
+
+						uint16 s2;
+						s2 = stream->readUint16LE();
+						debug("%u: bytes", s2);
+
+						uint k, sz;
+						sz=0;
+						for (k=0;k<3; k++) {
+							stream->hexdump(28); // s2-4
+							stream->skip(28);
+
+							stream->hexdump(22); // s2-4
+							stream->skip(22);
+							sz+=50;
+
+							int16 len = stream->readSint16LE();
+							sz+=2;
+							str.clear();
+							for (uint16 j=0; j<len; j++) {
+								ch = stream->readByte();
+								str += ch;
+							}
+							sz+=len;
+							debug("        %u,%u: [%d]= \"%s\"", k, sz, len, str.c_str());
+
+							stream->hexdump(2);
+							stream->skip(2);
+							sz+=2;
+						}
+
+						stream->hexdump(12);
+						stream->skip(12);
+
+						size = stream->readSint16LE();
+						debug("        %u", size);
+
+						s2 = 48;
+
+						k=0;
+						sz = 0;
+						while (!stream->eos()) {
+							stream->hexdump(s2-4); // 44...
+							stream->skip(s2-4);
+
+							int16 len = stream->readSint16LE();
+							sz+=4;
+							str.clear();
+							for (uint16 j=0; j<len; j++) {
+								ch = stream->readByte();
+								str += ch;
+							}
+							sz+=len;
+							debug("        %u,%u: [%d]= \"%s\"", k, sz, len, str.c_str());
+							k++;
+
+							stream->hexdump(2);
+							stream->skip(2);
+							sz+=46;
+						}
+						}
 						stream->hexdump(stream->size());
+#endif
 					}
 					break;
 				case EX_TTM:
@@ -698,6 +808,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					break;
 				case EX_GDS:
 					if (chunk.isSection(ID_INF)) {
+						stream->hexdump(stream->size());
 						char version[7];
 						
 						// guess. 
@@ -720,6 +831,12 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					} else if (chunk.isSection(ID_RES)) {
 						readStrings(stream);
 					} else if (chunk.isSection(ID_SCR)) {
+						while (!stream->eos()) {
+						stream->hexdump(18);
+						if ((stream->pos()+18)>stream->size())
+break;
+						stream->skip(18);
+						}
 						stream->hexdump(stream->size());
 					} else if (chunk.isSection(ID_TAG)) {
 						readStrings(stream);
@@ -758,17 +875,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 
 						debug("        %2u: %u bytes", scount, musicSize);
 						stream->read(musicData, musicSize);
-/*
-						Common::DumpFile out;
-						Common::String dname = Common::String::format("%s-%u.SND", name, scount);
-
-						if (!out.open(dname)) {
-							debug("Couldn't write to %s", name);
-						} else {
-							out.write(musicData, musicSize);
-							out.close();
-						}
-*/
 						scount++;
 					} else if (chunk.isSection(ID_INF)) {
 						uint32 count;
@@ -813,26 +919,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						 RleDecompressor dec;
 						 dec.decompress(dest,unpackSize,file);
 						 ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);*/
-						/*
-						 uint size;
-						 size = stream->size();
-						 
-						 byte *dest = new byte[unpackSize];
-						 
-						 Common::DumpFile out;
-						 char *buf;
-						 
-						 buf = new char[size];
-						 
-						 if (!out.open(name)) {
-						 debug("Couldn't write to %s", name);
-						 } else {
-						 stream->read(buf, size);
-						 out.write(buf, size);
-						 out.close();
-						 }
-						 delete [] buf;
-						 */
 					}
 					break;
 				case EX_PAL:
@@ -978,10 +1064,14 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			
 			nfiles = index.readUint16LE();
 			
-			volume.open(name);
+			debugN("--\n#%u %s, %u files", i, name, nfiles);
 
-			if (!fileName)
-				debug("--\n#%u %s %u", i, name, nfiles);
+			if (!volume.open(name)) {
+				debug(", failed to open");
+				continue;
+			}
+
+			debug(", %d bytes", volume.size());
 
 			for (uint j=0; j<nfiles; j++) {
 				uint32 hash, offset;
@@ -1027,6 +1117,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				}
 				
 				parseFile(platform, *file, name, resource);
+
+				if (!fileName)
+					debug("  #%u %s %d .", j, name, volume.pos());
 
 				if (fileName) {
 				    volume.close();
