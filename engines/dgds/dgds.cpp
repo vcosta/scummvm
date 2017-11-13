@@ -873,10 +873,10 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 									case 0x4000:
 									case 0x4010:	desc = "?";			break;
 
-									case 0x1330:	desc = "? (?,rtag)";		break;
-									case 0x1350:	desc = "? (?,tag)";		break;
+									case 0x1330:	desc = "? (res,rtag)";		break;
+									case 0x1350:	desc = "? (res,rtag)";		break;
 									case 0x1510:	desc = "? ()";			break;
-									case 0x2005:	desc = "? (?,rtag,?,?)";	break;
+									case 0x2005:	desc = "? (res,rtag,?,?)";	break;
 
 									default:
 										break;
