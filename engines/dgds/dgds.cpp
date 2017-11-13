@@ -832,11 +832,34 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						readStrings(stream);
 					} else if (chunk.isSection(ID_SCR)) {
 						while (!stream->eos()) {
-						stream->hexdump(18);
-						if ((stream->pos()+18)>stream->size())
-break;
-						stream->skip(18);
+							uint16 code;
+							code = stream->readUint16LE();
+							uint16 c1 = (code>>8), c2 = (code&0xFF);
+
+							if (c1 == 0) {
+								uint16 tag = (code&0xFF);
+								debug("          ZZZ %d (VAL)", tag); // ADS:TAG or TTM:TAG id.
+							} else {
+								switch (code) {
+									case 0xF010:
+									case 0xF200:
+									case 0xFDA8:
+									case 0xFE98:
+									case 0xFF88:
+
+									case 0xFF10:
+
+									case 0xFFFF:		// TTM END
+										debug("          XXX %X (OP)", code);
+										debug("");
+										break;
+									default:
+										debug("          YYY (%X|%d,%X|%d):", c1, c1, c2, c2);
+										break;
+								}
+							}
 						}
+						assert(stream->size()==stream->pos());
 						stream->hexdump(stream->size());
 					} else if (chunk.isSection(ID_TAG)) {
 						readStrings(stream);
