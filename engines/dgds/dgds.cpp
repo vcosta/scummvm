@@ -890,7 +890,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							code = stream->readUint16LE();
 							if ((code&0xFF00) == 0) {
 								uint16 tag = (code&0xFF);
-								debug("          PUSH %d", tag); // ADS:TAG or TTM:TAG id.
+								debug("          PUSH %d (0x%4.4X)", tag, tag); // ADS:TAG or TTM:TAG id.
 							} else {
 								const char *desc = "";
 								switch (code) {
