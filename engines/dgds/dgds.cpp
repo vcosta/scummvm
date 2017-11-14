@@ -1293,6 +1293,7 @@ int id = 0, sid = 0;
 const Common::Rect rect(0, 0, sw, sh);
 
 int delay = 0;
+Common::Rect drawWin(0, 0, sw, sh);
 
 void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst) {
 	if (!ttm) return;
@@ -1517,6 +1518,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+bw, ivals[1]+bh);
 				Common::Rect clippedDestRect(0, 0, sw, sh);
 				clippedDestRect.clip(destRect);
+				clippedDestRect.clip(drawWin);
 
 				if (bk != -1) {
 					// DRAW BMP: x,y:int [-n,+n] (RISE)
@@ -1547,6 +1549,11 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				/*
 				scrData.fillRect(rect, 0);
 				bmpData.fillRect(rect, 0);*/
+				break;
+
+			case 0x4000:
+				//SET WINDOW? x,y,w,h:int	[0..320,0..200]
+				drawWin = Common::Rect(ivals[0], ivals[1], ivals[2], ivals[3]);
 				break;
 
 			case 0xa100:
@@ -1987,6 +1994,9 @@ Common::Error DgdsEngine::run() {
 			    break;
 		    case 2:
 			    explode(_platform, _rmfName, "INTRO.TTM", 0);
+			    break;
+		    case 3:
+			    explode(_platform, _rmfName, "BIGTV.TTM", 0);
 			    break;
 		    }
 		    k++;
