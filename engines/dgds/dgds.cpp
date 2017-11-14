@@ -89,6 +89,8 @@ uint16 _mw, _mh;
 
 Common::SeekableReadStream* ttm;
 
+int sw = 320, sh = 200;
+
 
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
@@ -1125,7 +1127,62 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			delete stream;
 		}
 	}
+#if 0
+	if (_ex == EX_PAL) {
+		Common::DumpFile out;
 
+		Common::String cname = Common::String::format("%s.gpl", name);
+
+		if (!out.open(cname)) {
+			debug("Couldn't write to %s", cname.c_str());
+		} else {
+			Common::String header = Common::String::format("GIMP Palette\nName: %s\nColumns: 0\n#\n", name);
+			out.writeString(header);
+			for (uint i=0; i<256*3; i+=3) {
+				Common::String color = Common::String::format("%3u %3u %3u\tUntitled\n",
+						palette[i+0], palette[i+1], palette[i+2]);
+				out.writeString(color);
+			}
+			out.close();
+		}
+		
+	} else if (_ex == EX_SCR) {
+		byte *vgaData_;
+		byte *binData_;
+		byte *ma8Data_;
+
+		byte *scrData_;
+		scrData_ = (byte *)bottomBuffer.getPixels();
+
+		if (ma8Data.h != 0) {
+			ma8Data_ = (byte *)ma8Data.getPixels();
+			for (int i=0; i<sw*sh; i++) {
+				scrData_[i] = ma8Data_[i];
+			}
+		} else if (vgaData.h != 0) {
+			vgaData_ = (byte *)vgaData.getPixels();
+			binData_ = (byte *)binData.getPixels();
+			for (int i=0; i<sw*sh; i+=2) {
+				scrData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+				scrData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+				scrData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+				scrData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+			}
+		}
+
+		Common::DumpFile out;
+
+		uint siz = sw*sh;
+		Common::String cname = Common::String::format("%s.data", name);
+
+		if (!out.open(cname)) {
+			debug("Couldn't write to %s", cname.c_str());
+		} else {
+			out.write(scrData_, siz);
+			out.close();
+		}
+	}
+#endif
 	debug("  [%u:%u] --", file.pos(), ctx.outSize);
 }
 
@@ -1227,7 +1284,6 @@ static void explode(Common::Platform platform, const char *indexName, const char
 	}	
 }
 
-int sw = 320, sh = 200;
 int bw = 0, bh = 0;
 int bk = -1;
 
