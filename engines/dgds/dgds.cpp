@@ -718,6 +718,71 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						uint16 idx;
 						idx = stream->readUint16LE();
 						debug("    S%d.SDS", idx);
+
+#if 0
+						idx = stream->readUint16LE();
+						debug("    %d", idx);
+
+						uint16 count;
+						while (1) {
+							uint32 code;
+							code = stream->readUint32LE();
+							count = stream->readUint16LE();
+							idx = stream->readUint16LE();
+
+							debugN("\tOP: 0x%8.8x %2u %2u\n", code, count, idx);
+
+							uint16 pitch = (count+1)&(~1); // align to word.
+							if ((stream->pos()+pitch) >= stream->size()) break;
+
+							if (code == 0) break;
+
+							stream->skip(pitch);
+						}
+
+						Common::String sval;
+						byte ch;
+
+						do {
+							ch = stream->readByte();
+							sval += ch;
+						} while (ch != 0);
+
+						debug("\"%s\"", sval.c_str());
+#endif
+							/*
+						Common::String txt;
+						txt += Common::String::format("OP: 0x%4.4x %2u ", op, count);
+						if (count == 0x0F) {
+							byte ch[2];
+
+							do {
+								ch[0] = ttm->readByte();
+								ch[1] = ttm->readByte();
+								sval += ch[0];
+								sval += ch[1];
+							} while (ch[0] != 0 && ch[1] != 0);
+
+							debugN("\"%s\"", sval.c_str());
+							txt += "\"" + sval + "\"";
+						} else {
+							int16 ival;
+
+							for (byte k=0; k<count; k++) {
+								ival = ttm->readSint16LE();
+								ivals[k] = ival;
+
+								if (k == 0) {
+									debugN("%d", ival);
+									txt += Common::String::format("%d", ival);
+								} else {
+									debugN(", %d", ival);
+									txt += Common::String::format(", %d", ival);
+								}
+							}
+						}
+*/
+
 #if 0
 						// probe for the .ADS name. are these shorts?
 						uint count;
