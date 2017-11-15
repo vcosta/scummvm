@@ -83,6 +83,7 @@ byte *musicData;
 uint32 musicSize;
 
 Common::StringArray BMPs;
+Common::StringArray _bubbles;
 
 uint16 _tcount;
 uint16 _tw, _th;
@@ -92,6 +93,11 @@ uint16 *_mtx;
 uint16 _mw, _mh;
 
 Common::SeekableReadStream* ttm;
+
+#define DGDS_FILENAME_MAX 12
+#define DGDS_TYPENAME_MAX 4
+
+char ttmName[DGDS_FILENAME_MAX+1];
 
 int sw = 320, sh = 200;
 
@@ -111,9 +117,6 @@ DgdsEngine::~DgdsEngine() {
 	delete _console;
 }
 
-
-#define DGDS_FILENAME_MAX 12
-#define DGDS_TYPENAME_MAX 4
 
 struct DgdsFileCtx {
 	uint32 inSize, outSize;
@@ -707,6 +710,44 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						uint16 idx;
 						idx = stream->readUint16LE();
 						debug("    S%d.SDS", idx);
+
+
+						// gross hack to grep the strings.
+						_bubbles.clear();
+
+						bool inside = false;
+						Common::String txt;
+						while (1) {
+							char buf[4];
+							stream->read(buf, sizeof(buf));
+							if (stream->pos() >= stream->size()) break;
+							if (Common::isPrint(buf[0]) && Common::isPrint(buf[1]) && Common::isPrint(buf[2]) && Common::isPrint(buf[3])) {
+								inside = true;
+							}
+							stream->seek(-3, SEEK_CUR);
+
+							if (inside) {
+								if (buf[0] == '\0') {
+									// here's where we do a clever thing. we want Pascal like strings.
+									uint16 pos = txt.size()+1;
+									stream->seek(-pos-2, SEEK_CUR);
+									uint16 len = stream->readUint16LE();
+									stream->seek(pos, SEEK_CUR);
+
+									// gotcha!
+									if (len == pos) {
+										if (resource == 0) _bubbles.push_back(txt);
+										debug("    \"%s\"", txt.c_str());
+									}
+									// let's hope the string wasn't shorter than 4 chars...
+									txt.clear();
+									inside = false;
+								} else {
+									txt += buf[0];
+								}
+							}
+
+						}
 #if 0
 						idx = stream->readUint16LE();
 						debug("    %d", idx);
@@ -839,6 +880,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					} else if (chunk.isSection(ID_TT3)) {
 						if (resource == 0) {
 							ttm = stream->readStream(stream->size());
+							Common::strlcpy(ttmName, name, sizeof(ttmName));
 						} else {
 							while (!stream->eos()) {
 								uint16 code;
@@ -1363,15 +1405,19 @@ int bk = -1;
 
 char bmpNames[16][DGDS_FILENAME_MAX+1];
 char scrNames[16][DGDS_FILENAME_MAX+1];
+
 int id = 0, sid = 0;
 const Common::Rect rect(0, 0, sw, sh);
 
 int delay = 0;
 Common::Rect drawWin(0, 0, sw, sh);
 
+Common::String text;
+
 void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst) {
 	if (!ttm) return;
 
+	delay = 0;
 	while (!ttm->eos()) {
 		uint16 code;
 		byte count;
@@ -1553,6 +1599,19 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				Graphics::Surface bmpSub = topBuffer.getSubArea(bmpWin);
 				resData.transBlitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
 				topBuffer.fillRect(bmpWin, 0);
+
+				if (!text.empty()) {
+					Common::StringArray lines;
+					const int h = _fntP->getFontHeight();
+
+					_fntP->wordWrapText(text, 200, lines);
+					Common::Rect r(0, 7, sw, h*lines.size()+13);
+					resData.fillRect(r, 15);
+					for (uint i=0; i<lines.size(); i++) {
+						const int w = _fntP->getStringWidth(lines[i]);
+						_fntP->drawString(&resData, lines[i], 10, 10+1+i*h, w, 0);
+					}
+				}
 				debug("FLUSH");
 				}
 				goto EXIT;
@@ -1617,12 +1676,39 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				}
 				break;
 
-			case 0x1110: //SET SCENE?:  i:int   [1..n]
+			case 0x1110: {//SET SCENE?:  i:int   [1..n]
 				// DESCRIPTION IN TTM TAGS.
 				debug("SET SCENE: %u", ivals[0]);
+
+				if (!_bubbles.empty()) {
+					if (!scumm_stricmp(ttmName, "INTRO.TTM")) {
+						switch (ivals[0]) {
+							case 15:	text = _bubbles[3];	break;
+							case 16:	text = _bubbles[4];	break;
+							case 17:	text = _bubbles[5];	break;
+							case 19:	text = _bubbles[6];	break;
+							case 20:	text = _bubbles[7];	break;
+							case 22:	text = _bubbles[8];	break;
+							case 23:	text = _bubbles[9];	break;
+							case 25:	text = _bubbles[10];	break;
+							case 26:	text = _bubbles[11];	break;
+							default:	text.clear();		break;
+						}
+					} else if (!scumm_stricmp(ttmName, "BIGTV.TTM")) {
+						switch (ivals[0]) {
+							case 1:		text = _bubbles[0];	break;
+							case 2:		text = _bubbles[1];	break;
+							case 3:		text = _bubbles[2];	break;
+						}
+					}
+					if (!text.empty()) delay += 1500;
+				} else {
+					text.clear();
+				}
 				/*
 				scrData.fillRect(rect, 0);
 				bmpData.fillRect(rect, 0);*/
+				}
 				break;
 
 			case 0x4000:
@@ -1636,7 +1722,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 
 			case 0x1020: //DELAY?:	    i:int   [0..n]
-				delay = ivals[0]*10;
+				delay += ivals[0]*10;
 				break;
 
 			case 0x10a0:
@@ -1680,7 +1766,7 @@ EXIT:
 	    dst->copyRectToSurface(resData, 0, 0, rect);
 	    g_system->unlockScreen();
 	    g_system->updateScreen();
-
+	    g_system->delayMillis(delay);
 }
 
 struct Channel {
@@ -2129,6 +2215,7 @@ Common::Error DgdsEngine::run() {
 	Common::Event ev;
 
 //	browseInit(_platform, _rmfName, this);
+	explode(_platform, _rmfName, "DRAGON.FNT", 0);
 
 	int k=0;
 	while (!shouldQuit()) {/*
@@ -2154,6 +2241,7 @@ Common::Error DgdsEngine::run() {
 
 //		browse(_platform, _rmfName, this);
  		if (!ttm || ttm->eos()) {
+		    _bubbles.clear();
 		    delete ttm;
 		    ttm = 0;
 
@@ -2167,29 +2255,31 @@ Common::Error DgdsEngine::run() {
 			    explode(_platform, _rmfName, "TITLE2.TTM", 0);
 			    break;
 		    case 2:
+			    explode(_platform, _rmfName, "S55.SDS", 0);
 			    explode(_platform, _rmfName, "INTRO.TTM", 0);
 			    break;
 		    case 3:
+			    explode(_platform, _rmfName, "S55.SDS", 0);
 			    explode(_platform, _rmfName, "BIGTV.TTM", 0);
 			    break;
 		    }
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
-#if 0
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
-		explode(_platform, _rmfName, "DRAGON.FNT", 0);
+//		explode(_platform, _rmfName, "DRAGON.FNT", 0);
 
 //		Common::String txt("WTHE QUICK BROWN BOX JUMPED OVER THE LAZY DOG");
-		Common::String txt("WAW A*A@A WAW");
-
+//		Common::String txt("Have a nice trip!");
+//		Common::String txt("WAW A*A@A WAW");
+/*
 		Graphics::Surface *dst;
 		dst = g_system->lockScreen();
 		_fntP->drawString(dst, txt, 20, 20, 320-20, 1);
 		g_system->unlockScreen();
 		g_system->updateScreen();
-#endif
+*/
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
