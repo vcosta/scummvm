@@ -463,30 +463,52 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
-struct Font {
+class Font : public Graphics::Font {
+protected:
 	byte _w;
 	byte _h;
 	byte _start;
 	byte _count;
-	byte _pitch;
 
 	byte *_data;
 
-	int mapChar(byte chr);
-	void drawChar(Graphics::Surface& dst, byte chr, int x, int y, uint32 color);
+	void mapChar(byte chr, int& pos, int& bit) const;
+
+public:
+	int getFontHeight() const;
+	int getMaxCharWidth() const;
+	int getCharWidth(uint32 chr) const;
+	void drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const;
 
 	static Font *loadFont(Common::SeekableReadStream &input);
 };
 
-static inline uint
-isSet(byte *set, uint id)
-{
-	return (set[(id >> 3)] & (1 << (id & 7)));
+int Font::getFontHeight() const {
+	return _h;
 }
 
-void Font::drawChar(Graphics::Surface& dst, byte chr, int x, int y, uint32 color) {
+int Font::getMaxCharWidth() const {
+	return _w;
+}
+
+int Font::getCharWidth(uint32 chr) const {
+	return _w;
+}
+
+static inline uint
+isSet(byte *set, uint bit)
+{
+	return (set[(bit >> 3)] & (1 << (bit & 7)));
+}
+
+void Font::mapChar(byte chr, int& pos, int& bit) const {
+	pos = (chr-_start)*_h;
+	bit = 8-_w;
+}
+
+void Font::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const {
 	const Common::Rect destRect(x, y, x+_w, y+_h);
-	Common::Rect clippedDestRect(0, 0, sw, sh);
+	Common::Rect clippedDestRect(0, 0, dst->w, dst->h);
 	clippedDestRect.clip(destRect);
 
 	const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
@@ -494,21 +516,19 @@ void Font::drawChar(Graphics::Surface& dst, byte chr, int x, int y, uint32 color
 	const int rows = clippedDestRect.height();
 	const int columns = clippedDestRect.width();
 
-	int idx = croppedBy.y*_w + croppedBy.x;
-	byte *src = _data + mapChar(chr);
-	byte *ptr = (byte *)dst.getBasePtr(clippedDestRect.left, clippedDestRect.top);
+	int pos, bit;
+	mapChar(chr, pos, bit);
+	int idx = bit + croppedBy.x;
+	byte *src = _data + pos + croppedBy.y;
+	byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
 	for (int i=0; i<rows; ++i) {
 		for (int j=0; j<columns; ++j) {
-			if (isSet(src, idx+_w-j))
+			if (isSet(src, idx+_w-1-j))
 				ptr[j] = color;
 		}
-		ptr += dst.pitch;
-		src += _pitch;
+		ptr += dst->pitch;
+		src++;
 	}
-}
-
-int Font::mapChar(byte chr) {
-	return (chr-_start)*_pitch*_h;
 }
 
 Font *Font::loadFont(Common::SeekableReadStream &input) {
@@ -518,9 +538,7 @@ Font *Font::loadFont(Common::SeekableReadStream &input) {
 	start = input.readByte();
 	count = input.readByte();
 
-	byte pitch = (w+7)>>3;
-	int size = pitch*h*count;
-
+	int size = h*count;
 	debug("    w: %u, h: %u, start: 0x%x, count: %u", w, h, start, count);
 	assert((4 + size) == input.size());
 
@@ -529,7 +547,6 @@ Font *Font::loadFont(Common::SeekableReadStream &input) {
 	fnt->_h = h;
 	fnt->_start = start;
 	fnt->_count = count;
-	fnt->_pitch = pitch;
 	fnt->_data = new byte[size];
 	input.read(fnt->_data, size);
 	return fnt;
@@ -2157,11 +2174,11 @@ Common::Error DgdsEngine::run() {
 		}
 		interpret(_platform, _rmfName, this);
 
-		explode(_platform, _rmfName, "6X6.FNT", 0);
+		explode(_platform, _rmfName, "4X5.FNT", 0);
 		Graphics::Surface *dst;
 		dst = g_system->lockScreen();
-		_fnt->drawChar(*dst, 'R', 20, 20, 1);
-		_fnt->drawChar(*dst, 'A', 20, 30, 1);
+		Common::String txt("WTHE QUICK BROWN BOX JUMPED OVER THE LAZY DOG");
+		_fnt->drawString(dst, txt, 20, 20, 320-20, 1);
 		g_system->unlockScreen();
 		g_system->updateScreen();
 
