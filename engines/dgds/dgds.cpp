@@ -51,6 +51,7 @@
 
 #include "dgds/decompress.h"
 #include "dgds/detection_tables.h"
+#include "dgds/font.h"
 
 #include "dgds/dgds.h"
 
@@ -90,29 +91,6 @@ uint16 _mw, _mh;
 Common::SeekableReadStream* ttm;
 
 int sw = 320, sh = 200;
-
-void decompress(byte compression, byte* data, int uncompressedSize, Common::SeekableReadStream& input, int size) {
-	switch (compression) {
-		case 0x00: {
-			input.read(data, size);
-			break;
-		}
-		case 0x01: {
-			RleDecompressor dec;
-			dec.decompress(data, uncompressedSize, input);
-			break;
-		}
-		case 0x02: {
-			LzwDecompressor dec;
-			dec.decompress(data, uncompressedSize, input);
-			break;
-		}
-		default:
-			input.skip(size);
-			debug("unknown chunk compression: 0x%x", compression);
-			break;
-	}
-}
 
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
@@ -466,207 +444,9 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
-class PFont : public Graphics::Font {
-protected:
-	byte _w;
-	byte _h;
-	byte _start;
-	byte _count;
-
-	uint16 *_offsets;
-	byte *_widths;
-	byte *_data;
-
-	void mapChar(byte chr, int& pos, int& bit) const;
-
-public:
-	int getFontHeight() const;
-	int getMaxCharWidth() const;
-	int getCharWidth(uint32 chr) const;
-	void drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const;
-
-	static PFont *load_PFont(Common::SeekableReadStream &input);
-};
-
-int PFont::getFontHeight() const {
-	return _h;
-}
-
-int PFont::getMaxCharWidth() const {
-	return _w;
-}
-
-int PFont::getCharWidth(uint32 chr) const {
-	return _widths[chr-_start];
-}
-
-void PFont::mapChar(byte chr, int& pos, int& bit) const {
-	pos = READ_LE_UINT16(&_offsets[chr-_start]);
-	bit = 0;
-}
-
-static inline uint
-isSet(byte *set, uint bit)
-{
-	return (set[(bit >> 3)] & (1 << (bit & 7)));
-}
-
-PFont *PFont::load_PFont(Common::SeekableReadStream &input) {
-	byte magic;
-
-	magic = input.readByte();
-	assert(magic == 0xFF);
-
-	byte w, h;
-	byte unknown, start, count, compression;
-	int size;
-	int uncompressedSize;
-
-	w = input.readByte();
-	h = input.readByte();
-	unknown = input.readByte();
-	start = input.readByte();
-	count = input.readByte();
-	size = input.readUint16LE();
-	compression = input.readByte();
-	uncompressedSize = input.readUint32LE();
-	debug("    magic: 0x%x, w: %u, h: %u, unknown: %u, start: 0x%x, count: %u\n"
-	      "    size: %u, compression: 0x%x, uncompressedSize: %u",
-			magic, w, h, unknown, start, count,
-			size, compression, uncompressedSize);
-	assert(uncompressedSize == size);
-
-	size = input.size()-input.pos();
-
-	byte *data = new byte[uncompressedSize];
-	decompress(compression, data, uncompressedSize, input, size);
-
-	PFont* fnt = new PFont;
-	fnt->_w = w;
-	fnt->_h = h;
-	fnt->_start = start;
-	fnt->_count = count;
-
-	fnt->_offsets = (uint16*)data;
-	fnt->_widths = data+2*count;
-	fnt->_data = data+3*count;
-	return fnt;
-}
-
-void PFont::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const {
-	if (!(chr >= _start && chr <= (_start+_count))) return;
-
-	const Common::Rect destRect(x, y, x+_w, y+_h);
-	Common::Rect clippedDestRect(0, 0, dst->w, dst->h);
-	clippedDestRect.clip(destRect);
-
-	const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
-
-	const int rows = clippedDestRect.height();
-	const int columns = clippedDestRect.width();
-
-	int pos, bit;
-	mapChar(chr, pos, bit);
-	int idx = bit + croppedBy.x;
-	byte *src = _data + pos + croppedBy.y;
-	byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
-	for (int i=0; i<rows; ++i) {
-		for (int j=0; j<columns; ++j) {
-			if (isSet(src, idx+_w-1-j))
-				ptr[j] = color;
-		}
-		ptr += dst->pitch;
-		src++;
-	}
-}
-
-class FFont : public Graphics::Font {
-protected:
-	byte _w;
-	byte _h;
-	byte _start;
-	byte _count;
-
-	byte *_data;
-
-	void mapChar(byte chr, int& pos, int& bit) const;
-
-public:
-	int getFontHeight() const;
-	int getMaxCharWidth() const;
-	int getCharWidth(uint32 chr) const;
-	void drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const;
-
-	static FFont *load_Font(Common::SeekableReadStream &input);
-};
-
-int FFont::getFontHeight() const {
-	return _h;
-}
-
-int FFont::getMaxCharWidth() const {
-	return _w;
-}
-
-int FFont::getCharWidth(uint32 chr) const {
-	return _w;
-}
-
-void FFont::mapChar(byte chr, int& pos, int& bit) const {
-	pos = (chr-_start)*_h;
-	bit = 8-_w;
-}
-
-void FFont::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const {
-	if (!(chr >= _start && chr <= (_start+_count))) return;
-
-	const Common::Rect destRect(x, y, x+_w, y+_h);
-	Common::Rect clippedDestRect(0, 0, dst->w, dst->h);
-	clippedDestRect.clip(destRect);
-
-	const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
-
-	const int rows = clippedDestRect.height();
-	const int columns = clippedDestRect.width();
-
-	int pos, bit;
-	mapChar(chr, pos, bit);
-	int idx = bit + croppedBy.x;
-	byte *src = _data + pos + croppedBy.y;
-	byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
-	for (int i=0; i<rows; ++i) {
-		for (int j=0; j<columns; ++j) {
-			if (isSet(src, idx+_w-1-j))
-				ptr[j] = color;
-		}
-		ptr += dst->pitch;
-		src++;
-	}
-}
 
 PFont *_fntP;
 FFont *_fntF;
-
-FFont *FFont::load_Font(Common::SeekableReadStream &input) {
-	byte w, h, start, count;
-	w = input.readByte();
-	h = input.readByte();
-	start = input.readByte();
-	count = input.readByte();
-
-	int size = h*count;
-	debug("    w: %u, h: %u, start: 0x%x, count: %u", w, h, start, count);
-	assert((4+size) == input.size());
-
-	FFont* fnt = new FFont;
-	fnt->_w = w;
-	fnt->_h = h;
-	fnt->_start = start;
-	fnt->_count = count;
-	fnt->_data = new byte[size];
-	input.read(fnt->_data, size);
-	return fnt;
-}
 
 void parseFile(Common::Platform platform, Common::SeekableReadStream& file, const char* name, int resource) {
 	struct DgdsFileCtx ctx;

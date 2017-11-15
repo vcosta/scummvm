@@ -20,8 +20,9 @@
  *
  */
 
-#include "common/stream.h"
+#include "common/debug.h"
 #include "common/util.h"
+#include "common/stream.h"
 
 #include "dgds/decompress.h"
 
@@ -178,4 +179,28 @@ uint32 LzwDecompressor::getCode(uint32 totalBits, Common::SeekableReadStream &in
 	return result;
 }
 
+void decompress(byte compression, byte* data, int uncompressedSize, Common::SeekableReadStream& input, int size) {
+	switch (compression) {
+		case 0x00: {
+			input.read(data, size);
+			break;
+		}
+		case 0x01: {
+			RleDecompressor dec;
+			dec.decompress(data, uncompressedSize, input);
+			break;
+		}
+		case 0x02: {
+			LzwDecompressor dec;
+			dec.decompress(data, uncompressedSize, input);
+			break;
+		}
+		default:
+			input.skip(size);
+			debug("unknown chunk compression: 0x%x", compression);
+			break;
+	}
+}
+
 } // End of namespace Dgds
+

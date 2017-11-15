@@ -25,6 +25,10 @@
 
 #include "common/scummsys.h"
 
+namespace Common {
+class SeekableReadStream;
+}
+
 namespace Dgds {
 
 class RleDecompressor {
@@ -55,6 +59,8 @@ private:
         uint32 _tableSize, _tableMax;
         bool _tableFull;
 };
+
+void decompress(byte compression, byte* data, int uncompressedSize, Common::SeekableReadStream& input, int size);
 
 } // End of namespace Dgds
 
