@@ -463,20 +463,50 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
-class PFont {
+class PFont : public Graphics::Font {
 protected:
 	byte _w;
 	byte _h;
 	byte _start;
 	byte _count;
 
-	byte *_offsets;
+	uint16 *_offsets;
 	byte *_widths;
 	byte *_data;
 
+	void mapChar(byte chr, int& pos, int& bit) const;
+
 public:
+	int getFontHeight() const;
+	int getMaxCharWidth() const;
+	int getCharWidth(uint32 chr) const;
+	void drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const;
+
 	static PFont *load_PFont(Common::SeekableReadStream &input);
 };
+
+int PFont::getFontHeight() const {
+	return _h;
+}
+
+int PFont::getMaxCharWidth() const {
+	return _w;
+}
+
+int PFont::getCharWidth(uint32 chr) const {
+	return _widths[chr-_start];
+}
+
+void PFont::mapChar(byte chr, int& pos, int& bit) const {
+	pos = READ_LE_UINT16(&_offsets[chr-_start]);
+	bit = 0;
+}
+
+static inline uint
+isSet(byte *set, uint bit)
+{
+	return (set[(bit >> 3)] & (1 << (bit & 7)));
+}
 
 PFont *PFont::load_PFont(Common::SeekableReadStream &input) {
 	byte magic;
@@ -497,7 +527,7 @@ PFont *PFont::load_PFont(Common::SeekableReadStream &input) {
 	size = input.readUint16LE();
 	compression = input.readByte();
 	uncompressedSize = input.readUint32LE();
-	debug("    magic: 0x%x, w: %u, h: %u, unknown: 0x%x, start: 0x%x, count: %u\n"
+	debug("    magic: 0x%x, w: %u, h: %u, unknown: %u, start: 0x%x, count: %u\n"
 	      "    size: %u, compression: 0x%x, uncompressedSize: %u",
 			magic, w, h, unknown, start, count,
 			size, compression, uncompressedSize);
@@ -533,12 +563,38 @@ PFont *PFont::load_PFont(Common::SeekableReadStream &input) {
 	fnt->_start = start;
 	fnt->_count = count;
 
-	fnt->_offsets = data;
+	fnt->_offsets = (uint16*)data;
 	fnt->_widths = data+2*count;
 	fnt->_data = data+3*count;
 	return fnt;
 }
 
+void PFont::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const {
+	if (!(chr >= _start && chr <= (_start+_count))) return;
+
+	const Common::Rect destRect(x, y, x+_w, y+_h);
+	Common::Rect clippedDestRect(0, 0, dst->w, dst->h);
+	clippedDestRect.clip(destRect);
+
+	const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
+
+	const int rows = clippedDestRect.height();
+	const int columns = clippedDestRect.width();
+
+	int pos, bit;
+	mapChar(chr, pos, bit);
+	int idx = bit + croppedBy.x;
+	byte *src = _data + pos + croppedBy.y;
+	byte *ptr = (byte *)dst->getBasePtr(clippedDestRect.left, clippedDestRect.top);
+	for (int i=0; i<rows; ++i) {
+		for (int j=0; j<columns; ++j) {
+			if (isSet(src, idx+_w-1-j))
+				ptr[j] = color;
+		}
+		ptr += dst->pitch;
+		src++;
+	}
+}
 
 class Font : public Graphics::Font {
 protected:
@@ -572,18 +628,14 @@ int Font::getCharWidth(uint32 chr) const {
 	return _w;
 }
 
-static inline uint
-isSet(byte *set, uint bit)
-{
-	return (set[(bit >> 3)] & (1 << (bit & 7)));
-}
-
 void Font::mapChar(byte chr, int& pos, int& bit) const {
 	pos = (chr-_start)*_h;
 	bit = 8-_w;
 }
 
 void Font::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const {
+	if (!(chr >= _start && chr <= (_start+_count))) return;
+
 	const Common::Rect destRect(x, y, x+_w, y+_h);
 	Common::Rect clippedDestRect(0, 0, dst->w, dst->h);
 	clippedDestRect.clip(destRect);
@@ -2254,15 +2306,16 @@ Common::Error DgdsEngine::run() {
 		}
 		interpret(_platform, _rmfName, this);
 
-		explode(_platform, _rmfName, "4X5.FNT", 0);
+//		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
 		explode(_platform, _rmfName, "DRAGON.FNT", 0);
 
-		Common::String txt("WTHE QUICK BROWN BOX JUMPED OVER THE LAZY DOG");
+//		Common::String txt("WTHE QUICK BROWN BOX JUMPED OVER THE LAZY DOG");
+		Common::String txt("WAW A*A@A WAW");
 
 		Graphics::Surface *dst;
 		dst = g_system->lockScreen();
-		_fntF->drawString(dst, txt, 20, 20, 320-20, 1);
+		_fntP->drawString(dst, txt, 20, 20, 320-20, 1);
 		g_system->unlockScreen();
 		g_system->updateScreen();
 
