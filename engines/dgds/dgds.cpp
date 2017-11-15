@@ -343,7 +343,7 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, c
 }
  
 Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::SeekableReadStream& file) {
-	uint8 compression; /* 0=None, 1=RLE, 2=LZW */
+	byte compression; /* 0=None, 1=RLE, 2=LZW */
 	const char *descr[] = {"None", "RLE", "LZW"};
 	uint32 unpackSize;
 	Common::SeekableReadStream *ostream = 0;
@@ -463,6 +463,83 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
+class PFont {
+protected:
+	byte _w;
+	byte _h;
+	byte _start;
+	byte _count;
+
+	byte *_offsets;
+	byte *_widths;
+	byte *_data;
+
+public:
+	static PFont *load_PFont(Common::SeekableReadStream &input);
+};
+
+PFont *PFont::load_PFont(Common::SeekableReadStream &input) {
+	byte magic;
+
+	magic = input.readByte();
+	assert(magic == 0xFF);
+
+	byte w, h;
+	byte unknown, start, count, compression;
+	int size;
+	int uncompressedSize;
+
+	w = input.readByte();
+	h = input.readByte();
+	unknown = input.readByte();
+	start = input.readByte();
+	count = input.readByte();
+	size = input.readUint16LE();
+	compression = input.readByte();
+	uncompressedSize = input.readUint32LE();
+	debug("    magic: 0x%x, w: %u, h: %u, unknown: 0x%x, start: 0x%x, count: %u\n"
+	      "    size: %u, compression: 0x%x, uncompressedSize: %u",
+			magic, w, h, unknown, start, count,
+			size, compression, uncompressedSize);
+	assert(uncompressedSize == size);
+
+	size = input.size()-input.pos();
+
+	byte *data = new byte[uncompressedSize];
+	switch (compression) {
+	case 0x00: {
+		   input.read(data, size);
+		   break;
+		   }
+	case 0x01: {
+		   RleDecompressor dec;
+		   dec.decompress(data, uncompressedSize, input);
+		   break;
+		   }
+	case 0x02: {
+		   LzwDecompressor dec;
+		   dec.decompress(data, uncompressedSize, input);
+		   break;
+		   }
+	default:
+		   input.skip(size);
+		   debug("unknown chunk compression: 0x%x", compression);
+		   break;
+	}
+
+	PFont* fnt = new PFont;
+	fnt->_w = w;
+	fnt->_h = h;
+	fnt->_start = start;
+	fnt->_count = count;
+
+	fnt->_offsets = data;
+	fnt->_widths = data+2*count;
+	fnt->_data = data+3*count;
+	return fnt;
+}
+
+
 class Font : public Graphics::Font {
 protected:
 	byte _w;
@@ -480,7 +557,7 @@ public:
 	int getCharWidth(uint32 chr) const;
 	void drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const;
 
-	static Font *loadFont(Common::SeekableReadStream &input);
+	static Font *load_Font(Common::SeekableReadStream &input);
 };
 
 int Font::getFontHeight() const {
@@ -531,7 +608,10 @@ void Font::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 col
 	}
 }
 
-Font *Font::loadFont(Common::SeekableReadStream &input) {
+PFont *_fntP;
+Font *_fntF;
+
+Font *Font::load_Font(Common::SeekableReadStream &input) {
 	byte w, h, start, count;
 	w = input.readByte();
 	h = input.readByte();
@@ -540,7 +620,7 @@ Font *Font::loadFont(Common::SeekableReadStream &input) {
 
 	int size = h*count;
 	debug("    w: %u, h: %u, start: 0x%x, count: %u", w, h, start, count);
-	assert((4 + size) == input.size());
+	assert((4+size) == input.size());
 
 	Font* fnt = new Font;
 	fnt->_w = w;
@@ -551,8 +631,6 @@ Font *Font::loadFont(Common::SeekableReadStream &input) {
 	input.read(fnt->_data, size);
 	return fnt;
 }
-
-Font *_fnt;
 
 void parseFile(Common::Platform platform, Common::SeekableReadStream& file, const char* name, int resource) {
 	struct DgdsFileCtx ctx;
@@ -1194,7 +1272,9 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							debug("    magic: %u", magic);
 
 							if (magic != 0xFF)
-								_fnt = Font::loadFont(*stream);
+								_fntF = Font::load_Font(*stream);
+							else
+								_fntP = PFont::load_PFont(*stream);
 						}
 					}
 					break;
@@ -2175,13 +2255,16 @@ Common::Error DgdsEngine::run() {
 		interpret(_platform, _rmfName, this);
 
 		explode(_platform, _rmfName, "4X5.FNT", 0);
+//		explode(_platform, _rmfName, "P6X6.FNT", 0);
+		explode(_platform, _rmfName, "DRAGON.FNT", 0);
+
+		Common::String txt("WTHE QUICK BROWN BOX JUMPED OVER THE LAZY DOG");
+
 		Graphics::Surface *dst;
 		dst = g_system->lockScreen();
-		Common::String txt("WTHE QUICK BROWN BOX JUMPED OVER THE LAZY DOG");
-		_fnt->drawString(dst, txt, 20, 20, 320-20, 1);
+		_fntF->drawString(dst, txt, 20, 20, 320-20, 1);
 		g_system->unlockScreen();
 		g_system->updateScreen();
-
 
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
