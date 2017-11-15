@@ -91,6 +91,28 @@ Common::SeekableReadStream* ttm;
 
 int sw = 320, sh = 200;
 
+void decompress(byte compression, byte* data, int uncompressedSize, Common::SeekableReadStream& input, int size) {
+	switch (compression) {
+		case 0x00: {
+			input.read(data, size);
+			break;
+		}
+		case 0x01: {
+			RleDecompressor dec;
+			dec.decompress(data, uncompressedSize, input);
+			break;
+		}
+		case 0x02: {
+			LzwDecompressor dec;
+			dec.decompress(data, uncompressedSize, input);
+			break;
+		}
+		default:
+			input.skip(size);
+			debug("unknown chunk compression: 0x%x", compression);
+			break;
+	}
+}
 
 DgdsEngine::DgdsEngine(OSystem *syst, const DgdsGameDescription *gameDesc)
  : Engine(syst) {
@@ -354,26 +376,7 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 
 	if (!container) {
 		byte *dest = new byte[unpackSize];
-		switch (compression) {
-			case 0x00: {
-				file.read(dest,chunkSize);
-				break;
-				}
-			case 0x01: {
-				RleDecompressor dec;
-				dec.decompress(dest,unpackSize,file);
-				break;
-				}
-			case 0x02: {
-				LzwDecompressor dec;
-				dec.decompress(dest,unpackSize,file);
-				break;
-				}
-			default:
-				file.skip(chunkSize);
-				debug("unknown chunk compression: %u", compression);
-				break;
-		}
+		decompress(compression, dest, unpackSize, file, chunkSize);
 		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 	}
 
@@ -536,26 +539,7 @@ PFont *PFont::load_PFont(Common::SeekableReadStream &input) {
 	size = input.size()-input.pos();
 
 	byte *data = new byte[uncompressedSize];
-	switch (compression) {
-	case 0x00: {
-		   input.read(data, size);
-		   break;
-		   }
-	case 0x01: {
-		   RleDecompressor dec;
-		   dec.decompress(data, uncompressedSize, input);
-		   break;
-		   }
-	case 0x02: {
-		   LzwDecompressor dec;
-		   dec.decompress(data, uncompressedSize, input);
-		   break;
-		   }
-	default:
-		   input.skip(size);
-		   debug("unknown chunk compression: 0x%x", compression);
-		   break;
-	}
+	decompress(compression, data, uncompressedSize, input, size);
 
 	PFont* fnt = new PFont;
 	fnt->_w = w;
@@ -596,7 +580,7 @@ void PFont::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 co
 	}
 }
 
-class Font : public Graphics::Font {
+class FFont : public Graphics::Font {
 protected:
 	byte _w;
 	byte _h;
@@ -613,27 +597,27 @@ public:
 	int getCharWidth(uint32 chr) const;
 	void drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const;
 
-	static Font *load_Font(Common::SeekableReadStream &input);
+	static FFont *load_Font(Common::SeekableReadStream &input);
 };
 
-int Font::getFontHeight() const {
+int FFont::getFontHeight() const {
 	return _h;
 }
 
-int Font::getMaxCharWidth() const {
+int FFont::getMaxCharWidth() const {
 	return _w;
 }
 
-int Font::getCharWidth(uint32 chr) const {
+int FFont::getCharWidth(uint32 chr) const {
 	return _w;
 }
 
-void Font::mapChar(byte chr, int& pos, int& bit) const {
+void FFont::mapChar(byte chr, int& pos, int& bit) const {
 	pos = (chr-_start)*_h;
 	bit = 8-_w;
 }
 
-void Font::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const {
+void FFont::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 color) const {
 	if (!(chr >= _start && chr <= (_start+_count))) return;
 
 	const Common::Rect destRect(x, y, x+_w, y+_h);
@@ -661,9 +645,9 @@ void Font::drawChar(Graphics::Surface* dst, uint32 chr, int x, int y, uint32 col
 }
 
 PFont *_fntP;
-Font *_fntF;
+FFont *_fntF;
 
-Font *Font::load_Font(Common::SeekableReadStream &input) {
+FFont *FFont::load_Font(Common::SeekableReadStream &input) {
 	byte w, h, start, count;
 	w = input.readByte();
 	h = input.readByte();
@@ -674,7 +658,7 @@ Font *Font::load_Font(Common::SeekableReadStream &input) {
 	debug("    w: %u, h: %u, start: 0x%x, count: %u", w, h, start, count);
 	assert((4+size) == input.size());
 
-	Font* fnt = new Font;
+	FFont* fnt = new FFont;
 	fnt->_w = w;
 	fnt->_h = h;
 	fnt->_start = start;
@@ -1324,7 +1308,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							debug("    magic: %u", magic);
 
 							if (magic != 0xFF)
-								_fntF = Font::load_Font(*stream);
+								_fntF = FFont::load_Font(*stream);
 							else
 								_fntP = PFont::load_PFont(*stream);
 						}
