@@ -520,9 +520,9 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 				pitch = file.readUint16BE();	/* always 200 (320x200 screen). */
 				planes = file.readUint16BE();	/* always 5 (32 color). */
 
-				debug("    \"%s\" pitch:%u bpp:%u size:~%u",
+				debug("    \"%s\" pitch:%u bpp:%u size: %u bytes",
 						tag, pitch, planes,
-						uint(320+15)/16*200*planes);
+						320*planes*200/8);
 
 				if (resource == 0) {
 				    //file.read(binData, file.size());
