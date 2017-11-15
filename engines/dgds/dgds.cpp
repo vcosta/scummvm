@@ -131,6 +131,7 @@ typedef uint32 DGDS_EX;
 #define ID_BIN	MKTAG24('B','I','N')
 #define ID_DAT	MKTAG24('D','A','T')
 #define ID_FNM	MKTAG24('F','N','M')
+#define ID_FNT	MKTAG24('F','N','T')
 #define ID_GAD	MKTAG24('G','A','D')
 #define ID_INF	MKTAG24('I','N','F')
 #define ID_MTX	MKTAG24('M','T','X')
@@ -159,6 +160,7 @@ typedef uint32 DGDS_EX;
 #define	EX_GDS	MKTAG24('G','D','S')
 #define	EX_INS	MKTAG24('I','N','S')
 #define	EX_PAL	MKTAG24('P','A','L')
+#define	EX_FNT	MKTAG24('F','N','T')
 #define	EX_REQ	MKTAG24('R','E','Q')
 #define	EX_RST	MKTAG24('R','S','T')
 #define	EX_SCR	MKTAG24('S','C','R')
@@ -461,6 +463,80 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
+struct Font {
+	byte _w;
+	byte _h;
+	byte _start;
+	byte _count;
+	byte _pitch;
+
+	byte *_data;
+
+	int mapChar(byte chr);
+	void drawChar(Graphics::Surface& dst, byte chr, int x, int y, uint32 color);
+
+	static Font *loadFont(Common::SeekableReadStream &input);
+};
+
+static inline uint
+isSet(byte *set, uint id)
+{
+	return (set[(id >> 3)] & (1 << (id & 7)));
+}
+
+void Font::drawChar(Graphics::Surface& dst, byte chr, int x, int y, uint32 color) {
+	const Common::Rect destRect(x, y, x+_w, y+_h);
+	Common::Rect clippedDestRect(0, 0, sw, sh);
+	clippedDestRect.clip(destRect);
+
+	const Common::Point croppedBy(clippedDestRect.left-destRect.left, clippedDestRect.top-destRect.top);
+
+	const int rows = clippedDestRect.height();
+	const int columns = clippedDestRect.width();
+
+	int idx = croppedBy.y*_w + croppedBy.x;
+	byte *src = _data + mapChar(chr);
+	byte *ptr = (byte *)dst.getBasePtr(clippedDestRect.left, clippedDestRect.top);
+	for (int i=0; i<rows; ++i) {
+		for (int j=0; j<columns; ++j) {
+			if (isSet(src, idx+_w-j))
+				ptr[j] = color;
+		}
+		ptr += dst.pitch;
+		src += _pitch;
+	}
+}
+
+int Font::mapChar(byte chr) {
+	return (chr-_start)*_pitch*_h;
+}
+
+Font *Font::loadFont(Common::SeekableReadStream &input) {
+	byte w, h, start, count;
+	w = input.readByte();
+	h = input.readByte();
+	start = input.readByte();
+	count = input.readByte();
+
+	byte pitch = (w+7)>>3;
+	int size = pitch*h*count;
+
+	debug("    w: %u, h: %u, start: 0x%x, count: %u", w, h, start, count);
+	assert((4 + size) == input.size());
+
+	Font* fnt = new Font;
+	fnt->_w = w;
+	fnt->_h = h;
+	fnt->_start = start;
+	fnt->_count = count;
+	fnt->_pitch = pitch;
+	fnt->_data = new byte[size];
+	input.read(fnt->_data, size);
+	return fnt;
+}
+
+Font *_fnt;
+
 void parseFile(Common::Platform platform, Common::SeekableReadStream& file, const char* name, int resource) {
 	struct DgdsFileCtx ctx;
 
@@ -718,15 +794,17 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						uint16 idx;
 						idx = stream->readUint16LE();
 						debug("    S%d.SDS", idx);
-
 #if 0
+						idx = stream->readUint16LE();
+						debug("    %d", idx);
+
 						idx = stream->readUint16LE();
 						debug("    %d", idx);
 
 						uint16 count;
 						while (1) {
-							uint32 code;
-							code = stream->readUint32LE();
+							uint16 code;
+							code = stream->readUint16LE();
 							count = stream->readUint16LE();
 							idx = stream->readUint16LE();
 
@@ -735,7 +813,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							uint16 pitch = (count+1)&(~1); // align to word.
 							if ((stream->pos()+pitch) >= stream->size()) break;
 
-							if (code == 0) break;
+							if (code == 0 && count == 0) break;
 
 							stream->skip(pitch);
 						}
@@ -749,7 +827,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						} while (ch != 0);
 
 						debug("\"%s\"", sval.c_str());
-#endif
 							/*
 						Common::String txt;
 						txt += Common::String::format("OP: 0x%4.4x %2u ", op, count);
@@ -782,7 +859,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 							}
 						}
 */
-
+#endif
 #if 0
 						// probe for the .ADS name. are these shorts?
 						uint count;
@@ -1089,6 +1166,18 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					} else {
 						if (chunk.isSection(ID_VGA)) {
 							stream->skip(256*3);
+						}
+					}
+					break;
+				case EX_FNT:
+					if (resource == 0) {
+						if (chunk.isSection(ID_FNT)) {
+							byte magic = stream->readByte();
+							stream->seek(-1, SEEK_CUR);
+							debug("    magic: %u", magic);
+
+							if (magic != 0xFF)
+								_fnt = Font::loadFont(*stream);
 						}
 					}
 					break;
@@ -2067,6 +2156,16 @@ Common::Error DgdsEngine::run() {
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
+
+		explode(_platform, _rmfName, "6X6.FNT", 0);
+		Graphics::Surface *dst;
+		dst = g_system->lockScreen();
+		_fnt->drawChar(*dst, 'R', 20, 20, 1);
+		_fnt->drawChar(*dst, 'A', 20, 30, 1);
+		g_system->unlockScreen();
+		g_system->updateScreen();
+
+
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
