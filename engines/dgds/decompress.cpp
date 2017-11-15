@@ -179,6 +179,9 @@ uint32 LzwDecompressor::getCode(uint32 totalBits, Common::SeekableReadStream &in
 	return result;
 }
 
+
+const char *compressionDescr[] = {"None", "RLE", "LZW"};
+
 void decompress(byte compression, byte* data, int uncompressedSize, Common::SeekableReadStream& input, int size) {
 	switch (compression) {
 		case 0x00: {

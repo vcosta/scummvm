@@ -60,8 +60,12 @@ private:
         bool _tableFull;
 };
 
+extern const char *compressionDescr[];
+
+ /* 0x00=None, 0x01=RLE, 0x02=LZW */
 void decompress(byte compression, byte* data, int uncompressedSize, Common::SeekableReadStream& input, int size);
 
 } // End of namespace Dgds
 
 #endif // DGDS_DECOMPRESS_H
+

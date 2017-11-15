@@ -343,8 +343,7 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, c
 }
  
 Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::SeekableReadStream& file) {
-	byte compression; /* 0=None, 1=RLE, 2=LZW */
-	const char *descr[] = {"None", "RLE", "LZW"};
+	byte compression;
 	uint32 unpackSize;
 	Common::SeekableReadStream *ostream = 0;
 
@@ -360,7 +359,7 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 
 	debug("    %s %u %s %u%c",
 		type, chunkSize,
-		descr[compression],
+		compressionDescr[compression],
 		unpackSize, (container ? '+' : ' '));
 	return ostream;
 }
