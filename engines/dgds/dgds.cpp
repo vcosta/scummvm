@@ -31,6 +31,7 @@
 #include "common/substream.h"
 #include "common/system.h"
 #include "common/platform.h"
+#include "common/str-array.h"
 
 #include "common/iff_container.h"
 
@@ -80,6 +81,8 @@ Graphics::ManagedSurface resData;
 Common::MemoryReadStream *soundData;
 byte *musicData;
 uint32 musicSize;
+
+Common::StringArray BMPs;
 
 uint16 _tcount;
 uint16 _tw, _th;
@@ -1193,6 +1196,11 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			delete stream;
 		}
 	}
+
+	if (_ex == EX_BMP) {
+		BMPs.push_back(Common::String(name));
+		debug("BMPs: %s", name);
+	}
 #if 0
 	if (_ex == EX_PAL) {
 		Common::DumpFile out;
@@ -1975,6 +1983,99 @@ void DgdsEngine::playMusic(const char* fileName) {
 		_midiPlayer->play(musicData, musicSize);
 	}
 }
+#if 0
+int prev_id = -1;
+int prev_bk = -1;
+int prev_palette = -1;
+
+void browseInit(Common::Platform _platform, const char *_rmfName, DgdsEngine* syst) {
+	BMPs.clear();
+	explode(_platform, _rmfName, 0, -1);
+	bk = 0;
+	id = 0;
+	sid = 1;
+}
+
+void browse(Common::Platform _platform, const char *_rmfName, DgdsEngine* syst) {
+	if (prev_id != id || prev_bk != bk) {
+		explode(_platform, _rmfName, BMPs[id].c_str(), bk);
+		prev_id = id;
+		prev_bk = bk;
+
+		Common::String txt = Common::String::format("%s: %ux%u (%u/%u)", BMPs[id].c_str(), _tw, _th, bk+1, _tcount);
+		g_system->displayMessageOnOSD(txt.c_str());
+	}
+	if (prev_palette != sid) {
+		sid = sid&3;
+		prev_palette = sid;
+
+		switch (sid) {
+		case 3:
+			for (uint i=0; i<256; i++) {
+				palette[i*3+0] = i;
+				palette[i*3+1] = i;
+				palette[i*3+2] = i;
+			}
+			break;
+		case 2:
+			for (uint i=0; i<256; i++) {
+				palette[i*3+0] = 255-i;
+				palette[i*3+1] = 255-i;
+				palette[i*3+2] = 255-i;
+			}
+			break;
+		case 1:
+			explode(_platform, _rmfName, "DRAGON.PAL", 0);
+			break;
+		}
+		g_system->getPaletteManager()->setPalette(palette, 0, 256);
+	}
+
+	if (bk != -1) {
+		if (_vgaData.h != 0) {
+			byte *_bmpData_;
+			_bmpData_ = (byte *)_bmpData.getPixels();
+			byte *vgaData_;
+			byte *binData_;
+			bw = _tw; bh = _th;
+			vgaData_ = (byte *)_vgaData.getPixels();
+			binData_ = (byte *)_binData.getPixels();
+
+			for (int i=0; i<bw*bh; i+=2) {
+				_bmpData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
+				_bmpData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
+				_bmpData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
+				_bmpData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
+			}
+
+			const int rows = sh;
+			const int columns = sw;
+
+			byte *src = _bmpData_;
+			byte *ptr = (byte *)bottomBuffer.getBasePtr(0, 0);
+			for (int i=0; i<rows; ++i) {
+				for (int j=0; j<columns; ++j) {
+					ptr[j] = src[j];
+				}
+				ptr += bottomBuffer.pitch;
+				src += bw;
+			}
+		}
+
+		resData.clear(0);
+		Common::Rect bmpWin(0, 0, _tw, _th);
+		Graphics::Surface bmpSub = bottomBuffer.getSubArea(bmpWin);
+		resData.blitFrom(bmpSub, Common::Point(bmpWin.left, bmpWin.top));
+		resData.frameRect(bmpWin, 1);
+
+		Graphics::Surface *dst;
+		dst = g_system->lockScreen();
+		dst->copyRectToSurface(resData, 0, 0, rect);
+		g_system->unlockScreen();
+		g_system->updateScreen();
+	}
+}
+#endif
 
 Common::Error DgdsEngine::run() {
 	initGraphics(320, 200);
@@ -2027,24 +2128,31 @@ Common::Error DgdsEngine::run() {
 	Common::EventManager *eventMan = g_system->getEventManager();
 	Common::Event ev;
 
-	int k = 0;
+//	browseInit(_platform, _rmfName, this);
+
+	int k=0;
 	while (!shouldQuit()) {/*
 		uint w, h;
 		byte *vgaData_;
 		byte *binData_;*/
 
 		if (eventMan->pollEvent(ev)) {
-			//int n = (int)_tcount-1;
 			if (ev.type == Common::EVENT_KEYDOWN) {
 				switch (ev.kbd.keycode) {
-					case Common::KEYCODE_LEFT:	/*if (k > 0) k--;*/	break;
-					case Common::KEYCODE_RIGHT:	/*if (k < n) k++;*/	break;
+				/*
+					case Common::KEYCODE_TAB:	sid++;					break;
+					case Common::KEYCODE_UP:	if (id > 0) id--; bk=0;			break;
+					case Common::KEYCODE_DOWN:	if (id < BMPs.size()) id++; bk=0;	break;
+					case Common::KEYCODE_LEFT:	if (bk > 0) bk--;			break;
+					case Common::KEYCODE_RIGHT:	if (bk < (_tcount-1)) bk++;		break;
+					*/
 					case Common::KEYCODE_ESCAPE:	return Common::kNoError;
 					default:			break;
 				}
 			}
 		}
 
+//		browse(_platform, _rmfName, this);
  		if (!ttm || ttm->eos()) {
 		    delete ttm;
 		    ttm = 0;
@@ -2068,7 +2176,7 @@ Common::Error DgdsEngine::run() {
 		    k++;
 		}
 		interpret(_platform, _rmfName, this);
-
+#if 0
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
 		explode(_platform, _rmfName, "DRAGON.FNT", 0);
@@ -2081,7 +2189,7 @@ Common::Error DgdsEngine::run() {
 		_fntP->drawString(dst, txt, 20, 20, 320-20, 1);
 		g_system->unlockScreen();
 		g_system->updateScreen();
-
+#endif
 /*
 		// BMP:INF|BIN|VGA|MTX browser.
 		uint cx, cy;
