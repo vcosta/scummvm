@@ -41,9 +41,7 @@ bool Font::hasChar(byte chr) const {
 	return (chr >= _start && chr <= (_start+_count));
 }
 
-static inline uint
-isSet(byte *set, uint bit)
-{
+static inline uint isSet(byte *set, uint bit) {
 	return (set[(bit >> 3)] & (1 << (bit & 7)));
 }
 
