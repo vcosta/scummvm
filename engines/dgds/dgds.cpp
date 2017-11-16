@@ -1843,11 +1843,11 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 		info.delta += 240;
 		_position._playPos++;
 	}
-	info.delta += *(_position._playPos++);
+	info.delta += *_position._playPos++;
 
 	// Process the next info.
 	if ((_position._playPos[0] & 0xF0) >= 0x80)
-		info.event = *(_position._playPos++);
+		info.event = *_position._playPos++;
 	else
 		info.event = _position._runningStatus;
 	if (info.event < 0x80)
@@ -1857,13 +1857,13 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 	switch (info.command()) {
 	case 0xC:
 	case 0xD:
-		info.basic.param1 = *(_position._playPos++);
+		info.basic.param1 = *_position._playPos++;
 		info.basic.param2 = 0;
 		break;
 
 	case 0xB:
-		info.basic.param1 = *(_position._playPos++);
-		info.basic.param2 = *(_position._playPos++);
+		info.basic.param1 = *_position._playPos++;
+		info.basic.param2 = *_position._playPos++;
 		info.length = 0;
 		break;
 
@@ -1871,8 +1871,8 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 	case 0x9: 
 	case 0xA:
 	case 0xE:
-		info.basic.param1 = *(_position._playPos++);
-		info.basic.param2 = *(_position._playPos++);
+		info.basic.param1 = *_position._playPos++;
+		info.basic.param2 = *_position._playPos++;
 		if (info.command() == 0x9 && info.basic.param2 == 0) {
 			// NoteOn with param2==0 is a NoteOff
 			info.event = info.channel() | 0x80;
@@ -1883,12 +1883,12 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 	case 0xF: // System Common, Meta or SysEx event
 		switch (info.event & 0x0F) {
 		case 0x2: // Song Position Pointer
-			info.basic.param1 = *(_position._playPos++);
-			info.basic.param2 = *(_position._playPos++);
+			info.basic.param1 = *_position._playPos++;
+			info.basic.param2 = *_position._playPos++;
 			break;
 
 		case 0x3: // Song Select
-			info.basic.param1 = *(_position._playPos++);
+			info.basic.param1 = *_position._playPos++;
 			info.basic.param2 = 0;
 			break;
 
@@ -1908,7 +1908,7 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 			break;
 
 		case 0xF: // META event
-			info.ext.type = *(_position._playPos++);
+			info.ext.type = *_position._playPos++;
 			info.length = readVLQ(_position._playPos);
 			info.ext.data = _position._playPos;
 			_position._playPos += info.length;
