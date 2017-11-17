@@ -131,33 +131,31 @@ typedef uint32 DGDS_EX;
 struct DgdsParser;
 
 struct DgdsChunk {
-	char type[DGDS_TYPENAME_MAX+1];
-	DGDS_ID _type;
-
+	char id[DGDS_TYPENAME_MAX+1];
+	DGDS_ID _id;
 	uint32 _size;
 	bool container;
-	
 	Common::SeekableReadStream* _stream;
 
-	bool readHeader(DgdsParser& ctx);
 	bool isSection(const Common::String& section);
 	bool isSection(DGDS_ID section);
-
 	bool isPacked(DGDS_EX ex);
+
+	bool readHeader(DgdsParser& ctx);
 	Common::SeekableReadStream* decodeStream(DgdsParser& ctx);
 	Common::SeekableReadStream* readStream(DgdsParser& ctx);
 };
 
-/**
- * Callback type for the parser.
- */
-typedef Common::Functor1< DgdsChunk&, bool > DgdsCallback;
-
 struct DgdsParser {
 	char _filename[13];
 	Common::SeekableReadStream& _file;
-	uint32 output;
+	uint32 bytesRead;
 	
+	/**
+	 * Callback type for the parser.
+	 */
+	typedef Common::Functor1< DgdsChunk&, bool > DgdsCallback;
+
 	DgdsParser(Common::SeekableReadStream& file, const char *filename);
 	void parse(DgdsCallback &callback);
 };
@@ -195,7 +193,7 @@ void DgdsParser::parse(DgdsCallback &callback) {
 
 DgdsParser::DgdsParser(Common::SeekableReadStream& file, const char *filename) : _file(file) {
 	Common::strlcpy(_filename, filename, sizeof(_filename));
-	output = 0;
+	bytesRead = 0;
 }
 
 #define ID_BIN	MKTAG24('B','I','N')
@@ -248,11 +246,11 @@ DgdsParser::DgdsParser(Common::SeekableReadStream& file, const char *filename) :
 #define	EX_OVL	MKTAG24('O','V','L')
 
 bool DgdsChunk::isSection(const Common::String& section) {
-       return section.equals(type);
+       return section.equals(id);
 }
 
 bool DgdsChunk::isSection(DGDS_ID section) {
-       return (section == _type);
+       return (section == _id);
 }
 
 bool isFlatfile(Common::Platform platform, DGDS_EX _ex) {
@@ -295,38 +293,38 @@ bool DgdsChunk::isPacked(DGDS_EX ex) {
 		case EX_ADL:
 		case EX_ADH:
 			if (0) {}
-			else if (_type == ID_SCR) packed = true;
+			else if (_id == ID_SCR) packed = true;
 			break;
 		case EX_BMP:
 			if (0) {}
-			else if (_type == ID_BIN) packed = true;
-			else if (_type == ID_VGA) packed = true;
+			else if (_id == ID_BIN) packed = true;
+			else if (_id == ID_VGA) packed = true;
 			break;
 		case EX_GDS:
 			if (0) {}
-			else if (_type == ID_SDS) packed = true;
+			else if (_id == ID_SDS) packed = true;
 			break;
 		case EX_SCR:
 			if (0) {}
-			else if (_type == ID_BIN) packed = true;
-			else if (_type == ID_VGA) packed = true;
-			else if (_type == ID_MA8) packed = true;
+			else if (_id == ID_BIN) packed = true;
+			else if (_id == ID_VGA) packed = true;
+			else if (_id == ID_MA8) packed = true;
 			break;
 		case EX_SDS:
 			if (0) {}
-			else if (_type == ID_SDS) packed = true;
+			else if (_id == ID_SDS) packed = true;
 			break;
 		case EX_SNG:
 			if (0) {}
-			else if (_type == ID_SNG) packed = true;
+			else if (_id == ID_SNG) packed = true;
 			break;
 		case EX_TTM:
 			if (0) {}
-			else if (_type == ID_TT3) packed = true;
+			else if (_id == ID_TT3) packed = true;
 			break;
 		case EX_TDS:
 			if (0) {}
-			else if (_type == ID_THD) packed = true;
+			else if (_id == ID_THD) packed = true;
 			break;
 		default:
 			break;
@@ -335,33 +333,33 @@ bool DgdsChunk::isPacked(DGDS_EX ex) {
 	switch (ex) {
 		case EX_DDS:
 			if (0) {}
-			else if (strcmp(type, "DDS:") == 0) packed = true;
+			else if (strcmp(id, "DDS:") == 0) packed = true;
 			break;
 		case EX_OVL:
 			if (0) {}
-			else if (strcmp(type, "ADL:") == 0) packed = true;
-			else if (strcmp(type, "ADS:") == 0) packed = true;
-			else if (strcmp(type, "APA:") == 0) packed = true;
-			else if (strcmp(type, "ASB:") == 0) packed = true;
-			else if (strcmp(type, "GMD:") == 0) packed = true;
-			else if (strcmp(type, "M32:") == 0) packed = true;
-			else if (strcmp(type, "NLD:") == 0) packed = true;
-			else if (strcmp(type, "PRO:") == 0) packed = true;
-			else if (strcmp(type, "PS1:") == 0) packed = true;
-			else if (strcmp(type, "SBL:") == 0) packed = true;
-			else if (strcmp(type, "SBP:") == 0) packed = true;
-			else if (strcmp(type, "STD:") == 0) packed = true;
-			else if (strcmp(type, "TAN:") == 0) packed = true;
-			else if (strcmp(type, "T3V:") == 0) packed = true;
-			else if (strcmp(type, "001:") == 0) packed = true;
-			else if (strcmp(type, "003:") == 0) packed = true;
-			else if (strcmp(type, "004:") == 0) packed = true;
-			else if (strcmp(type, "101:") == 0) packed = true;
-			else if (strcmp(type, "VGA:") == 0) packed = true;
+			else if (strcmp(id, "ADL:") == 0) packed = true;
+			else if (strcmp(id, "ADS:") == 0) packed = true;
+			else if (strcmp(id, "APA:") == 0) packed = true;
+			else if (strcmp(id, "ASB:") == 0) packed = true;
+			else if (strcmp(id, "GMD:") == 0) packed = true;
+			else if (strcmp(id, "M32:") == 0) packed = true;
+			else if (strcmp(id, "NLD:") == 0) packed = true;
+			else if (strcmp(id, "PRO:") == 0) packed = true;
+			else if (strcmp(id, "PS1:") == 0) packed = true;
+			else if (strcmp(id, "SBL:") == 0) packed = true;
+			else if (strcmp(id, "SBP:") == 0) packed = true;
+			else if (strcmp(id, "STD:") == 0) packed = true;
+			else if (strcmp(id, "TAN:") == 0) packed = true;
+			else if (strcmp(id, "T3V:") == 0) packed = true;
+			else if (strcmp(id, "001:") == 0) packed = true;
+			else if (strcmp(id, "003:") == 0) packed = true;
+			else if (strcmp(id, "004:") == 0) packed = true;
+			else if (strcmp(id, "101:") == 0) packed = true;
+			else if (strcmp(id, "VGA:") == 0) packed = true;
 			break;
 		case EX_TDS:
 			if (0) {}
-			else if (strcmp(type, "TDS:") == 0) packed = true;  /* ? */
+			else if (strcmp(id, "TDS:") == 0) packed = true;  /* ? */
 			break;
 		default:
 			break;
@@ -370,21 +368,21 @@ bool DgdsChunk::isPacked(DGDS_EX ex) {
 }
 
 bool DgdsChunk::readHeader(DgdsParser& ctx) {
-	memset(type, 0, sizeof(type));
-	_type = 0;
+	memset(id, 0, sizeof(id));
+	_id = 0;
 
 	if (ctx._file.pos() >= ctx._file.size()) {
 		return false;
 	}
 
-	ctx._file.read(type, DGDS_TYPENAME_MAX);
+	ctx._file.read(id, DGDS_TYPENAME_MAX);
 
-	if (type[DGDS_TYPENAME_MAX-1] != ':') {
+	if (id[DGDS_TYPENAME_MAX-1] != ':') {
 		debug("bad header in: %s", ctx._filename);
 		return false;
 	}
-	type[DGDS_TYPENAME_MAX] = '\0';
-	_type = MKTAG24(uint32(type[0]), uint32(type[1]), uint32(type[2]));
+	id[DGDS_TYPENAME_MAX] = '\0';
+	_id = MKTAG24(uint32(id[0]), uint32(id[1]), uint32(id[2]));
 
 	_size = ctx._file.readUint32LE();
 	if (_size & 0x80000000) {
@@ -409,11 +407,11 @@ Common::SeekableReadStream* DgdsChunk::decodeStream(DgdsParser& ctx) {
 		byte *dest = new byte[unpackSize];
 		decompress(compression, dest, unpackSize, ctx._file, _size);
 		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
-		ctx.output += unpackSize;
+		ctx.bytesRead += unpackSize;
 	}
 
 	debug("    %s %u %s %u%c",
-		type, _size,
+		id, _size,
 		compressionDescr[compression],
 		unpackSize, (container ? '+' : ' '));
 	return ostream;
@@ -424,10 +422,10 @@ Common::SeekableReadStream* DgdsChunk::readStream(DgdsParser& ctx) {
 
 	if (!container) {
 		ostream = new Common::SeekableSubReadStream(&ctx._file, ctx._file.pos(), ctx._file.pos()+_size, DisposeAfterUse::NO);
-		ctx.output += _size;
+		ctx.bytesRead += _size;
 	}
 
-	debug("    %s %u%c", type, _size, (container ? '+' : ' '));
+	debug("    %s %u%c", id, _size, (container ? '+' : ' '));
 	return ostream;
 }
 
@@ -698,7 +696,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 		struct DgdsChunk chunk;
 		while (chunk.readHeader(ctx)) {
 			if (chunk.container) {
-				parent = chunk._type;
+				parent = chunk._id;
 				continue;
 			}
 
@@ -715,7 +713,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			if (stream) {
 				uint siz = stream->size();
 				byte *dest = new byte[siz];
-				Common::String cname = Common::String::format("%s:%s", name, chunk.type);
+				Common::String cname = Common::String::format("%s:%s", name, chunk.id);
 
 				if (!out.open(cname)) {
 					debug("Couldn't write to %s", cname.c_str());
@@ -1391,7 +1389,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 		}
 	}
 #endif
-	debug("  [%u:%u] --", file.pos(), ctx.output);
+	debug("  [%u:%u] --", file.pos(), ctx.bytesRead);
 }
 
 static void explode(Common::Platform platform, const char *indexName, const char *fileName, int resource) {
@@ -1633,7 +1631,7 @@ bool ADSInterpreter::run(ADSState *script) {
 }
 
 bool ADSInterpreter::callback(DgdsChunk &chunk) {
-	switch (chunk._type) {
+	switch (chunk._id) {
 	case MKTAG24('A','D','S'):
 		break;
 	case MKTAG24('R','E','S'): {
@@ -1646,7 +1644,7 @@ bool ADSInterpreter::callback(DgdsChunk &chunk) {
 		_scriptData->scr = chunk._stream->readStream(chunk._size);
 		break;
 	default:
-		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._type), chunk._size, _filename);
+		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._id), chunk._size, _filename);
 		break;
 	}
 	return false;
