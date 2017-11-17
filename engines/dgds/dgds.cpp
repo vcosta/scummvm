@@ -205,8 +205,8 @@ struct DgdsChunk {
 	bool isSection(DGDS_ID section);
 
 	bool isPacked(DGDS_EX ex);
-	Common::SeekableReadStream* decode(DgdsFileCtx& ctx);
-	Common::SeekableReadStream* copy(DgdsFileCtx& ctx);
+	Common::SeekableReadStream* decodeStream(DgdsFileCtx& ctx);
+	Common::SeekableReadStream* readStream(DgdsFileCtx& ctx);
 };
 
 bool DgdsChunk::isSection(const Common::String& section) {
@@ -358,7 +358,7 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx) {
 	return true;
 }
  
-Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx) {
+Common::SeekableReadStream* DgdsChunk::decodeStream(DgdsFileCtx& ctx) {
 	byte compression;
 	uint32 unpackSize;
 	Common::SeekableReadStream *ostream = 0;
@@ -371,6 +371,7 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx) {
 		byte *dest = new byte[unpackSize];
 		decompress(compression, dest, unpackSize, ctx._file, _size);
 		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
+		ctx.output += unpackSize;
 	}
 
 	debug("    %s %u %s %u%c",
@@ -380,11 +381,12 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx) {
 	return ostream;
 }
 
-Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx) {
+Common::SeekableReadStream* DgdsChunk::readStream(DgdsFileCtx& ctx) {
 	Common::SeekableReadStream *ostream = 0;
 
 	if (!container) {
 		ostream = new Common::SeekableSubReadStream(&ctx._file, ctx._file.pos(), ctx._file.pos()+_size, DisposeAfterUse::NO);
+		ctx.output += _size;
 	}
 
 	debug("    %s %u%c", type, _size, (container ? '+' : ' '));
@@ -665,9 +667,8 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			Common::SeekableReadStream *stream;
 			
 			bool packed = chunk.isPacked(_ex);
-			stream = packed ? chunk.decode(ctx) : chunk.copy(ctx);
-			if (stream) ctx.output += stream->size();
-			
+			stream = packed ? chunk.decodeStream(ctx) : chunk.readStream(ctx);
+
 			/*
 			 debug(">> %u:%u", stream->pos(), file->pos());*/
 
@@ -1597,8 +1598,7 @@ void DgdsParser::parse(DgdsCallback &callback) {
 		chunk._stream = 0;
 
 		if (!chunk.container) {
-			chunk._stream = chunk.isPacked(_ex) ? chunk.decode(ctx) : chunk.copy(ctx);
-			if (chunk._stream) ctx.output += chunk._stream->size();
+			chunk._stream = chunk.isPacked(_ex) ? chunk.decodeStream(ctx) : chunk.readStream(ctx);
 		}
 
 		bool stop;
