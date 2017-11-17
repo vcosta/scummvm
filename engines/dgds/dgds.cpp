@@ -92,8 +92,9 @@ uint32 _toffset;
 uint16 *_mtx;
 uint16 _mw, _mh;
 
-char **strs;
-uint16 *idxs;
+uint16 _count;
+char **_strs;
+uint16 *_idxs;
 
 #define DGDS_FILENAME_MAX 12
 #define DGDS_TYPENAME_MAX 4
@@ -913,7 +914,10 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						debug("        %u", pages);
 					} else if (chunk.isSection(ID_TT3)) {
 						if (resource == 0) {
-							ttm = stream->readStream(stream->size());
+							uint32 size = stream->size();
+							byte *dest = new byte[size];
+							stream->read(dest, size);
+							ttm = new Common::MemoryReadStream(dest, size, DisposeAfterUse::YES);
 							Common::strlcpy(ttmName, name, sizeof(ttmName));
 						} else {
 							while (!stream->eos()) {
@@ -1015,14 +1019,19 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						stream->read(version, sizeof(version));
 						debug("        %s", version);
 					} else if (chunk.isSection(ID_RES)) {
+							debug("res0");
 						if (resource == 0) {
-							loadTags(*stream, strs, idxs);
+							debug("res");
+							_count = loadTags(*stream, _strs, _idxs);
 						} else {
 							readStrings(stream);
 						}
 					} else if (chunk.isSection(ID_SCR)) {
 						if (resource == 0) {
-							ads = stream->readStream(stream->size());
+							uint32 size = stream->size();
+							byte *dest = new byte[size];
+							stream->read(dest, size);
+							ads = new Common::MemoryReadStream(dest, size, DisposeAfterUse::YES);
 							Common::strlcpy(adsName, name, sizeof(adsName));
 						} else {
 							/* this is either a script, or a property sheet, i can't decide. */
@@ -1462,11 +1471,12 @@ Common::String text;
 struct DgdsTTM {
 	Common::SeekableReadStream *_tt3;
 
-	static DgdsTTM* loadTTM(Common::Platform platform, const char *indexName, const char *fileName);
+	static DgdsTTM* loadTTM(Common::Platform platform, const char *rmfName, const char *fileName);
 };
 
-DgdsTTM*DgdsTTM::loadTTM(Common::Platform platform, const char *indexName, const char *fileName) {
-	explode(platform, indexName, fileName, 0);
+DgdsTTM*DgdsTTM::loadTTM(Common::Platform platform, const char *rmfName, const char *fileName) {
+	debug("  loadTTM: %s", fileName);
+	explode(platform, rmfName, fileName, 0);
 	DgdsTTM *output = new DgdsTTM;
 	output->_tt3 = ttm;
 	return output;
@@ -1474,17 +1484,34 @@ DgdsTTM*DgdsTTM::loadTTM(Common::Platform platform, const char *indexName, const
 
 struct DgdsADS { 
 	uint16 _resCount;
-	char **_resNames;
-	DgdsTTM *_resTtms;
+	DgdsTTM **_resTtms;
 	Common::SeekableReadStream *_scr;
 
-	static DgdsADS*loadADS(Common::Platform platform, const char *indexName, const char *fileName);
+	static DgdsADS*loadADS(Common::Platform platform, const char *rmfName, const char *fileName);
 };
 
-DgdsADS*DgdsADS::loadADS(Common::Platform platform, const char *indexName, const char *fileName) {
-	explode(platform, indexName, fileName, 0);
+DgdsADS*DgdsADS::loadADS(Common::Platform platform, const char *rmfName, const char *fileName) {
+	debug("  loadAds: %s", fileName);
+	explode(platform, rmfName, fileName, 0);
+
+	DgdsTTM **ttms  = new DgdsTTM* [_count];
+	assert(ttms);
+	
+	uint16 count = _count;
+	char **strs = _strs;
+	uint16 *idxs = _idxs;
+
 	DgdsADS *output = new DgdsADS;
 	output->_scr = ads;
+	output->_resCount = count;
+	output->_resTtms = ttms;
+
+	for (uint16 i=0; i<count; i++) {
+		ttms[i] = DgdsTTM::loadTTM(platform, rmfName, strs[i]);
+		assert(ttms[i]);
+	}
+	delete _strs;
+	delete _idxs;
 	return output;
 }
 
@@ -1492,19 +1519,21 @@ int k=0;
 
 Common::SeekableReadStream *tt3;
 
-void DgdsEngine::interpretADS(DgdsADS *_ads) {
-	if (!ttm || ttm->eos()) {
-		_bubbles.clear();
-		delete tt3;
-		ttm = 0;
+DgdsTTM* _ttm=0;
 
-		switch ((k&3)) {
+void DgdsEngine::interpretADS(DgdsADS *_ads) {
+	if (!_ttm || _ttm->_tt3->eos()) {
+		_bubbles.clear();
+		_ttm = 0;
+
+		switch ((k&1)) {
 		case 0:
-			DgdsTTM::loadTTM(_platform, _rmfName, "TITLE1.TTM");
+			_ttm = _ads->_resTtms[0];
 			break;
 		case 1:
-			DgdsTTM::loadTTM(_platform, _rmfName, "TITLE2.TTM");
+			_ttm = _ads->_resTtms[1];
 			break;
+			/*
 		case 2:
 			explode(_platform, _rmfName, "S55.SDS", 0);
 			DgdsTTM::loadTTM(_platform, _rmfName, "INTRO.TTM");
@@ -1512,11 +1541,12 @@ void DgdsEngine::interpretADS(DgdsADS *_ads) {
 		case 3:
 			explode(_platform, _rmfName, "S55.SDS", 0);
 			DgdsTTM::loadTTM(_platform, _rmfName, "BIGTV.TTM");
-			break;
+			break;*/
 		}
 		k++;
 	}
-	interpretTTM(ttm);
+	if (_ttm)
+		interpretTTM(_ttm->_tt3);
 }
 
 void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
@@ -2286,8 +2316,6 @@ Common::Error DgdsEngine::run() {
 	topBuffer.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
 	resData.create(320, 200, Graphics::PixelFormat::createFormatCLUT8());
 
-	ttm = 0;
-
 	// Rise of the Dragon.
 	debug("DgdsEngine::init");
 
@@ -2321,6 +2349,10 @@ Common::Error DgdsEngine::run() {
 
 //	browseInit(_platform, _rmfName, this);
 	explode(_platform, _rmfName, "DRAGON.FNT", 0);
+	
+	DgdsADS *title1;
+	title1 = DgdsADS::loadADS(_platform, _rmfName, "TITLE1.ADS");
+	assert(title1);
 
 	while (!shouldQuit()) {/*
 		uint w, h;
@@ -2344,8 +2376,7 @@ Common::Error DgdsEngine::run() {
 		}
 
 //		browse(_platform, _rmfName, this);
-		interpretADS(0);
-		interpretTTM(ttm);
+		interpretADS(title1);
 
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);

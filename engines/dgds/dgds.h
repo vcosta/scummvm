@@ -37,6 +37,8 @@ class DgdsConsole;
 struct DgdsGameDescription;
 struct DgdsMidiPlayer;
 
+struct DgdsADS;
+
 class DgdsEngine : public Engine {
 private:
 	DgdsConsole *_console;
@@ -57,6 +59,9 @@ public:
         void stopSfx(byte channel);
 
 	void playMusic(const char* fileName);
+
+        void interpretTTM(Common::SeekableReadStream *tt3);
+        void interpretADS(DgdsADS *_ads);
 };
 
 class DgdsConsole : public GUI::Debugger {
