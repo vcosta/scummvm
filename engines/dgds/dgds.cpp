@@ -165,7 +165,7 @@ void DgdsParser::parse(DgdsCallback &callback) {
 	DGDS_EX _ex;
 
 	if ((dot = strrchr(_filename, '.'))) {
-		_ex = MKTAG24(dot[1], dot[2], dot[3]);
+		_ex = MKTAG24(toupper(dot[1]), toupper(dot[2]), toupper(dot[3]));
 	} else {
 		_ex = 0;
 	}
@@ -1565,7 +1565,7 @@ struct TTMData {
 };
 
 struct TTMState {
-	Common::SeekableReadStream *scr;
+	const TTMData *dataPtr;
 	int delay;
 };
 
@@ -1623,18 +1623,19 @@ void TTMInterpreter::unload(TTMData *data) {
 }
 
 void TTMInterpreter::init(TTMState *state, const TTMData *data) {
-	state->scr = data->scr;
-	state->scr->seek(0);
-	state->delay = 0;
+	state->dataPtr = data;
+	state->delay = 0;	
+	data->scr->seek(0);
 }
 
 bool TTMInterpreter::run(TTMState *state) {
 	if (!state) return false;
 
-	Common::SeekableReadStream *scr = state->scr;
+	Common::SeekableReadStream *scr = state->dataPtr->scr;
 	if (!scr) return false;
 	if (scr->pos() >= scr->size()) return false;
 
+	state->delay = 0;
 	do {
 		uint16 code;
 		byte count;
@@ -1785,7 +1786,6 @@ bool TTMInterpreter::run(TTMState *state) {
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
 				g_system->delayMillis(state->delay);
-				state->delay = 0;
 				g_system->getPaletteManager()->setPalette(blacks, 0, 256);
 				bottomBuffer.fillRect(rect, 0);
 				break;
@@ -1897,9 +1897,8 @@ bool TTMInterpreter::run(TTMState *state) {
 			case 0x1110: {//SET SCENE?:  i:int   [1..n]
 				// DESCRIPTION IN TTM TAGS.
 				debug("SET SCENE: %u", ivals[0]);
-
 				if (!_bubbles.empty()) {
-					if (!scumm_stricmp(ttmName, "INTRO.TTM")) {
+					if (!scumm_stricmp(state->dataPtr->filename, "INTRO.TTM")) {
 						switch (ivals[0]) {
 							case 15:	text = _bubbles[3];	break;
 							case 16:	text = _bubbles[4];	break;
@@ -1912,7 +1911,7 @@ bool TTMInterpreter::run(TTMState *state) {
 							case 26:	text = _bubbles[11];	break;
 							default:	text.clear();		break;
 						}
-					} else if (!scumm_stricmp(ttmName, "BIGTV.TTM")) {
+					} else if (!scumm_stricmp(state->dataPtr->filename, "BIGTV.TTM")) {
 						switch (ivals[0]) {
 							case 1:		text = _bubbles[0];	break;
 							case 2:		text = _bubbles[1];	break;
@@ -1983,7 +1982,7 @@ EXIT:
 	dst->copyRectToSurface(resData, 0, 0, rect);
 	g_system->unlockScreen();
 	g_system->updateScreen();
-//	g_system->delayMillis(delay);
+	g_system->delayMillis(state->delay);
 	return true;
 }
 
@@ -2010,7 +2009,7 @@ struct ADSData {
 };
 
 struct ADSState {
-	Common::SeekableReadStream *scr;
+	const ADSData *dataPtr;
 	uint16 scene;
 
 	TTMState *scriptStates;
@@ -2087,9 +2086,9 @@ void ADSInterpreter::unload(ADSData *data) {
 }
 
 void ADSInterpreter::init(ADSState *state, const ADSData *data) {
-	state->scr = data->scr;
-	state->scr->seek(0);
+	state->dataPtr = data;
 	state->scene = 0;
+	data->scr->seek(0);
 
 	TTMInterpreter interp(_vm);
 
@@ -2105,8 +2104,10 @@ void ADSInterpreter::init(ADSState *state, const ADSData *data) {
 bool ADSInterpreter::run(ADSState *script) {
 	TTMInterpreter interp(_vm);
 
-	if (!interp.run(&script->scriptStates[script->scene&1])) {
-		script->scriptStates[script->scene&1].scr->seek(0);
+	if (script->scene >= script->dataPtr->count)
+		return false;
+	if (!interp.run(&script->scriptStates[script->scene])) {
+		script->scriptStates[script->scene&1].dataPtr->scr->seek(0);
 		script->scene++;
 	}
 	return true;
@@ -2595,15 +2596,17 @@ Common::Error DgdsEngine::run() {
 //	browseInit(_platform, _rmfName, this);
 	explode(_platform, _rmfName, "DRAGON.FNT", 0);
 	
+	explode(_platform, _rmfName, "S55.SDS", 0);
+
 	ADSInterpreter interp(this);
 
 	ADSData title1Data, introData;
 	interp.load("TITLE1.ADS", &title1Data);
-	//interp.load("INTRO.ADS", &introData);
+	interp.load("INTRO.ADS", &introData);
 
 	ADSState title1State, introState;
 	interp.init(&title1State, &title1Data);
-	//interp.init(&introState, &introData);
+	interp.init(&introState, &introData);
 
 	while (!shouldQuit()) {/*
 		uint w, h;
@@ -2627,7 +2630,8 @@ Common::Error DgdsEngine::run() {
 		}
 
 //		browse(_platform, _rmfName, this);
-		interp.run(&title1State);
+		if (!interp.run(&title1State))
+			if (!interp.run(&introState)) return Common::kNoError;
 
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
