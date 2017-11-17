@@ -1559,39 +1559,38 @@ Common::SeekableReadStream *createReadStream(const char *rmfName, const char *fi
 	return 0;
 }
 
-struct ADSData {
+struct TTMData {
 	char filename[13];
-
-	uint16 count;
-	char **names;
 	Common::SeekableReadStream *scr;
 };
 
-struct ADSState {
+struct TTMState {
+	Common::SeekableReadStream *scr;
+	int delay;
 };
 
-class ADSInterpreter {
+class TTMInterpreter {
 public:
-	ADSInterpreter(DgdsEngine *vm);
+	TTMInterpreter(DgdsEngine *vm);
 
-	bool load(const char *filename, ADSData *data);
-	void unload(ADSData *data);
+	bool load(const char *filename, TTMData *data);
+	void unload(TTMData *data);
 
 	bool callback(DgdsChunk &chunk);
 	
-	void init(ADSState *scriptState, const ADSData *scriptData);
-	bool run(ADSState *script);
+	void init(TTMState *scriptState, const TTMData *scriptData);
+	bool run(TTMState *script);
 
 protected:
 	DgdsEngine *_vm;
 
 	const char *_filename;
-	ADSData *_scriptData;
+	TTMData *_scriptData;
 };
 
-ADSInterpreter::ADSInterpreter(DgdsEngine* vm) : _vm(vm), _scriptData(0), _filename(0) {}
+TTMInterpreter::TTMInterpreter(DgdsEngine* vm) : _vm(vm), _scriptData(0), _filename(0) {}
 
-bool ADSInterpreter::load(const char *filename, ADSData *scriptData) {
+bool TTMInterpreter::load(const char *filename, TTMData *scriptData) {
 	Common::SeekableReadStream *stream = createReadStream(_vm->_rmfName, filename);
 
 	if (!stream) {
@@ -1603,7 +1602,7 @@ bool ADSInterpreter::load(const char *filename, ADSData *scriptData) {
 	_scriptData = scriptData;
 	_filename = filename;
 
-        Common::Functor1Mem< DgdsChunk &, bool, ADSInterpreter > c(this, &ADSInterpreter::callback);
+        Common::Functor1Mem< DgdsChunk &, bool, TTMInterpreter > c(this, &TTMInterpreter::callback);
 	DgdsParser dgds(*stream, _filename);
 	dgds.parse(c);
 
@@ -1615,7 +1614,7 @@ bool ADSInterpreter::load(const char *filename, ADSData *scriptData) {
 	return true;
 }
 
-void ADSInterpreter::unload(ADSData *data) {
+void TTMInterpreter::unload(TTMData *data) {
 	if (!data)
 		return;
 	delete data->scr;
@@ -1623,119 +1622,20 @@ void ADSInterpreter::unload(ADSData *data) {
 	data->scr = 0;
 }
 
-void ADSInterpreter::init(ADSState *scriptState, const ADSData *scriptData) {
+void TTMInterpreter::init(TTMState *state, const TTMData *data) {
+	state->scr = data->scr;
+	state->scr->seek(0);
+	state->delay = 0;
 }
 
-bool ADSInterpreter::run(ADSState *script) {
-	return false;
-}
+bool TTMInterpreter::run(TTMState *state) {
+	if (!state) return false;
 
-bool ADSInterpreter::callback(DgdsChunk &chunk) {
-	switch (chunk._id) {
-	case MKTAG24('A','D','S'):
-		break;
-	case MKTAG24('R','E','S'): {
-		uint16 *idxs;
-		_scriptData->count = loadTags(*chunk._stream, _scriptData->names, idxs);
-		delete idxs;
-		}
-		break;
-	case MKTAG24('S','C','R'):
-		_scriptData->scr = chunk._stream->readStream(chunk._size);
-		break;
-	default:
-		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._id), chunk._size, _filename);
-		break;
-	}
-	return false;
-}
+	Common::SeekableReadStream *scr = state->scr;
+	if (!scr) return false;
+	if (scr->pos() >= scr->size()) return false;
 
-struct DgdsTTM {
-	Common::SeekableReadStream *_tt3;
-
-	static DgdsTTM* loadTTM(Common::Platform platform, const char *rmfName, const char *fileName);
-};
-
-DgdsTTM*DgdsTTM::loadTTM(Common::Platform platform, const char *rmfName, const char *fileName) {
-	debug("  loadTTM: %s", fileName);
-	explode(platform, rmfName, fileName, 0);
-	DgdsTTM *output = new DgdsTTM;
-	output->_tt3 = ttm;
-	return output;
-}
-
-struct DgdsADS { 
-	uint16 _resCount;
-	DgdsTTM **_resTtms;
-	Common::SeekableReadStream *_scr;
-
-	static DgdsADS*loadADS(Common::Platform platform, const char *rmfName, const char *fileName);
-};
-
-DgdsADS*DgdsADS::loadADS(Common::Platform platform, const char *rmfName, const char *fileName) {
-	debug("  loadAds: %s", fileName);
-	explode(platform, rmfName, fileName, 0);
-
-	DgdsTTM **ttms  = new DgdsTTM* [_count];
-	assert(ttms);
-	
-	uint16 count = _count;
-	char **strs = _strs;
-	uint16 *idxs = _idxs;
-
-	DgdsADS *output = new DgdsADS;
-	output->_scr = ads;
-	output->_resCount = count;
-	output->_resTtms = ttms;
-
-	for (uint16 i=0; i<count; i++) {
-		ttms[i] = DgdsTTM::loadTTM(platform, rmfName, strs[i]);
-		assert(ttms[i]);
-	}
-	delete _strs;
-	delete _idxs;
-	return output;
-}
-
-int k=0;
-
-Common::SeekableReadStream *tt3;
-
-DgdsTTM* _ttm=0;
-
-void DgdsEngine::interpretADS(DgdsADS *_ads) {
-	if (!_ttm || _ttm->_tt3->eos()) {
-		_bubbles.clear();
-		_ttm = 0;
-
-		switch ((k&1)) {
-		case 0:
-			_ttm = _ads->_resTtms[0];
-			break;
-		case 1:
-			_ttm = _ads->_resTtms[1];
-			break;
-			/*
-		case 2:
-			explode(_platform, _rmfName, "S55.SDS", 0);
-			DgdsTTM::loadTTM(_platform, _rmfName, "INTRO.TTM");
-			break;
-		case 3:
-			explode(_platform, _rmfName, "S55.SDS", 0);
-			DgdsTTM::loadTTM(_platform, _rmfName, "BIGTV.TTM");
-			break;*/
-		}
-		k++;
-	}
-	if (_ttm)
-		interpretTTM(_ttm->_tt3);
-}
-
-void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
-	if (!tt3) return;
-
-	delay = 0;
-	while (!tt3->eos()) {
+	do {
 		uint16 code;
 		byte count;
 		uint op;
@@ -1743,7 +1643,7 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 
 		Common::String sval;
 
-		code = tt3->readUint16LE();
+		code = scr->readUint16LE();
 		count = code & 0x000F;
 		op = code & 0xFFF0;
 
@@ -1754,8 +1654,8 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 			byte ch[2];
 
 			do {
-				ch[0] = tt3->readByte();
-				ch[1] = tt3->readByte();
+				ch[0] = scr->readByte();
+				ch[1] = scr->readByte();
 				sval += ch[0];
 				sval += ch[1];
 			} while (ch[0] != 0 && ch[1] != 0);
@@ -1766,7 +1666,7 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 			int16 ival;
 
 			for (byte i=0; i<count; i++) {
-				ival = tt3->readSint16LE();
+				ival = scr->readSint16LE();
 				ivals[i] = ival;
 
 				if (i == 0) {
@@ -1803,7 +1703,7 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 				vgaData.free();
 				binData.free();
 				ma8Data.free();
-				explode(_platform, _rmfName, scrNames[sid], 0);
+				explode(_vm->_platform, _vm->_rmfName, scrNames[sid], 0);
 
 				if (ma8Data.h != 0) {
 					ma8Data_ = (byte *)ma8Data.getPixels();
@@ -1828,18 +1728,18 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 				break;
 			case 0xf050:
 				// LOAD PAL:	filename:str
-				explode(_platform, _rmfName, sval.c_str(), 0);
+				explode(_vm->_platform, _vm->_rmfName, sval.c_str(), 0);
 				break;
 			case 0xf060:
 				// LOAD SONG:	filename:str
-				if (_platform == Common::kPlatformAmiga) {
+				if (_vm->_platform == Common::kPlatformAmiga) {
 					const char *fileName = "DYNAMIX.INS";
 					byte volume = 255;
 					byte channel = 0;
-					stopSfx(channel);
-					playSfx(fileName, channel, volume);
+					_vm->stopSfx(channel);
+					_vm->playSfx(fileName, channel, volume);
 				} else {
-//					playMusic(sval.c_str());
+//					_vm->playMusic(sval.c_str());
 				}
 				break;
 
@@ -1850,7 +1750,7 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 				_vgaData.free();
 				_binData.free();
 				if (bk != -1) {
-					explode(_platform, _rmfName, bmpNames[id], bk);
+					explode(_vm->_platform, _vm->_rmfName, bmpNames[id], bk);
 
 					if (_vgaData.h != 0) {
 						bw = _tw; bh = _th;
@@ -1884,7 +1784,8 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
-				g_system->delayMillis(delay);
+				g_system->delayMillis(state->delay);
+				state->delay = 0;
 				g_system->getPaletteManager()->setPalette(blacks, 0, 256);
 				bottomBuffer.fillRect(rect, 0);
 				break;
@@ -1946,7 +1847,7 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 					bk = ivals[2];
 					id = ivals[3];
 					if (bk != -1) {
-						explode(_platform, _rmfName, bmpNames[id], bk);
+						explode(_vm->_platform, _vm->_rmfName, bmpNames[id], bk);
 
 						if (_vgaData.h != 0) {
 							bw = _tw; bh = _th;
@@ -2018,7 +1919,7 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 							case 3:		text = _bubbles[2];	break;
 						}
 					}
-					if (!text.empty()) delay += 1500;
+					if (!text.empty()) state->delay += 1500;
 				} else {
 					text.clear();
 				}
@@ -2039,7 +1940,7 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 				break;
 
 			case 0x1020: //DELAY?:	    i:int   [0..n]
-				delay += ivals[0]*10;
+				state->delay += ivals[0]*10;
 				break;
 
 			case 0x10a0:
@@ -2060,30 +1961,194 @@ void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
 				debug("        unimplemented opcode: 0x%04X", op);
 				break;
 		}
+	} while (scr->pos() < scr->size());
 
-//		g_system->displayMessageOnOSD(txt.c_str());
+//	g_system->displayMessageOnOSD(txt.c_str());
 #if 0
-		const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kConsoleFont);
-		int w = font->getStringWidth(txt);
-		/*
-		int x = sh - w - 5; // lx + logo->w - w + 5;
-		int y = sh - font->getFontHeight() - 5; //ly + logo->h + 5;*/
+	const Graphics::Font *font = FontMan.getFontByUsage(Graphics::FontManager::kConsoleFont);
+	int w = font->getStringWidth(txt);
+	/*
+	int x = sh - w - 5; // lx + logo->w - w + 5;
+	int y = sh - font->getFontHeight() - 5; //ly + logo->h + 5;*/
 
-		dst = g_system->lockScreen();
-		Common::Rect r(0, 7, sw, font->getFontHeight()+13);
-		dst->fillRect(r, 0);
-		font->drawString(dst, txt, 10, 10, w, 2);
-		g_system->unlockScreen();
+	dst = g_system->lockScreen();
+	Common::Rect r(0, 7, sw, font->getFontHeight()+13);
+	dst->fillRect(r, 0);
+	font->drawString(dst, txt, 10, 10, w, 2);
+	g_system->unlockScreen();
 #endif
+EXIT:
+	Graphics::Surface *dst;
+	dst = g_system->lockScreen();
+	dst->copyRectToSurface(resData, 0, 0, rect);
+	g_system->unlockScreen();
+	g_system->updateScreen();
+//	g_system->delayMillis(delay);
+	return true;
+}
+
+bool TTMInterpreter::callback(DgdsChunk &chunk) {
+	switch (chunk._id) {
+	case MKTAG24('T','T','3'):
+		_scriptData->scr = chunk._stream->readStream(chunk._stream->size());
+		break;
+	default:
+		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._id), chunk._size, _filename);
 		break;
 	}
-EXIT:
-	    Graphics::Surface *dst;
-	    dst = g_system->lockScreen();
-	    dst->copyRectToSurface(resData, 0, 0, rect);
-	    g_system->unlockScreen();
-	    g_system->updateScreen();
-	    g_system->delayMillis(delay);
+	return false;
+}
+
+struct ADSData {
+	char filename[13];
+
+	uint16 count;
+	char **names;
+	TTMData *scriptDatas;
+
+	Common::SeekableReadStream *scr;
+};
+
+struct ADSState {
+	Common::SeekableReadStream *scr;
+	uint16 scene;
+
+	TTMState *scriptStates;
+};
+
+class ADSInterpreter {
+public:
+	ADSInterpreter(DgdsEngine *vm);
+
+	bool load(const char *filename, ADSData *data);
+	void unload(ADSData *data);
+
+	bool callback(DgdsChunk &chunk);
+	
+	void init(ADSState *scriptState, const ADSData *scriptData);
+	bool run(ADSState *script);
+
+protected:
+	DgdsEngine *_vm;
+
+	const char *_filename;
+	ADSData *_scriptData;
+};
+
+ADSInterpreter::ADSInterpreter(DgdsEngine* vm) : _vm(vm), _scriptData(0), _filename(0) {}
+
+bool ADSInterpreter::load(const char *filename, ADSData *scriptData) {
+	Common::SeekableReadStream *stream = createReadStream(_vm->_rmfName, filename);
+
+	if (!stream) {
+		error("Couldn't open script file '%s'", filename);
+		return false;
+	}
+
+	memset(scriptData, 0, sizeof(*scriptData));
+	_scriptData = scriptData;
+	_filename = filename;
+
+        Common::Functor1Mem< DgdsChunk &, bool, ADSInterpreter > c(this, &ADSInterpreter::callback);
+	DgdsParser dgds(*stream, _filename);
+	dgds.parse(c);
+
+	delete stream;
+
+	TTMInterpreter interp(_vm);
+
+	TTMData *scriptDatas;
+	scriptDatas = new TTMData[_scriptData->count];
+	assert(scriptDatas);
+	_scriptData->scriptDatas = scriptDatas;
+
+	for (uint16 i = _scriptData->count; i--; )
+		interp.load(_scriptData->names[i], &_scriptData->scriptDatas[i]);
+
+	Common::strlcpy(_scriptData->filename, filename, sizeof(_scriptData->filename));
+	_scriptData = 0;
+	_filename = 0;
+	return true;
+}
+
+void ADSInterpreter::unload(ADSData *data) {
+	if (!data)
+		return;
+	for (uint16 i = data->count; i--; )
+		delete data->names[i];
+	delete data->names;
+	delete data->scriptDatas;
+	delete data->scr;
+
+	data->count = 0;
+	data->names = 0;
+	data->scriptDatas = 0;
+	data->scr = 0;
+}
+
+void ADSInterpreter::init(ADSState *state, const ADSData *data) {
+	state->scr = data->scr;
+	state->scr->seek(0);
+	state->scene = 0;
+
+	TTMInterpreter interp(_vm);
+
+	TTMState *scriptStates;
+	scriptStates = new TTMState[data->count];
+	assert(scriptStates);
+	state->scriptStates = scriptStates;
+
+	for (uint16 i = data->count; i--; )
+		interp.init(&state->scriptStates[i], &data->scriptDatas[i]);
+}
+
+bool ADSInterpreter::run(ADSState *script) {
+	TTMInterpreter interp(_vm);
+
+	debug("RUN");
+	if (!interp.run(&script->scriptStates[script->scene&1])) {
+		script->scriptStates[script->scene&1].scr->seek(0);
+		script->scene++;
+	debug("RUN++");
+	}
+	return true;
+}
+
+bool ADSInterpreter::callback(DgdsChunk &chunk) {
+	switch (chunk._id) {
+	case MKTAG24('A','D','S'):
+		break;
+	case MKTAG24('R','E','S'): {
+		uint16 count = chunk._stream->readUint16LE();
+		char **strs = new char *[count];
+		assert(strs);
+
+		_scriptData->count = count;
+		for (uint16 i=0; i<count; i++) {
+			Common::String string;
+			byte c = 0;
+			uint16 idx;
+			
+			idx = chunk._stream->readUint16LE();
+			assert(idx == (i+1));
+
+			while ((c = chunk._stream->readByte()))
+				string += c;
+
+			strs[i] = new char[string.size()+1];
+			strcpy(strs[i], string.c_str());
+		}
+		_scriptData->names = strs;
+		}
+		break;
+	case MKTAG24('S','C','R'):
+		_scriptData->scr = chunk._stream->readStream(chunk._stream->size());
+		break;
+	default:
+		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._id), chunk._size, _filename);
+		break;
+	}
+	return false;
 }
 
 struct Channel {
@@ -2532,15 +2597,15 @@ Common::Error DgdsEngine::run() {
 //	browseInit(_platform, _rmfName, this);
 	explode(_platform, _rmfName, "DRAGON.FNT", 0);
 	
-	DgdsADS *title1;
-	title1 = DgdsADS::loadADS(_platform, _rmfName, "TITLE1.ADS");
-	assert(title1);
-	
 	ADSInterpreter interp(this);
 
-	ADSData title1_, intro_;
-	interp.load("TITLE1.ADS", &title1_);
-	interp.load("INTRO.ADS", &intro_);
+	ADSData title1Data, introData;
+	interp.load("TITLE1.ADS", &title1Data);
+	//interp.load("INTRO.ADS", &introData);
+
+	ADSState title1State, introState;
+	interp.init(&title1State, &title1Data);
+	//interp.init(&introState, &introData);
 
 	while (!shouldQuit()) {/*
 		uint w, h;
@@ -2564,7 +2629,7 @@ Common::Error DgdsEngine::run() {
 		}
 
 //		browse(_platform, _rmfName, this);
-		interpretADS(title1);
+		interp.run(&title1State);
 
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
@@ -2614,4 +2679,3 @@ Common::Error DgdsEngine::run() {
 }
 
 } // End of namespace Dgds
-
