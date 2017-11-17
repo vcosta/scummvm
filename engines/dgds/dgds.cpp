@@ -193,9 +193,11 @@ struct DgdsChunk {
 	char type[DGDS_TYPENAME_MAX+1];
 	DGDS_ID _type;
 
-	uint32 chunkSize;
+	uint32 _size;
 	bool container;
 	
+	Common::SeekableReadStream* _stream;
+
 	bool readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, const char *name);
 	bool isSection(const Common::String& section);
 	bool isSection(DGDS_ID section);
@@ -344,9 +346,9 @@ bool DgdsChunk::readHeader(DgdsFileCtx& ctx, Common::SeekableReadStream& file, c
 	type[DGDS_TYPENAME_MAX] = '\0';
 	_type = MKTAG24(uint32(type[0]), uint32(type[1]), uint32(type[2]));
 
-	chunkSize = file.readUint32LE();
-	if (chunkSize & 0x80000000) {
-		chunkSize &= ~0x80000000;
+	_size = file.readUint32LE();
+	if (_size & 0x80000000) {
+		_size &= ~0x80000000;
 		container = true;
 	} else {
 		container = false;
@@ -361,16 +363,16 @@ Common::SeekableReadStream* DgdsChunk::decode(DgdsFileCtx& ctx, Common::Seekable
 
 	compression = file.readByte();
 	unpackSize = file.readUint32LE();
-	chunkSize -= (1 + 4);
+	_size -= (1 + 4);
 
 	if (!container) {
 		byte *dest = new byte[unpackSize];
-		decompress(compression, dest, unpackSize, file, chunkSize);
+		decompress(compression, dest, unpackSize, file, _size);
 		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 	}
 
 	debug("    %s %u %s %u%c",
-		type, chunkSize,
+		type, _size,
 		compressionDescr[compression],
 		unpackSize, (container ? '+' : ' '));
 	return ostream;
@@ -380,10 +382,10 @@ Common::SeekableReadStream* DgdsChunk::copy(DgdsFileCtx& ctx, Common::SeekableRe
 	Common::SeekableReadStream *ostream = 0;
 
 	if (!container) {
-		ostream = new Common::SeekableSubReadStream(&file, file.pos(), file.pos()+chunkSize, DisposeAfterUse::NO);
+		ostream = new Common::SeekableSubReadStream(&file, file.pos(), file.pos()+_size, DisposeAfterUse::NO);
 	}
 
-	debug("    %s %u%c", type, chunkSize, (container ? '+' : ' '));
+	debug("    %s %u%c", type, _size, (container ? '+' : ' '));
 	return ostream;
 }
 
@@ -1468,6 +1470,213 @@ Common::String text;
 
 // TAGS vs UNIQUE TAGS
 // HASHTABLE?
+class DgdsParser {
+private:
+	char _filename[13];
+	Common::File _volume;
+	Common::SeekableReadStream *_file;
+	Common::SeekableReadStream *_stream;
+
+public:
+	DgdsParser();
+	
+	bool open(const char *rmfName, const char *filename);
+	void close();
+
+        /**
+         * Callback type for the parser.
+         */
+        typedef Common::Functor1< DgdsChunk&, bool > DgdsCallback;
+
+	void parse(DgdsCallback &callback);
+};
+
+struct ADSData {
+	char filename[13];
+
+	uint16 count;
+	char **names;
+	Common::SeekableReadStream *scr;
+};
+
+struct ADSState {
+};
+
+class ADSInterpreter {
+public:
+	ADSInterpreter(DgdsEngine *vm);
+
+	bool load(const char *filename, ADSData *data);
+	void unload(ADSData *data);
+
+	bool callback(DgdsChunk &chunk);
+	
+	void init(ADSState *scriptState, const ADSData *scriptData);
+	bool run(ADSState *script);
+
+protected:
+	DgdsEngine *_vm;
+
+	const char *_filename;
+	ADSData *_scriptData;
+};
+
+ADSInterpreter::ADSInterpreter(DgdsEngine* vm) : _vm(vm), _scriptData(0), _filename(0) {}
+
+bool ADSInterpreter::load(const char *filename, ADSData *scriptData) {
+	DgdsParser dgds;
+	if (!dgds.open(_vm->_rmfName, filename)) {
+		error("Couldn't open script file '%s'", filename);
+		return false;
+	}
+
+	memset(scriptData, 0, sizeof(*scriptData));
+	_scriptData = scriptData;
+	_filename = filename;
+
+        Common::Functor1Mem< DgdsChunk &, bool, ADSInterpreter > c(this, &ADSInterpreter::callback);
+	dgds.parse(c);
+	dgds.close();
+
+	Common::strlcpy(_scriptData->filename, filename, sizeof(_scriptData->filename));
+	_scriptData = 0;
+	_filename = 0;
+	return true;
+}
+
+void ADSInterpreter::unload(ADSData *data) {
+	if (!data)
+		return;
+	delete data->scr;
+
+	data->scr = 0;
+}
+
+void ADSInterpreter::init(ADSState *scriptState, const ADSData *scriptData) {
+}
+
+bool ADSInterpreter::run(ADSState *script) {
+	return false;
+}
+
+bool ADSInterpreter::callback(DgdsChunk &chunk) {
+	switch (chunk._type) {
+	case MKTAG24('A','D','S'):
+		break;
+	case MKTAG24('R','E','S'): {
+		uint16 *idxs;
+		_scriptData->count = loadTags(*chunk._stream, _scriptData->names, idxs);
+		delete idxs;
+		}
+		break;
+	case MKTAG24('S','C','R'):
+		_scriptData->scr = chunk._stream->readStream(chunk._size);
+		break;
+	default:
+		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._type), chunk._size, _filename);
+		break;
+	}
+	return false;
+}
+
+DgdsParser::DgdsParser() : _file(0), _stream(0) {}
+
+void DgdsParser::parse(DgdsCallback &callback) {
+	DgdsFileCtx ctx;
+	ctx.init(_file->size());
+
+	const char *dot;
+	DGDS_EX _ex;
+
+	if ((dot = strrchr(_filename, '.'))) {
+		_ex = MKTAG24(dot[1], dot[2], dot[3]);
+	} else {
+		_ex = 0;
+	}
+
+	DgdsChunk chunk;
+	while (chunk.readHeader(ctx, *_file, _filename)) {
+		chunk._stream = 0;
+
+		if (!chunk.container) {
+			chunk._stream = chunk.isPacked(_ex) ? chunk.decode(ctx, *_file) : chunk.copy(ctx, *_file);
+			if (chunk._stream) ctx.outSize += chunk._stream->size();
+		}
+
+		bool stop;
+		stop = callback(chunk);
+
+		if (!chunk.container) {
+			int leftover = chunk._stream->size()-chunk._stream->pos();
+			chunk._stream->skip(leftover);
+			delete chunk._stream;
+		}
+
+		if (stop) break;
+	}
+}
+
+void DgdsParser::close() {
+	_volume.close();
+	_file = 0;
+}
+
+bool DgdsParser::open(const char *rmfName, const char *filename) {
+	Common::strlcpy(_filename, filename, sizeof(_filename));
+
+	Common::File index;
+	if (index.open(rmfName)) {
+		byte salt[4];
+		uint16 nvolumes;
+
+		index.read(salt, sizeof(salt));
+		nvolumes = index.readUint16LE();
+
+		for (uint i=0; i<nvolumes; i++) {
+			char name[DGDS_FILENAME_MAX+1];
+			uint16 nfiles;
+
+			index.read(name, sizeof(name));
+			name[DGDS_FILENAME_MAX] = '\0';
+			
+			nfiles = index.readUint16LE();
+			
+			if (!_volume.open(name)) {
+				continue;
+			}
+
+			for (uint j=0; j<nfiles; j++) {
+				uint32 hash, offset;
+				uint32 fileSize;
+
+				hash = index.readUint32LE();
+				offset = index.readUint32LE();
+
+				_volume.seek(offset);
+				_volume.read(name, sizeof(name));
+				name[DGDS_FILENAME_MAX] = '\0';
+				fileSize = _volume.readUint32LE();
+
+				if (fileSize == 0xFFFFFFFF) {
+					continue;
+				}
+
+				if (scumm_stricmp(name, filename)) {
+					_volume.skip(fileSize);
+					continue;
+				}
+
+				_file = new Common::SeekableSubReadStream(&_volume, _volume.pos(), _volume.pos()+fileSize, DisposeAfterUse::YES);
+				index.close();
+				return true;
+			}
+			_volume.close();
+		}
+		index.close();
+	}
+	return false;
+}
+
 struct DgdsTTM {
 	Common::SeekableReadStream *_tt3;
 
@@ -2353,6 +2562,12 @@ Common::Error DgdsEngine::run() {
 	DgdsADS *title1;
 	title1 = DgdsADS::loadADS(_platform, _rmfName, "TITLE1.ADS");
 	assert(title1);
+	
+	ADSInterpreter interp(this);
+
+	ADSData title1_, intro_;
+	interp.load("TITLE1.ADS", &title1_);
+	interp.load("INTRO.ADS", &intro_);
 
 	while (!shouldQuit()) {/*
 		uint w, h;

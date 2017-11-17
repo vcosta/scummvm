@@ -40,11 +40,12 @@ struct DgdsMidiPlayer;
 struct DgdsADS;
 
 class DgdsEngine : public Engine {
-private:
-	DgdsConsole *_console;
-
+public:
 	Common::Platform _platform;
 	const char *_rmfName;
+
+private:
+	DgdsConsole *_console;
 
 	DgdsMidiPlayer *_midiPlayer;
 
@@ -60,6 +61,8 @@ public:
 
 	void playMusic(const char* fileName);
 
+        Common::SeekableReadStream *createReadStream(const char *fileName);
+        
         void interpretTTM(Common::SeekableReadStream *tt3);
         void interpretADS(DgdsADS *_ads);
 };
