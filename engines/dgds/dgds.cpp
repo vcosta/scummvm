@@ -2105,11 +2105,9 @@ void ADSInterpreter::init(ADSState *state, const ADSData *data) {
 bool ADSInterpreter::run(ADSState *script) {
 	TTMInterpreter interp(_vm);
 
-	debug("RUN");
 	if (!interp.run(&script->scriptStates[script->scene&1])) {
 		script->scriptStates[script->scene&1].scr->seek(0);
 		script->scene++;
-	debug("RUN++");
 	}
 	return true;
 }
