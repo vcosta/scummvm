@@ -92,12 +92,17 @@ uint32 _toffset;
 uint16 *_mtx;
 uint16 _mw, _mh;
 
-Common::SeekableReadStream* ttm;
+char **strs;
+uint16 *idxs;
 
 #define DGDS_FILENAME_MAX 12
 #define DGDS_TYPENAME_MAX 4
 
+Common::SeekableReadStream* ttm;
 char ttmName[DGDS_FILENAME_MAX+1];
+
+Common::SeekableReadStream* ads;
+char adsName[DGDS_FILENAME_MAX+1];
 
 int sw = 320, sh = 200;
 
@@ -452,6 +457,35 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 
 PFont *_fntP;
 FFont *_fntF;
+
+uint16 loadTags(Common::SeekableReadStream& stream, char** &pstrs, uint16* &pidxs) {
+	uint16 count;
+	count = stream.readUint16LE();
+	debug("        %u:", count);
+
+	char **strs = new char *[count];
+	assert(strs);
+	uint16 *idxs = new uint16[count];
+	assert(idxs);
+
+	for (uint16 i=0; i<count; i++) {
+		Common::String string;
+		byte c = 0;
+		uint16 idx;
+
+		idx = stream.readUint16LE();
+		while ((c = stream.readByte()))
+			string += c;
+		debug("        %2u: %2u, \"%s\"", i, idx, string.c_str());
+
+		idxs[i] = idx;
+		strs[i] = new char[string.size()+1];
+		strcpy(strs[i], string.c_str());
+	}
+	pstrs = strs;
+	pidxs = idxs;
+	return count;
+}
 
 void parseFile(Common::Platform platform, Common::SeekableReadStream& file, const char* name, int resource) {
 	struct DgdsFileCtx ctx;
@@ -981,64 +1015,73 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						stream->read(version, sizeof(version));
 						debug("        %s", version);
 					} else if (chunk.isSection(ID_RES)) {
-						readStrings(stream);
-					} else if (chunk.isSection(ID_SCR)) {
-						/* this is either a script, or a property sheet, i can't decide. */
-						while (!stream->eos()) {
-							uint16 code;
-							code = stream->readUint16LE();
-							if ((code&0xFF00) == 0) {
-								uint16 tag = (code&0xFF);
-								debug("          PUSH %d (0x%4.4X)", tag, tag); // ADS:TAG or TTM:TAG id.
-							} else {
-								const char *desc = "";
-								switch (code) {
-									case 0xF010:
-									case 0xF200:
-									case 0xFDA8:
-									case 0xFE98:
-									case 0xFF88:
-									case 0xFF10:
-										debug("          INT 0x%4.4X\t;", code);
-										continue;
-
-									case 0xFFFF:
-										debug("          INT 0x%4.4X\t; return", code);
-										debug("-");
-										continue;
-
-									case 0x0190:
-									case 0x1070:
-									case 0x1340:
-									case 0x1360:
-									case 0x1370:
-									case 0x1420:
-									case 0x1430:
-									case 0x1500:
-									case 0x1520:
-									case 0x2000:
-									case 0x2010:
-									case 0x2020:
-									case 0x3010:
-									case 0x3020:
-									case 0x30FF:
-									case 0x4000:
-									case 0x4010:	desc = "?";			break;
-
-									case 0x1330:					break;
-									case 0x1350:	desc = "? (res,rtag)";		break;
-
-									case 0x1510:	desc = "? ()";			break;
-									case 0x2005:	desc = "? (res,rtag,?,?)";	break;
-
-									default:
-										break;
-								}
-								debug("          OP 0x%4.4X\t;%s", code, desc);
-							}
+						if (resource == 0) {
+							loadTags(*stream, strs, idxs);
+						} else {
+							readStrings(stream);
 						}
-						assert(stream->size()==stream->pos());
-						stream->hexdump(stream->size());
+					} else if (chunk.isSection(ID_SCR)) {
+						if (resource == 0) {
+							ads = stream->readStream(stream->size());
+							Common::strlcpy(adsName, name, sizeof(adsName));
+						} else {
+							/* this is either a script, or a property sheet, i can't decide. */
+							while (!stream->eos()) {
+								uint16 code;
+								code = stream->readUint16LE();
+								if ((code&0xFF00) == 0) {
+									uint16 tag = (code&0xFF);
+									debug("          PUSH %d (0x%4.4X)", tag, tag); // ADS:TAG or TTM:TAG id.
+								} else {
+									const char *desc = "";
+									switch (code) {
+										case 0xF010:
+										case 0xF200:
+										case 0xFDA8:
+										case 0xFE98:
+										case 0xFF88:
+										case 0xFF10:
+											debug("          INT 0x%4.4X\t;", code);
+											continue;
+
+										case 0xFFFF:
+											debug("          INT 0x%4.4X\t; return", code);
+											debug("-");
+											continue;
+
+										case 0x0190:
+										case 0x1070:
+										case 0x1340:
+										case 0x1360:
+										case 0x1370:
+										case 0x1420:
+										case 0x1430:
+										case 0x1500:
+										case 0x1520:
+										case 0x2000:
+										case 0x2010:
+										case 0x2020:
+										case 0x3010:
+										case 0x3020:
+										case 0x30FF:
+										case 0x4000:
+										case 0x4010:	desc = "?";			break;
+
+										case 0x1330:					break;
+										case 0x1350:	desc = "? (res,rtag)";		break;
+
+										case 0x1510:	desc = "? ()";			break;
+										case 0x2005:	desc = "? (res,rtag,?,?)";	break;
+
+										default:
+											break;
+									}
+									debug("          OP 0x%4.4X\t;%s", code, desc);
+								}
+							}
+							assert(stream->size()==stream->pos());
+							stream->hexdump(stream->size());
+						}
 					} else if (chunk.isSection(ID_TAG)) {
 						readStrings(stream);
 					}
@@ -1414,11 +1457,73 @@ Common::Rect drawWin(0, 0, sw, sh);
 
 Common::String text;
 
-void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst) {
-	if (!ttm) return;
+// TAGS vs UNIQUE TAGS
+// HASHTABLE?
+struct DgdsTTM {
+	Common::SeekableReadStream *_tt3;
+
+	static DgdsTTM* loadTTM(Common::Platform platform, const char *indexName, const char *fileName);
+};
+
+DgdsTTM*DgdsTTM::loadTTM(Common::Platform platform, const char *indexName, const char *fileName) {
+	explode(platform, indexName, fileName, 0);
+	DgdsTTM *output = new DgdsTTM;
+	output->_tt3 = ttm;
+	return output;
+}
+
+struct DgdsADS { 
+	uint16 _resCount;
+	char **_resNames;
+	DgdsTTM *_resTtms;
+	Common::SeekableReadStream *_scr;
+
+	static DgdsADS*loadADS(Common::Platform platform, const char *indexName, const char *fileName);
+};
+
+DgdsADS*DgdsADS::loadADS(Common::Platform platform, const char *indexName, const char *fileName) {
+	explode(platform, indexName, fileName, 0);
+	DgdsADS *output = new DgdsADS;
+	output->_scr = ads;
+	return output;
+}
+
+int k=0;
+
+Common::SeekableReadStream *tt3;
+
+void DgdsEngine::interpretADS(DgdsADS *_ads) {
+	if (!ttm || ttm->eos()) {
+		_bubbles.clear();
+		delete tt3;
+		ttm = 0;
+
+		switch ((k&3)) {
+		case 0:
+			DgdsTTM::loadTTM(_platform, _rmfName, "TITLE1.TTM");
+			break;
+		case 1:
+			DgdsTTM::loadTTM(_platform, _rmfName, "TITLE2.TTM");
+			break;
+		case 2:
+			explode(_platform, _rmfName, "S55.SDS", 0);
+			DgdsTTM::loadTTM(_platform, _rmfName, "INTRO.TTM");
+			break;
+		case 3:
+			explode(_platform, _rmfName, "S55.SDS", 0);
+			DgdsTTM::loadTTM(_platform, _rmfName, "BIGTV.TTM");
+			break;
+		}
+		k++;
+	}
+	interpretTTM(ttm);
+}
+
+void DgdsEngine::interpretTTM(Common::SeekableReadStream *tt3) {
+	if (!tt3) return;
 
 	delay = 0;
-	while (!ttm->eos()) {
+	while (!tt3->eos()) {
 		uint16 code;
 		byte count;
 		uint op;
@@ -1426,7 +1531,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 
 		Common::String sval;
 
-		code = ttm->readUint16LE();
+		code = tt3->readUint16LE();
 		count = code & 0x000F;
 		op = code & 0xFFF0;
 
@@ -1437,8 +1542,8 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 			byte ch[2];
 
 			do {
-				ch[0] = ttm->readByte();
-				ch[1] = ttm->readByte();
+				ch[0] = tt3->readByte();
+				ch[1] = tt3->readByte();
 				sval += ch[0];
 				sval += ch[1];
 			} while (ch[0] != 0 && ch[1] != 0);
@@ -1448,11 +1553,11 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 		} else {
 			int16 ival;
 
-			for (byte k=0; k<count; k++) {
-				ival = ttm->readSint16LE();
-				ivals[k] = ival;
+			for (byte i=0; i<count; i++) {
+				ival = tt3->readSint16LE();
+				ivals[i] = ival;
 
-				if (k == 0) {
+				if (i == 0) {
 					debugN("%d", ival);
 					txt += Common::String::format("%d", ival);
 				} else {
@@ -1486,7 +1591,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				vgaData.free();
 				binData.free();
 				ma8Data.free();
-				explode(platform, rootName, scrNames[sid], 0);
+				explode(_platform, _rmfName, scrNames[sid], 0);
 
 				if (ma8Data.h != 0) {
 					ma8Data_ = (byte *)ma8Data.getPixels();
@@ -1511,18 +1616,18 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				break;
 			case 0xf050:
 				// LOAD PAL:	filename:str
-				explode(platform, rootName, sval.c_str(), 0);
+				explode(_platform, _rmfName, sval.c_str(), 0);
 				break;
 			case 0xf060:
 				// LOAD SONG:	filename:str
-				if (platform == Common::kPlatformAmiga) {
+				if (_platform == Common::kPlatformAmiga) {
 					const char *fileName = "DYNAMIX.INS";
 					byte volume = 255;
 					byte channel = 0;
-					syst->stopSfx(channel);
-					syst->playSfx(fileName, channel, volume);
+					stopSfx(channel);
+					playSfx(fileName, channel, volume);
 				} else {
-//					syst->playMusic(sval.c_str());
+//					playMusic(sval.c_str());
 				}
 				break;
 
@@ -1533,7 +1638,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 				_vgaData.free();
 				_binData.free();
 				if (bk != -1) {
-					explode(platform, rootName, bmpNames[id], bk);
+					explode(_platform, _rmfName, bmpNames[id], bk);
 
 					if (_vgaData.h != 0) {
 						bw = _tw; bh = _th;
@@ -1629,7 +1734,7 @@ void interpret(Common::Platform platform, const char *rootName, DgdsEngine* syst
 					bk = ivals[2];
 					id = ivals[3];
 					if (bk != -1) {
-						explode(platform, rootName, bmpNames[id], bk);
+						explode(_platform, _rmfName, bmpNames[id], bk);
 
 						if (_vgaData.h != 0) {
 							bw = _tw; bh = _th;
@@ -2217,7 +2322,6 @@ Common::Error DgdsEngine::run() {
 //	browseInit(_platform, _rmfName, this);
 	explode(_platform, _rmfName, "DRAGON.FNT", 0);
 
-	int k=0;
 	while (!shouldQuit()) {/*
 		uint w, h;
 		byte *vgaData_;
@@ -2240,32 +2344,9 @@ Common::Error DgdsEngine::run() {
 		}
 
 //		browse(_platform, _rmfName, this);
- 		if (!ttm || ttm->eos()) {
-		    _bubbles.clear();
-		    delete ttm;
-		    ttm = 0;
+		interpretADS(0);
+		interpretTTM(ttm);
 
-//		    explode(_platform, _rmfName, "TVLMAP.TTM", 0);
-
-		    switch ((k&3)) {
-		    case 0:
-			    explode(_platform, _rmfName, "TITLE1.TTM", 0);
-			    break;
-		    case 1:
-			    explode(_platform, _rmfName, "TITLE2.TTM", 0);
-			    break;
-		    case 2:
-			    explode(_platform, _rmfName, "S55.SDS", 0);
-			    explode(_platform, _rmfName, "INTRO.TTM", 0);
-			    break;
-		    case 3:
-			    explode(_platform, _rmfName, "S55.SDS", 0);
-			    explode(_platform, _rmfName, "BIGTV.TTM", 0);
-			    break;
-		    }
-		    k++;
-		}
-		interpret(_platform, _rmfName, this);
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
 //		explode(_platform, _rmfName, "DRAGON.FNT", 0);
