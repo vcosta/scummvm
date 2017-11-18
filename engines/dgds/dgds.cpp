@@ -1150,11 +1150,23 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					/* DOS. */
 					if (chunk.isSection(ID_SNG)) {
 						musicSize = stream->size();
-						musicData = (uint8 *)malloc(musicSize);
 
 						debug("        %2u: %u bytes", scount, musicSize);
+
+						musicData = (uint8 *)malloc(musicSize);
 						stream->read(musicData, musicSize);
 						scount++;
+
+						Common::DumpFile out2;
+						if (musicSize) {
+							Common::String cname = Common::String::format("%s:%u%s", name, scount, ".SND");
+							if (!out2.open(cname)) {
+								debug("Couldn't write to %s", cname.c_str());
+							} else {
+								out2.write(musicData, musicSize);
+								out2.close();
+							}
+						}
 					} else if (chunk.isSection(ID_INF)) {
 						uint32 count;
 						count = stream->size()/2;
@@ -1185,15 +1197,33 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 					} else if (chunk.isSection(ID_FNM)) {
 						readStrings(stream);
 					} else if (chunk.isSection(ID_DAT)) {
-						uint16 idx;
+						uint16 idx, type;
+						byte compression;
+						uint32 unpackSize;
 						idx = stream->readUint16LE();
-						debug("        %2u", idx);
-						/*
-						 uint unpackSize = 1000;
-						 byte *dest = new byte[unpackSize];
-						 RleDecompressor dec;
-						 dec.decompress(dest,unpackSize,file);
-						 ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);*/
+						type = stream->readUint16LE();
+						compression = stream->readByte();
+						unpackSize = stream->readUint32LE();
+						debug("        #%2u: (0x%X?) %s %u", idx, type, compressionDescr[compression], unpackSize);
+
+						musicSize = unpackSize;
+						debug("        %2u: %u bytes", scount, musicSize);
+
+						musicData = (uint8 *)malloc(musicSize);
+						decompress(compression, musicData, musicSize, *stream, stream->size()-stream->pos());
+						scount++;
+
+						Common::DumpFile out2;
+						if (musicSize) {
+							Common::String cname = Common::String::format("%s:%u%s", name, scount, ".SND");
+							if (!out2.open(cname)) {
+								debug("Couldn't write to %s", cname.c_str());
+							} else {
+								out2.write(musicData, musicSize);
+								out2.close();
+							}
+						}
+
 					}
 					break;
 				case EX_PAL:
