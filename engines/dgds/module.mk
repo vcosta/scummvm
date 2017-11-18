@@ -4,8 +4,7 @@ MODULE_OBJS := \
 	decompress.o \
 	detection.o \
 	dgds.o \
-	font.o \
-	sound.o
+	font.o
 
 # This module can be built as a plugin
 ifeq ($(ENABLE_DGDS), DYNAMIC_PLUGIN)

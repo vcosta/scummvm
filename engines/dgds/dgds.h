@@ -35,8 +35,7 @@ namespace Dgds {
 class DgdsConsole;
 
 struct DgdsGameDescription;
-//struct DgdsMidiPlayer;
-class MidiPlayer;
+struct DgdsMidiPlayer;
 
 struct DgdsADS;
 
@@ -48,8 +47,7 @@ public:
 private:
 	DgdsConsole *_console;
 
-//	DgdsMidiPlayer *_midiPlayer;
-	MidiPlayer *_midiPlayer;
+	DgdsMidiPlayer *_midiPlayer;
 
 protected:
 	virtual Common::Error run();

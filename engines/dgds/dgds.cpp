@@ -53,7 +53,6 @@
 #include "dgds/decompress.h"
 #include "dgds/detection_tables.h"
 #include "dgds/font.h"
-#include "dgds/sound.h"
 
 #include "dgds/dgds.h"
 
@@ -2430,7 +2429,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 		case 12:    debug("MT-32");		    break;
 		case 18:    debug("PC Speaker");	    break;
 		case 19:    debug("Tandy 1000, PS/1");	    break;
-		default:    debug("Unknown");		    break;
+		default:    debug("Unknown: %u", idx);	    break;
 	    }
 
 	    int tracksRead = 0;
@@ -2494,7 +2493,6 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 
 MidiParser *createParser_DGDS() { return new MidiParser_DGDS; }
 
-
 DgdsMidiPlayer::DgdsMidiPlayer() {
 	MidiPlayer::createDriver();
 
@@ -2546,12 +2544,14 @@ void DgdsEngine::playMusic(const char* fileName) {
 		Common::String fname(fileName);
 		Common::replace(fname, ".SNG", ".SX");
 		explode(_platform, _rmfName, fname.c_str(), 0);
+		if (musicData) {
+			_midiPlayer->play(musicData, musicSize);
+		}
 	} else {
-	/*
 		explode(_platform, _rmfName, fileName, 0);
 		if (musicData) {
 			_midiPlayer->play(musicData, musicSize);
-		}*/
+		}
 	}
 }
 #if 0
@@ -2653,16 +2653,9 @@ Common::Error DgdsEngine::run() {
 
 	soundData = 0;
 	musicData = 0;
-/*
+
 	_midiPlayer = new DgdsMidiPlayer();
 	assert(_midiPlayer);
-*/
-	_midiPlayer = Dgds::MidiPlayer_AmigaMac_create();
-	assert(_midiPlayer);
-	if (_midiPlayer && !_midiPlayer->open()) {
-/*		_midiPlayer->setTimerCallback(this, &miditimerCallback)*/;
-	}
-
 
 	memset(palette, 0, 256*3);
 	memset(blacks, 0, 256*3);
