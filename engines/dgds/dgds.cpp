@@ -2539,7 +2539,7 @@ void DgdsMidiPlayer::stop() {
 
 void DgdsEngine::playMusic(const char* fileName) {
 	//stopMusic();
-
+/*
 	if (_platform == Common::kPlatformMacintosh) {
 		Common::String fname(fileName);
 		Common::replace(fname, ".SNG", ".SX");
@@ -2547,7 +2547,7 @@ void DgdsEngine::playMusic(const char* fileName) {
 		if (musicData) {
 			_midiPlayer->play(musicData, musicSize);
 		}
-	} else {
+	} else*/ {
 		explode(_platform, _rmfName, fileName, 0);
 		if (musicData) {
 			_midiPlayer->play(musicData, musicSize);
