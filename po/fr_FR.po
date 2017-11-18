@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ScummVM 1.8.0git\n"
 "Report-Msgid-Bugs-To: scummvm-devel@lists.scummvm.org\n"
-"POT-Creation-Date: 2017-10-31 11:04+0100\n"
-"PO-Revision-Date: 2017-07-03 10:14+0000\n"
+"POT-Creation-Date: 2017-11-15 00:50+0100\n"
+"PO-Revision-Date: 2017-11-12 22:44+0000\n"
 "Last-Translator: Thierry Crozat <criezy@scummvm.org>\n"
 "Language-Team: French <https://translations.scummvm.org/projects/scummvm/"
 "scummvm/fr/>\n"
@@ -901,7 +901,7 @@ msgid "Special dithering modes supported by some games"
 msgstr "Mode spécial de tramage supporté par certains jeux"
 
 #: gui/options.cpp:1020 backends/graphics/openglsdl/openglsdl-graphics.cpp:587
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2565
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2572
 msgid "Fullscreen mode"
 msgstr "Plein écran"
 
@@ -1638,7 +1638,6 @@ msgid "Antialiased"
 msgstr "Anti-crénelé"
 
 #: gui/updates-dialog.cpp:49
-#, fuzzy
 msgid ""
 "ScummVM now supports automatic check for updates\n"
 "which requires access to the Internet. Would you\n"
@@ -1646,7 +1645,6 @@ msgid ""
 msgstr ""
 "ScummVM peut maintenant rechercher les mises à jour\n"
 "automatiquement, ce qui nécessite un accès internet.\n"
-"\n"
 "Voulez-vous activer cette options ?"
 
 #: gui/updates-dialog.cpp:52
@@ -1654,6 +1652,8 @@ msgid ""
 "You can change this setting later in the Misc tab\n"
 "in the Options dialog."
 msgstr ""
+"Vous pouvez changer ce réglage plus tard dans\n"
+"le tab Divers du dialogue d'Options."
 
 #: gui/updates-dialog.cpp:116
 msgid "Proceed"
@@ -1802,17 +1802,24 @@ msgstr "Une fois pas mois"
 msgid "<Bad value>"
 msgstr "<Valeur invalide>"
 
-#: engines/advancedDetector.cpp:335
+#: engines/advancedDetector.cpp:330
 #, c-format
 msgid ""
-"The game in '%s' seems to be unknown.\n"
-"Please, report the following data to the ScummVM team along with name\n"
-"of the game you tried to add and its version, language, etc.:"
+"The game in '%s' seems to be an unknown %s engine game variant.\n"
+"\n"
+"Please report the following data to the ScummVM team at %s along with the "
+"name of the game you tried to add and its version, language, etc.:"
 msgstr ""
-"Votre version du jeu dans '%s' n'est pas reconnue.\n"
-"Veuillez reporter les informations ci-dessous à l'équipe de ScummVM ainsi "
-"que\n"
-"le nom du jeu que vous avez essayé d'ajouter, sa version, la langue, etc... :"
+"Le jeu dans '%s' semble être une version inconnue d'un jeu supporté par le "
+"moteur %s.\n"
+"\n"
+"Veuillez reporter les informations ci-dessous à l'équipe de ScummVM sur %s "
+"ainsi que le nom du jeu que vous avez essayé d'ajouter, sa version, la "
+"langue, etc... :"
+
+#: engines/advancedDetector.cpp:338
+msgid "Matched game IDs:"
+msgstr "Jeux possibles :"
 
 #: engines/dialogs.cpp:85
 msgid "~R~esume"
@@ -1851,7 +1858,7 @@ msgstr "Retour au ~L~anceur"
 #: engines/avalanche/parser.cpp:1900 engines/cge/events.cpp:72
 #: engines/cge2/events.cpp:65 engines/cine/various.cpp:348
 #: engines/cruise/menu.cpp:212 engines/dm/loadsave.cpp:196
-#: engines/drascula/saveload.cpp:384 engines/dreamweb/saveload.cpp:262
+#: engines/drascula/saveload.cpp:383 engines/dreamweb/saveload.cpp:262
 #: engines/gnap/menu.cpp:464 engines/hugo/file.cpp:298
 #: engines/mads/nebular/dialogs_nebular.cpp:350 engines/mohawk/dialogs.cpp:106
 #: engines/neverhood/menumodule.cpp:880 engines/pegasus/pegasus.cpp:379
@@ -1871,7 +1878,7 @@ msgstr "Sauvegarde :"
 #: engines/agi/saveload.cpp:761 engines/avalanche/parser.cpp:1900
 #: engines/cge/events.cpp:72 engines/cge2/events.cpp:65
 #: engines/cine/various.cpp:348 engines/cruise/menu.cpp:212
-#: engines/dm/loadsave.cpp:196 engines/drascula/saveload.cpp:384
+#: engines/dm/loadsave.cpp:196 engines/drascula/saveload.cpp:383
 #: engines/dreamweb/saveload.cpp:262 engines/gnap/menu.cpp:464
 #: engines/hugo/file.cpp:298 engines/mads/nebular/dialogs_nebular.cpp:350
 #: engines/mohawk/dialogs.cpp:106 engines/neverhood/menumodule.cpp:880
@@ -2229,7 +2236,7 @@ msgid "OpenGL"
 msgstr "OpenGL"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:589
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2567
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2574
 msgid "Windowed mode"
 msgstr "Mode Fenêtre"
 
@@ -2239,22 +2246,22 @@ msgid "Resolution: %dx%d"
 msgstr "Résolution : %dx%d"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:724
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2428
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2435
 msgid "Enabled aspect ratio correction"
 msgstr "Activer la correction du rapport d'aspect"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:726
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2434
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2441
 msgid "Disabled aspect ratio correction"
 msgstr "Désactiver la correction du rapport d'aspect"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:746
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2452
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2459
 msgid "Filtering enabled"
 msgstr "Filtrage Activé"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:748
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2454
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2461
 msgid "Filtering disabled"
 msgstr "Filtrage Désactivé"
 
@@ -2269,7 +2276,7 @@ msgctxt "lowres"
 msgid "Normal (no scaling)"
 msgstr "Normal"
 
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2514
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2521
 msgid "Active graphics filter:"
 msgstr "Mode graphique actif :"
 
@@ -2796,7 +2803,7 @@ msgstr ""
 msgid "Check for Updates..."
 msgstr "Recherche des mises à jour..."
 
-#: engines/access/resources.cpp:44 engines/drascula/drascula.cpp:974
+#: engines/access/resources.cpp:44 engines/drascula/drascula.cpp:963
 #: engines/hugo/hugo.cpp:437 engines/lure/lure.cpp:64
 #: engines/mortevielle/mortevielle.cpp:306 engines/sky/compact.cpp:131
 #: engines/teenagent/resources.cpp:97 engines/tony/tony.cpp:198
@@ -2805,7 +2812,7 @@ msgstr "Recherche des mises à jour..."
 msgid "Unable to locate the '%s' engine data file."
 msgstr "Le fichier de données '%s' n'a pu être trouvé."
 
-#: engines/access/resources.cpp:52 engines/drascula/drascula.cpp:988
+#: engines/access/resources.cpp:52 engines/drascula/drascula.cpp:977
 #: engines/hugo/hugo.cpp:448 engines/lure/lure.cpp:73
 #: engines/mortevielle/mortevielle.cpp:315 engines/tony/tony.cpp:210
 #: engines/toon/toon.cpp:4930
@@ -2813,7 +2820,7 @@ msgstr "Le fichier de données '%s' n'a pu être trouvé."
 msgid "The '%s' engine data file is corrupt."
 msgstr "Le fichier de données '%s' est corrompu."
 
-#: engines/access/resources.cpp:61 engines/drascula/drascula.cpp:999
+#: engines/access/resources.cpp:61 engines/drascula/drascula.cpp:988
 #: engines/hugo/hugo.cpp:458 engines/lure/lure.cpp:76
 #: engines/mortevielle/mortevielle.cpp:326 engines/tony/tony.cpp:221
 #: engines/toon/toon.cpp:4941
@@ -2905,7 +2912,7 @@ msgstr ""
 #: engines/agi/saveload.cpp:774 engines/avalanche/parser.cpp:1888
 #: engines/cge/events.cpp:83 engines/cge2/events.cpp:76
 #: engines/cine/various.cpp:359 engines/dm/dm.cpp:276
-#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:397
+#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:396
 #: engines/dreamweb/saveload.cpp:170 engines/gnap/menu.cpp:473
 #: engines/hugo/file.cpp:400 engines/mads/nebular/dialogs_nebular.cpp:377
 #: engines/neverhood/menumodule.cpp:893
@@ -2919,7 +2926,7 @@ msgstr "Charger le jeu :"
 #: engines/agi/saveload.cpp:774 engines/avalanche/parser.cpp:1888
 #: engines/cge/events.cpp:83 engines/cge2/events.cpp:76
 #: engines/cine/various.cpp:359 engines/dm/dm.cpp:276
-#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:397
+#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:396
 #: engines/dreamweb/saveload.cpp:170 engines/gnap/menu.cpp:473
 #: engines/hugo/file.cpp:400 engines/mads/nebular/dialogs_nebular.cpp:377
 #: engines/neverhood/menumodule.cpp:893
@@ -3352,6 +3359,7 @@ msgstr ""
 #: engines/mohawk/riven.cpp:410
 msgid "You are missing the following required Riven data files:\n"
 msgstr ""
+"Il vous manque les fichiers de données obligatoires suivants pour Riven :\n"
 
 #: engines/mohawk/riven_stack.cpp:182
 msgid ""
@@ -3521,14 +3529,13 @@ msgstr "Affiche des lignes noirs sur les vidéos pour les rendre plus nets"
 
 #: engines/sci/detection.cpp:431
 msgid "Use high-quality video scaling"
-msgstr ""
+msgstr "Utiliser une mise à l'échelle vidéo de haute qualité"
 
 #: engines/sci/detection.cpp:432
-#, fuzzy
 msgid "Use linear interpolation when upscaling videos, where possible"
 msgstr ""
-"Utiliser une interpolation bi-linéaire lors du changement d'échelle des "
-"graphiques"
+"Utiliser une interpolation linéaire lors de l'agrandissement des vidéos, si "
+"possible"
 
 #: engines/sci/detection.cpp:442
 msgid "Prefer digital sound effects"
@@ -3581,13 +3588,12 @@ msgid ""
 msgstr "Utiliser les curseurs argentés au lieu des curseurs normaux  dorés"
 
 #: engines/sci/detection.cpp:506
-#, fuzzy
 msgid "Enable content censoring"
-msgstr "Activer les curseurs flottants"
+msgstr "Censurer le contenu"
 
 #: engines/sci/detection.cpp:507
 msgid "Enable the game's built-in optional content censoring"
-msgstr ""
+msgstr "Active la censure optionnel inclus dans le jeu"
 
 #: engines/sci/detection.cpp:837 engines/sci/engine/kfile.cpp:481
 msgid "(Autosave)"

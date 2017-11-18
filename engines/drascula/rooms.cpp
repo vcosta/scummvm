@@ -404,7 +404,7 @@ bool DrasculaEngine::room_13(int fl) {
 		talk(411);
 		trackProtagonist = 3;
 		talk(412);
-		strcpy(objName[1], "yoda");
+		strcpy(objName[1], _textmisc[4]); // "yoda"
 	} else if (pickedObject == kVerbTalk && fl == 51) {
 		converse(7);
 	} else if (pickedObject == 19 && fl == 51) {
@@ -690,7 +690,7 @@ bool DrasculaEngine::room_26(int fl) {
 	else if (pickedObject == 16 && fl == 50 && flags[18] == 1 && flags[12] == 1)
 		animation_5_4();
 	else if (pickedObject == kVerbPick && fl == 143 && flags[18] == 1) {
-		gotoObject(260, 180);
+		walkToPoint(Common::Point(260, 180));
 		pickObject(10);
 		visible[1] = 0;
 		flags[12] = 1;
@@ -699,14 +699,14 @@ bool DrasculaEngine::room_26(int fl) {
 		talk_igor(27, kIgorDoor);
 		flags[30] = 1;
 		talk_igor(28, kIgorDoor);
-		gotoObject(153, 180);
+		walkToPoint(Common::Point(153, 180));
 	} else if (pickedObject == kVerbPick && fl == 143 && flags[18] == 0) {
-		gotoObject(260, 180);
+		walkToPoint(Common::Point(260, 180));
 		copyBackground(80, 78, 199, 94, 38, 27, drawSurface3, screenSurface);
 		updateScreen(199, 94, 199, 94, 38, 27, screenSurface);
 		pause(3);
 		talk_igor(25, kIgorWig);
-		gotoObject(153, 180);
+		walkToPoint(Common::Point(153, 180));
 	} else if (pickedObject == kVerbTalk && fl == 51)
 		animation_1_4();
 	else
@@ -927,7 +927,7 @@ bool DrasculaEngine::room_55(int fl) {
 		playSound(11);
 		animate("det.bin", 17);
 		finishSound();
-		gotoObject(curX - 3, curY + curHeight + 6);
+		walkToPoint(Common::Point(curX - 3, curY + curHeight + 6));
 	} else
 		hasAnswer = 0;
 
@@ -972,7 +972,7 @@ bool DrasculaEngine::room_59(int fl) {
 			delay(40);
 			finishSound();
 			delay(10);
-			gotoObject(174, 168);
+			walkToPoint(Common::Point(174, 168));
 			trackProtagonist = 2;
 			updateRoom();
 			updateScreen();
@@ -980,12 +980,12 @@ bool DrasculaEngine::room_59(int fl) {
 			playSound(12);
 			pause(19);
 			stopSound();
-			characterVisible = 0;
+			_characterVisible = false;
 			updateRoom();
 			copyRect(101, 34, curX - 4, curY - 1, 37, 70, drawSurface3, screenSurface);
 			copyBackground(0, 0, 0, 0, 320, 200, screenSurface, bgSurface);
 			updateScreen();
-			characterVisible = 1;
+			_characterVisible = true;
 			clearRoom();
 			loadPic("tlef0.alg", bgSurface, COMPLETE_PAL);
 			loadPic("tlef1.alg", drawSurface3);
@@ -1153,9 +1153,6 @@ void DrasculaEngine::updateRefresh_pre() {
 			break;
 		}
 	}
-
-	if (currentChapter == 1 && _roomNumber == 16)
-		placeBJ();
 }
 
 void DrasculaEngine::update_1_pre() {
@@ -1309,15 +1306,15 @@ void DrasculaEngine::update_14_pre() {
 }
 
 void DrasculaEngine::update_16_pre() {
-	if (currentChapter != 2) {
-		debug(4, "update_16_pre: Special case, current chapter is not 2, not performing update");
-		return;
+	if (currentChapter == 1) {
+		// Place BJ
+		copyRect(37, 99, 170, 90, 26, 76, drawSurface3, screenSurface);
+	} else if (currentChapter == 2) {
+		if (flags[17] == 0)
+			copyBackground(1, 103, 24, 72, 33, 95, drawSurface3, screenSurface);
+		if (flags[19] == 1)
+			copyBackground(37, 151, 224, 115, 56, 47, drawSurface3, screenSurface);
 	}
-
-	if (flags[17] == 0)
-		copyBackground(1, 103, 24, 72, 33, 95, drawSurface3, screenSurface);
-	if (flags[19] == 1)
-		copyBackground(37, 151, 224, 115, 56, 47, drawSurface3, screenSurface);
 }
 
 void DrasculaEngine::update_18_pre() {
@@ -1399,7 +1396,7 @@ void DrasculaEngine::update_58_pre() {
 }
 
 void DrasculaEngine::update_58() {
-	if (characterVisible == 1)
+	if (_characterVisible)
 		copyRect(67, 139, 140, 147, 12, 16, drawSurface3, screenSurface);
 }
 
@@ -1524,7 +1521,7 @@ void DrasculaEngine::update_102() {
 
 bool DrasculaEngine::checkAction(int fl) {
 	hideCursor();
-	characterMoved = 0;
+	_characterMoved = false;
 	updateRoom();
 	updateScreen();
 
@@ -1678,9 +1675,8 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 	strcpy(currentData, fileName);
 
 	Common::SeekableReadStream *stream = _archives.open(fileName);
-	if (!stream) {
+	if (!stream)
 		error("missing data file %s", fileName);
-	}
 
 	TextResourceParser p(stream, DisposeAfterUse::YES);
 
@@ -1709,32 +1705,38 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 
 	p.parseInt(numRoomObjs);
 
+	int x1, y1, x2, y2;
+
 	for (l = 0; l < numRoomObjs; l++) {
 		p.parseInt(objectNum[l]);
 		p.parseString(objName[l]);
-		p.parseInt(_objectX1[l]);
-		p.parseInt(_objectY1[l]);
-		p.parseInt(_objectX2[l]);
-		p.parseInt(_objectY2[l]);
-		p.parseInt(roomObjX[l]);
-		p.parseInt(roomObjY[l]);
+		p.parseInt(x1);
+		p.parseInt(y1);
+		p.parseInt(x2);
+		p.parseInt(y2);
+		_objectRect[l] = Common::Rect(x1, y1, x2, y2);
+		p.parseInt(x1);
+		p.parseInt(y1);
+		_roomObject[l] = Common::Point(x1, y1);
 		p.parseInt(trackObj[l]);
 		p.parseInt(visible[l]);
 		p.parseInt(isDoor[l]);
 		if (isDoor[l] != 0) {
-			p.parseString(_targetSurface[l]);
-			p.parseInt(_destX[l]);
-			p.parseInt(_destY[l]);
+			p.parseInt(_doorDestRoom[l]);
+			p.parseInt(x1);
+			p.parseInt(y1);
+			_doorDestPoint[l] = Common::Point(x1, y1);
 			p.parseInt(trackCharacter_alkeva[l]);
-			p.parseInt(roomExits[l]);
+			p.parseInt(_roomExitId[l]);
 			updateDoor(l);
 		}
 	}
 
-	p.parseInt(floorX1);
-	p.parseInt(floorY1);
-	p.parseInt(floorX2);
-	p.parseInt(floorY2);
+	p.parseInt(x1);
+	p.parseInt(y1);
+	p.parseInt(x2);
+	p.parseInt(y2);
+	_walkRect = Common::Rect(x1, y1, x2, y2);
 
 	if (currentChapter != 2) {
 		p.parseInt(upperLimit);
@@ -1771,10 +1773,10 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 
 	if (currentChapter == 2) {
 		if (curX == -1) {
-			curX = _destX[objIsExit];
-			curY = _destY[objIsExit] - curHeight;
+			curX = _doorDestPoint[objIsExit].x;
+			curY = _doorDestPoint[objIsExit].y - curHeight;
 		}
-		characterMoved = 0;
+		_characterMoved = false;
 	}
 
 	loadPic(roomDisk, drawSurface3);
@@ -1796,27 +1798,27 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 		color_abc(kColorLightGreen);
 
 	if (currentChapter != 2) {
-		for (l = 0; l <= floorY1; l++)
+		for (l = 0; l <= _walkRect.top; l++)
 			factor_red[l] = upperLimit;
-		for (l = floorY1; l <= 201; l++)
+		for (l = _walkRect.top; l <= 201; l++)
 			factor_red[l] = lowerLimit;
 
-		chiquez = (float)(lowerLimit - upperLimit) / (float)(floorY2 - floorY1);
-		for (l = floorY1; l <= floorY2; l++) {
+		chiquez = (float)(lowerLimit - upperLimit) / (float)(_walkRect.bottom - _walkRect.top);
+		for (l = _walkRect.top; l <= _walkRect.bottom; l++) {
 			factor_red[l] = (int)(upperLimit + pequegnez);
 			pequegnez = pequegnez + chiquez;
 		}
 	}
 
 	if (_roomNumber == 24) {
-		for (l = floorY1 - 1; l > 74; l--) {
+		for (l = _walkRect.top - 1; l > 74; l--) {
 			factor_red[l] = (int)(upperLimit - pequegnez);
 			pequegnez = pequegnez + chiquez;
 		}
 	}
 
 	if (currentChapter == 5 && _roomNumber == 54) {
-		for (l = floorY1 - 1; l > 84; l--) {
+		for (l = _walkRect.top - 1; l > 84; l--) {
 			factor_red[l] = (int)(upperLimit - pequegnez);
 			pequegnez = pequegnez + chiquez;
 		}
@@ -1824,8 +1826,8 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 
 	if (currentChapter != 2) {
 		if (curX == -1) {
-			curX = _destX[objIsExit];
-			curY = _destY[objIsExit];
+			curX = _doorDestPoint[objIsExit].x;
+			curY = _doorDestPoint[objIsExit].y;
 			curHeight = (CHARACTER_HEIGHT * factor_red[curY]) / 100;
 			curWidth = (CHARACTER_WIDTH * factor_red[curY]) / 100;
 			curY = curY - curHeight;
@@ -1833,7 +1835,7 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 			curHeight = (CHARACTER_HEIGHT * factor_red[curY]) / 100;
 			curWidth = (CHARACTER_WIDTH * factor_red[curY]) / 100;
 		}
-		characterMoved = 0;
+		_characterMoved = false;
 	}
 
 	if (currentChapter == 2) {
@@ -1845,7 +1847,7 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 	}
 
 	if (currentChapter == 5)
-		characterVisible = 1;
+		_characterVisible = true;
 
 	updateVisible();
 
@@ -1885,7 +1887,7 @@ void DrasculaEngine::enterRoom(int roomIndex) {
 
 	if (currentChapter == 5) {
 		if (_roomNumber == 45)
-			characterVisible = 0;
+			_characterVisible = false;
 		if (_roomNumber == 49 && flags[7] == 0) {
 			playTalkSequence(4);	// sequence 4, chapter 5
 		}
@@ -1919,15 +1921,15 @@ bool DrasculaEngine::exitRoom(int doorNumber) {
 		((currentChapter != 3 && currentChapter != 5) || visible[doorNumber] == 1)) {
 
 		hideCursor();
-		gotoObject(roomObjX[doorNumber], roomObjY[doorNumber]);
+		walkToPoint(_roomObject[doorNumber]);
 		if (currentChapter != 2) {
 			trackProtagonist = trackObj[doorNumber];
 			updateRoom();
 			updateScreen();
 		}
-		characterMoved = 0;
+		_characterMoved = false;
 		trackProtagonist = trackCharacter_alkeva[doorNumber];
-		objExit = roomExits[doorNumber];
+		objExit = _roomExitId[doorNumber];
 		doBreak = 1;
 		previousMusic = roomMusic;
 
@@ -1939,8 +1941,8 @@ bool DrasculaEngine::exitRoom(int doorNumber) {
 			if (objectNum[doorNumber] == 136)
 				animation_2_2();
 			if (objectNum[doorNumber] == 124) {
-				gotoObject(163, 106);
-				gotoObject(287, 101);
+				walkToPoint(Common::Point(163, 106));
+				walkToPoint(Common::Point(287, 101));
 				trackProtagonist = 0;
 			}
 			if (objectNum[doorNumber] == 173) {
@@ -1957,16 +1959,14 @@ bool DrasculaEngine::exitRoom(int doorNumber) {
 				addObject(kItemEarplugs);
 			}
 		} else if (currentChapter == 4 && objectNum[doorNumber] == 108) {
-			gotoObject(171, 78);
+			walkToPoint(Common::Point(171, 78));
 		}
 
 		if (currentChapter == 5)
-			characterVisible = 1;
+			_characterVisible = true;
 
 		clearRoom();
-		if (!sscanf(_targetSurface[doorNumber], "%d", &roomNum)) {
-			error("Malformed roomNum in targetSurface (%s)", _targetSurface[doorNumber]);
-		}
+		roomNum = _doorDestRoom[doorNumber];
 		curX = -1;
 		enterRoom(roomNum);
 

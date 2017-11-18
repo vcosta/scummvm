@@ -95,7 +95,7 @@ Scripts::Scripts(XeenEngine *vm) : _vm(vm) {
 	_lineNum = 0;
 	_charIndex = 0;
 	_v2 = 0;
-	_nEdamageType = 0;
+	_nEdamageType = DT_PHYSICAL;
 	_animCounter = 0;
 	_eventSkipped = false;
 	_mirrorId = -1;
@@ -105,6 +105,7 @@ Scripts::Scripts(XeenEngine *vm) : _vm(vm) {
 	_var50 = false;
 	_redrawDone = false;
 	_windowIndex = -1;
+	_event = nullptr;
 }
 
 int Scripts::checkEvents() {
@@ -147,7 +148,7 @@ int Scripts::checkEvents() {
 		_currentPos = party._mazePosition;
 		_charIndex = 1;
 		_v2 = 1;
-		_nEdamageType = 0;
+		_nEdamageType = DT_PHYSICAL;
 //		int var40 = -1;
 
 		while (!_vm->shouldQuit() && _lineNum >= 0) {
@@ -1171,7 +1172,7 @@ void Scripts::cmdGiveEnchanted(Common::Array<byte> &params) {
 			cmdNoAction(params);
 			return;
 		} else {
-			party._gameFlags[6 + params[0]] = true;
+			error("Invalid id");
 		}
 	}
 
@@ -1445,9 +1446,9 @@ bool Scripts::ifProc(int action, uint32 mask, int mode, int charIndex) {
 	}
 	case 20:
 		if (_vm->_files->_isDarkCc)
-			mask += 0x100;
-		assert(mask < 0x200);
-		v = party._gameFlags[mask] ? mask : 0xffffffff;
+			mask += 256;
+		assert(mask < 512);
+		v = party._gameFlags[mask / 256][mask % 256] ? mask : 0xffffffff;
 		break;
 	case 21:
 		// Scans inventories for given item number
@@ -1477,13 +1478,7 @@ bool Scripts::ifProc(int action, uint32 mask, int mode, int charIndex) {
 				}
 			}
 		} else {
-			int baseFlag = 8 * (6 + mask);
-			for (int idx = 0; idx < 8; ++idx) {
-				if (party._gameFlags[baseFlag + idx]) {
-					v = mask;
-					break;
-				}
-			}
+			error("Invalid id");
 		}
 		break;
 	case 25:
@@ -1615,8 +1610,7 @@ bool Scripts::ifProc(int action, uint32 mask, int mode, int charIndex) {
 		v = party._food;
 		break;
 	case 69:
-		// Test for Levitate being active
-		v = party._levitateActive ? 1 : 0;
+		v = party._levitateCount;
 		break;
 	case 70:
 		// Amount of light
@@ -1694,8 +1688,8 @@ bool Scripts::ifProc(int action, uint32 mask, int mode, int charIndex) {
 		break;
 	case 104:
 		// Get value of quest flag
-		v = party._quests[mask + (_vm->_files->_isDarkCc ? 30 : 0)] ?
-			mask : 0xffffffff;
+		v = (_vm->_files->_isDarkCc ? party._quests[1][mask - 2] :
+			party._quests[0][mask]) ? mask : 0xffffffff;
 		break;
 	case 105:
 		// Test number of Megacredits in party. Only used by King's Engineer in Castle Burlock
@@ -1711,11 +1705,11 @@ bool Scripts::ifProc(int action, uint32 mask, int mode, int charIndex) {
 
 	switch (mode) {
 	case 0:
-		return mask >= v;
+		return v >= mask;
 	case 1:
-		return mask == v;
+		return v == mask;
 	case 2:
-		return mask <= v;
+		return v <= mask;
 	default:
 		return false;
 	}

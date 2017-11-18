@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: ScummVM 1.9.0git\n"
 "Report-Msgid-Bugs-To: scummvm-devel@lists.scummvm.org\n"
-"POT-Creation-Date: 2017-10-31 11:04+0100\n"
-"PO-Revision-Date: 2017-10-16 05:46+0000\n"
+"POT-Creation-Date: 2017-11-15 00:50+0100\n"
+"PO-Revision-Date: 2017-11-11 15:31+0000\n"
 "Last-Translator: Ben Castricum <github@bencastricum.nl>\n"
 "Language-Team: Dutch <https://translations.scummvm.org/projects/scummvm/"
 "scummvm/nl/>\n"
@@ -898,7 +898,7 @@ msgid "Special dithering modes supported by some games"
 msgstr "Speciale ditheringmodi die door sommige games ondersteund worden"
 
 #: gui/options.cpp:1020 backends/graphics/openglsdl/openglsdl-graphics.cpp:587
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2565
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2572
 msgid "Fullscreen mode"
 msgstr "Volledig-scherm modus"
 
@@ -1788,17 +1788,22 @@ msgstr "Maandelijks"
 msgid "<Bad value>"
 msgstr "<Ongeldige waarde>"
 
-#: engines/advancedDetector.cpp:335
+#: engines/advancedDetector.cpp:330
 #, c-format
 msgid ""
-"The game in '%s' seems to be unknown.\n"
-"Please, report the following data to the ScummVM team along with name\n"
-"of the game you tried to add and its version, language, etc.:"
+"The game in '%s' seems to be an unknown %s engine game variant.\n"
+"\n"
+"Please report the following data to the ScummVM team at %s along with the "
+"name of the game you tried to add and its version, language, etc.:"
 msgstr ""
-"Het spel in '%s' lijkt onbekend te zijn.\n"
-"Rapporteer a.u.b. de volgende gegevens aan het ScummVM team samen\n"
+"Het spel in '%s' lijkt een onbekende spel variant van de %s engine te zijn.\n"
+"Rapporteer a.u.b. de volgende gegevens aan het ScummVM team op %s samen\n"
 "met de naam van het spel die u probeerde toe te voegen en zijn versie, taal, "
 "etc. :"
+
+#: engines/advancedDetector.cpp:338
+msgid "Matched game IDs:"
+msgstr "Matchende game IDs:"
 
 #: engines/dialogs.cpp:85
 msgid "~R~esume"
@@ -1837,7 +1842,7 @@ msgstr "S~t~artmenu"
 #: engines/avalanche/parser.cpp:1900 engines/cge/events.cpp:72
 #: engines/cge2/events.cpp:65 engines/cine/various.cpp:348
 #: engines/cruise/menu.cpp:212 engines/dm/loadsave.cpp:196
-#: engines/drascula/saveload.cpp:384 engines/dreamweb/saveload.cpp:262
+#: engines/drascula/saveload.cpp:383 engines/dreamweb/saveload.cpp:262
 #: engines/gnap/menu.cpp:464 engines/hugo/file.cpp:298
 #: engines/mads/nebular/dialogs_nebular.cpp:350 engines/mohawk/dialogs.cpp:106
 #: engines/neverhood/menumodule.cpp:880 engines/pegasus/pegasus.cpp:379
@@ -1857,7 +1862,7 @@ msgstr "Spel opslaan:"
 #: engines/agi/saveload.cpp:761 engines/avalanche/parser.cpp:1900
 #: engines/cge/events.cpp:72 engines/cge2/events.cpp:65
 #: engines/cine/various.cpp:348 engines/cruise/menu.cpp:212
-#: engines/dm/loadsave.cpp:196 engines/drascula/saveload.cpp:384
+#: engines/dm/loadsave.cpp:196 engines/drascula/saveload.cpp:383
 #: engines/dreamweb/saveload.cpp:262 engines/gnap/menu.cpp:464
 #: engines/hugo/file.cpp:298 engines/mads/nebular/dialogs_nebular.cpp:350
 #: engines/mohawk/dialogs.cpp:106 engines/neverhood/menumodule.cpp:880
@@ -2218,7 +2223,7 @@ msgid "OpenGL"
 msgstr "OpenGL"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:589
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2567
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2574
 msgid "Windowed mode"
 msgstr "Venstermodus"
 
@@ -2228,22 +2233,22 @@ msgid "Resolution: %dx%d"
 msgstr "Resolutie: %dx%d"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:724
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2428
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2435
 msgid "Enabled aspect ratio correction"
 msgstr "Pixelverhoudingcorrectie ingeschakeld"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:726
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2434
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2441
 msgid "Disabled aspect ratio correction"
 msgstr "Pixelverhoudingcorrectie uitgeschakeld"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:746
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2452
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2459
 msgid "Filtering enabled"
 msgstr "Filteren aangezet"
 
 #: backends/graphics/openglsdl/openglsdl-graphics.cpp:748
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2454
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2461
 msgid "Filtering disabled"
 msgstr "Filteren uitgeschakeld"
 
@@ -2258,7 +2263,7 @@ msgctxt "lowres"
 msgid "Normal (no scaling)"
 msgstr "Normaal (niet schalen)"
 
-#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2514
+#: backends/graphics/surfacesdl/surfacesdl-graphics.cpp:2521
 msgid "Active graphics filter:"
 msgstr "Actieve grafische filter:"
 
@@ -2785,7 +2790,7 @@ msgstr ""
 msgid "Check for Updates..."
 msgstr "Controleren op updates..."
 
-#: engines/access/resources.cpp:44 engines/drascula/drascula.cpp:974
+#: engines/access/resources.cpp:44 engines/drascula/drascula.cpp:963
 #: engines/hugo/hugo.cpp:437 engines/lure/lure.cpp:64
 #: engines/mortevielle/mortevielle.cpp:306 engines/sky/compact.cpp:131
 #: engines/teenagent/resources.cpp:97 engines/tony/tony.cpp:198
@@ -2794,7 +2799,7 @@ msgstr "Controleren op updates..."
 msgid "Unable to locate the '%s' engine data file."
 msgstr "Kon de '%s' engine data file niet vinden."
 
-#: engines/access/resources.cpp:52 engines/drascula/drascula.cpp:988
+#: engines/access/resources.cpp:52 engines/drascula/drascula.cpp:977
 #: engines/hugo/hugo.cpp:448 engines/lure/lure.cpp:73
 #: engines/mortevielle/mortevielle.cpp:315 engines/tony/tony.cpp:210
 #: engines/toon/toon.cpp:4930
@@ -2802,7 +2807,7 @@ msgstr "Kon de '%s' engine data file niet vinden."
 msgid "The '%s' engine data file is corrupt."
 msgstr "De '%s' engine data file is corrupt."
 
-#: engines/access/resources.cpp:61 engines/drascula/drascula.cpp:999
+#: engines/access/resources.cpp:61 engines/drascula/drascula.cpp:988
 #: engines/hugo/hugo.cpp:458 engines/lure/lure.cpp:76
 #: engines/mortevielle/mortevielle.cpp:326 engines/tony/tony.cpp:221
 #: engines/toon/toon.cpp:4941
@@ -2894,7 +2899,7 @@ msgstr ""
 #: engines/agi/saveload.cpp:774 engines/avalanche/parser.cpp:1888
 #: engines/cge/events.cpp:83 engines/cge2/events.cpp:76
 #: engines/cine/various.cpp:359 engines/dm/dm.cpp:276
-#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:397
+#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:396
 #: engines/dreamweb/saveload.cpp:170 engines/gnap/menu.cpp:473
 #: engines/hugo/file.cpp:400 engines/mads/nebular/dialogs_nebular.cpp:377
 #: engines/neverhood/menumodule.cpp:893
@@ -2908,7 +2913,7 @@ msgstr "Laad opgeslagen spel:"
 #: engines/agi/saveload.cpp:774 engines/avalanche/parser.cpp:1888
 #: engines/cge/events.cpp:83 engines/cge2/events.cpp:76
 #: engines/cine/various.cpp:359 engines/dm/dm.cpp:276
-#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:397
+#: engines/dm/loadsave.cpp:184 engines/drascula/saveload.cpp:396
 #: engines/dreamweb/saveload.cpp:170 engines/gnap/menu.cpp:473
 #: engines/hugo/file.cpp:400 engines/mads/nebular/dialogs_nebular.cpp:377
 #: engines/neverhood/menumodule.cpp:893

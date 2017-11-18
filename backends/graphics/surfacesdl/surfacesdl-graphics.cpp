@@ -1843,9 +1843,7 @@ void SurfaceSdlGraphicsManager::setMouseCursor(const void *buf, uint w, uint h, 
 		_cursorFormat = Graphics::PixelFormat::createFormatCLUT8();
 	}
 
-	if (_cursorFormat.bytesPerPixel == 4) {
-		assert(keyColor == 0);
-	} else {
+	if (_cursorFormat.bytesPerPixel < 4) {
 		assert(keyColor < 1U << (_cursorFormat.bytesPerPixel * 8));
 	}
 
@@ -1898,7 +1896,9 @@ void SurfaceSdlGraphicsManager::setMouseCursor(const void *buf, uint w, uint h, 
 			error("Allocating _mouseOrigSurface failed");
 		}
 
-		if (_cursorFormat.bytesPerPixel < 4) {
+		if (_cursorFormat.bytesPerPixel == 4) {
+			SDL_SetColorKey(_mouseOrigSurface, SDL_SRCCOLORKEY | SDL_SRCALPHA, _mouseKeyColor);
+		} else {
 			SDL_SetColorKey(_mouseOrigSurface, SDL_RLEACCEL | SDL_SRCCOLORKEY | SDL_SRCALPHA, kMouseColorKey);
 		}
 	}
@@ -1979,13 +1979,15 @@ void SurfaceSdlGraphicsManager::blitCursor() {
 		}
 
 		SDL_PixelFormat *format = _mouseOrigSurface->format;
-		_mouseSurface = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA,
+		_mouseSurface = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCCOLORKEY | SDL_SRCALPHA,
 											 rW, rH,
 											 format->BitsPerPixel,
 											 format->Rmask,
 											 format->Gmask,
 											 format->Bmask,
 											 format->Amask);
+
+		SDL_SetColorKey(_mouseSurface, SDL_SRCCOLORKEY | SDL_SRCALPHA, _mouseKeyColor);
 
 		// At least SDL 2.0.4 on Windows apparently has a broken SDL_BlitScaled
 		// implementation, and SDL 1 has no such API at all, and our other
@@ -2293,6 +2295,11 @@ void SurfaceSdlGraphicsManager::displayMessageOnOSD(const char *msg) {
 	// Init the OSD display parameters, and the fade out
 	_osdMessageAlpha = SDL_ALPHA_TRANSPARENT + kOSDInitialAlpha * (SDL_ALPHA_OPAQUE - SDL_ALPHA_TRANSPARENT) / 100;
 	_osdMessageFadeStartTime = SDL_GetTicks() + kOSDFadeOutDelay;
+	// Enable alpha blending
+	SDL_SetAlpha(_osdMessageSurface, SDL_RLEACCEL | SDL_SRCALPHA, _osdMessageAlpha);
+
+	// Ensure a full redraw takes place next time the screen is updated
+	_forceRedraw = true;
 }
 
 SDL_Rect SurfaceSdlGraphicsManager::getOSDMessageRect() const {
@@ -2361,6 +2368,7 @@ void SurfaceSdlGraphicsManager::removeOSDMessage() {
 	// Remove the previous message
 	if (_osdMessageSurface) {
 		SDL_FreeSurface(_osdMessageSurface);
+		_forceRedraw = true;
 	}
 
 	_osdMessageSurface = NULL;
@@ -2381,8 +2389,7 @@ void SurfaceSdlGraphicsManager::updateOSD() {
 				const int startAlpha = SDL_ALPHA_TRANSPARENT + kOSDInitialAlpha * (SDL_ALPHA_OPAQUE - SDL_ALPHA_TRANSPARENT) / 100;
 				_osdMessageAlpha = startAlpha + diff * (SDL_ALPHA_TRANSPARENT - startAlpha) / kOSDFadeOutDuration;
 			}
-			SDL_SetAlpha(_osdMessageSurface, SDL_RLEACCEL | SDL_SRCCOLORKEY | SDL_SRCALPHA, _osdMessageAlpha);
-			_forceRedraw = true;
+			SDL_SetAlpha(_osdMessageSurface, SDL_RLEACCEL | SDL_SRCALPHA, _osdMessageAlpha);
 		}
 
 		if (_osdMessageAlpha == SDL_ALPHA_TRANSPARENT) {
@@ -2390,8 +2397,8 @@ void SurfaceSdlGraphicsManager::updateOSD() {
 		}
 	}
 
-	if (_osdIconSurface) {
-		// Redraw the area below the icon for the transparent blit to give correct results.
+	if (_osdIconSurface || _osdMessageSurface) {
+		// Redraw the area below the icon and message for the transparent blit to give correct results.
 		_forceRedraw = true;
 	}
 }
@@ -2649,10 +2656,12 @@ void SurfaceSdlGraphicsManager::notifyResize(const int width, const int height) 
 
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 void SurfaceSdlGraphicsManager::deinitializeRenderer() {
-	SDL_DestroyTexture(_screenTexture);
+	if (_screenTexture)
+		SDL_DestroyTexture(_screenTexture);
 	_screenTexture = nullptr;
 
-	SDL_DestroyRenderer(_renderer);
+	if (_renderer)
+		SDL_DestroyRenderer(_renderer);
 	_renderer = nullptr;
 }
 

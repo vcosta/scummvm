@@ -142,7 +142,7 @@ bool MusicDriver::cmdChangeFrequency(const byte *&srcP, byte param) {
 		srcP += 3;
 	}
 
-	return true;
+	return false;
 }
 
 bool MusicDriver::musEndSubroutine(const byte *&srcP, byte param) {
@@ -356,7 +356,7 @@ void AdlibMusicDriver::pausePostProcess() {
 		}
 	}
 
-	for (int channelNum = 8; channelNum != 6 || (channelNum == 7 && _exclude7); --channelNum) {
+	for (int channelNum = 8; channelNum > (_exclude7 ? 7 : 6); --channelNum) {
 		Channel &chan = _channels[channelNum];
 		if (!chan._changeFrequency || (chan._freqCtr += chan._freqCtrChange) >= 0)
 			continue;

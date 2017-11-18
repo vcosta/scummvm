@@ -499,6 +499,7 @@ Character *Town::doTownOptions(Character *c) {
 	case 4:
 		// Temple
 		c = doTempleOptions(c);
+		break;
 	case 5:
 		// Training
 		c = doTrainingOptions(c);
@@ -1193,6 +1194,9 @@ bool TownMessage::execute(int portrait, const Common::String &name, const Common
 		int confirm) {
 	EventsManager &events = *_vm->_events;
 	Interface &intf = *_vm->_interface;
+	Map &map = *_vm->_map;
+	Party &party = *_vm->_party;
+	Resources &res = *_vm->_resources;
 	Screen &screen = *_vm->_screen;
 	Town &town = *_vm->_town;
 	Window &w = screen._windows[11];
@@ -1205,7 +1209,8 @@ bool TownMessage::execute(int portrait, const Common::String &name, const Common
 	if (!confirm)
 		loadButtons();
 
-	if (town._townSprites[0].empty()) {
+	if (town._townSprites.empty()) {
+		town._townSprites.resize(2);
 		town._townSprites[0].load(Common::String::format("face%02d.fac", portrait));
 		town._townSprites[1].load("frame.fac");
 	}
@@ -1215,25 +1220,32 @@ bool TownMessage::execute(int portrait, const Common::String &name, const Common
 
 	int result = -1;
 	Common::String msgText = text;
-	for (;;) {
+	do {
 		Common::String msg = Common::String::format("\r\v014\x03c\t125%s\t000\v054%s",
 			name.c_str(), msgText.c_str());
+
+		// Count the number of words
 		const char *msgEnd = w.writeString(msg.c_str());
 		int wordCount = 0;
 
-		for (const char *msgP = msg.c_str(); msgP < msgEnd; ++msgP) {
+		for (const char *msgP = msg.c_str(); msgP != msgEnd && *msgP; ++msgP) {
 			if (*msgP == ' ')
 				++wordCount;
 		}
 
-		town._drawCtr2 = wordCount * 2;
+		town._drawCtr2 = wordCount * 2;	// Set timeout
 		town._townSprites[1].draw(screen, 0, Common::Point(16, 16));
 		town._townSprites[0].draw(screen, town._drawFrameIndex, Common::Point(23, 22));
 		w.update();
 
-		if (!msgEnd) {
-			// Doesn't look like the code here in original can ever be reached
-			assert(0);
+		if (!msgEnd && !confirm) {
+			res._globalSprites.draw(screen, 7, Common::Point(232, 74));
+			res._globalSprites.draw(screen, 0, Common::Point(235, 75));
+			res._globalSprites.draw(screen, 2, Common::Point(260, 75));
+			screen._windows[34].update();
+
+			intf._face1State = map._headData[party._mazePosition.y][party._mazePosition.x]._left;
+			intf._face2State = map._headData[party._mazePosition.y][party._mazePosition.x]._right;
 		}
 
 		if (confirm == 2) {
@@ -1248,28 +1260,31 @@ bool TownMessage::execute(int portrait, const Common::String &name, const Common
 				clearButtons();
 
 			do {
-				events.wait(3);
+				events.pollEventsAndWait();
 				checkEvents(_vm);
+
 				if (_vm->shouldQuit())
 					return false;
 
-				town.drawTownAnim(false);
-				events.updateGameCounter();
+				while (events.timeElapsed() >= 3) {
+					town.drawTownAnim(false);
+					events.updateGameCounter();
+				}
 			} while (!_buttonValue);
 
 			if (msgEnd)
+				// Another screen of text remaining
 				break;
 
-			if (!msgEnd) {
-				if (confirm || _buttonValue == Common::KEYCODE_ESCAPE ||
-						_buttonValue == Common::KEYCODE_n)
-					result = 0;
-				else if (_buttonValue == Common::KEYCODE_y)
-					result = 1;
-			}
+			if (confirm || _buttonValue == Common::KEYCODE_ESCAPE ||
+					_buttonValue == Common::KEYCODE_n)
+				result = 0;
+			else if (_buttonValue == Common::KEYCODE_y)
+				result = 1;
 		} while (result == -1);
 
 		if (msgEnd) {
+			// Text remaining, so cut off already displayed page's
 			msgText = Common::String(msgEnd);
 			town._drawCtr2 = wordCount;
 			continue;
@@ -1282,6 +1297,7 @@ bool TownMessage::execute(int portrait, const Common::String &name, const Common
 
 	town._townSprites[0].clear();
 	town._townSprites[1].clear();
+	events.clearEvents();
 	return result == 1;
 }
 

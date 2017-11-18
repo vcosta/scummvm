@@ -295,7 +295,7 @@ void Interface::perform() {
 				scripts.openGrate(13, 1);
 				eventsFlag = _buttonValue != 0;
 			}
-
+			break;
 		case 6:
 			// Open grate being closed
 			if (!map._isOutdoors) {
@@ -536,7 +536,7 @@ void Interface::perform() {
 			(int)party._activeParty.size() - 1 : spells._lastCaster];
 		do {
 			int spellId = CastSpell::show(_vm, c);
-			if (spellId == -1 || c == nullptr)
+			if (spellId == -1)
 				break;
 
 			result = spells.castSpell(c, (MagicSpell)spellId);
@@ -672,7 +672,7 @@ void Interface::doStepCode() {
 			party.addTime(170);
 		break;
 	case SURFTYPE_CLOUD:
-		if (!party._levitateActive) {
+		if (!party._levitateCount) {
 			party._damageType = DT_PHYSICAL;
 			_falling = true;
 			damage = 100;
@@ -682,7 +682,7 @@ void Interface::doStepCode() {
 		break;
 	}
 
-	if (_vm->_files->_isDarkCc && party._gameFlags[374]) {
+	if (_vm->_files->_isDarkCc && party._gameFlags[1][118]) {
 		_falling = false;
 	} else {
 		if (_falling)
@@ -716,7 +716,7 @@ void Interface::startFalling(bool flag) {
 	Scripts &scripts = *_vm->_scripts;
 	bool isDarkCc = _vm->_files->_isDarkCc;
 
-	if (isDarkCc && party._gameFlags[374]) {
+	if (isDarkCc && party._gameFlags[1][118]) {
 		_falling = 0;
 		return;
 	}
@@ -1247,6 +1247,7 @@ void Interface::draw3d(bool updateFlag, bool skipDelay) {
 	Screen &screen = *_vm->_screen;
 	Scripts &scripts = *_vm->_scripts;
 
+	events.updateGameCounter();
 	if (screen._windows[11]._enabled)
 		return;
 
@@ -1750,7 +1751,7 @@ void Interface::assembleBorder() {
 
 	// Draw the animating bat character on the left screen edge to indicate
 	// that the party is being levitated
-	_borderSprites.draw(screen._windows[0], _vm->_party->_levitateActive ? _levitateUIFrame + 16 : 16,
+	_borderSprites.draw(screen._windows[0], _vm->_party->_levitateCount ? _levitateUIFrame + 16 : 16,
 		Common::Point(0, 82));
 	_levitateUIFrame = (_levitateUIFrame + 1) % 12;
 
