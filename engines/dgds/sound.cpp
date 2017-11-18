@@ -57,17 +57,13 @@ enum {
 	MIDI_PROP_MASTER_VOLUME = 0
 };
 
-enum SciVersion {
-	SCI_VERSION_0_LATE // KQ4, LSL2, LSL3, SQ3 etc
-};
-
 class MidiPlayer : public MidiDriver_BASE {
 protected:
 	MidiDriver *_driver;
 	int8 _reverb;
 
 public:
-	MidiPlayer(SciVersion version) : _driver(0), _reverb(-1), _version(version) { }
+	MidiPlayer() : _driver(0), _reverb(-1) { }
 
 	int open() {
 //		ResourceManager *resMan = g_sci->getResMan();	// HACK
@@ -107,11 +103,9 @@ public:
 				_driver->send(0xb0 + i, SCI_MIDI_CHANNEL_NOTES_OFF, 0);
 		}
 	}
-
-protected:
-	SciVersion _version;
 };
 
+extern MidiPlayer *MidiPlayer_AmigaMac_create();
 
 
 enum kDebugLevels {
@@ -1071,7 +1065,7 @@ bool MidiDriver_AmigaMac::loadInstrumentsSCI1(Common::SeekableReadStream &file) 
 
 class MidiPlayer_AmigaMac : public MidiPlayer {
 public:
-	MidiPlayer_AmigaMac(SciVersion version) : MidiPlayer(version) { _driver = new MidiDriver_AmigaMac(g_system->getMixer()); }
+	MidiPlayer_AmigaMac() : MidiPlayer() { _driver = new MidiDriver_AmigaMac(g_system->getMixer()); }
 	byte getPlayId() const;
 	int getPolyphony() const { return MidiDriver_AmigaMac::kVoices; }
 	bool hasRhythmChannel() const { return false; }
@@ -1080,14 +1074,11 @@ public:
 	void loadInstrument(int idx, byte *data);
 };
 
-MidiPlayer *MidiPlayer_AmigaMac_create(SciVersion version) {
-	return new MidiPlayer_AmigaMac(version);
+MidiPlayer *MidiPlayer_AmigaMac_create() {
+	return new MidiPlayer_AmigaMac();
 }
 
 byte MidiPlayer_AmigaMac::getPlayId() const {
-	if (_version > SCI_VERSION_0_LATE)
-		return 0x06;
-
 	return 0x40;
 }
 
