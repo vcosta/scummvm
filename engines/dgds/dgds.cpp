@@ -2132,15 +2132,23 @@ bool ADSInterpreter::run(ADSState *script) {
 		}
 
 		switch (code) {
+		case 0x2005: {
+				// play scene.
+				uint16 args[4];
+				for (uint i=0; i<ARRAYSIZE(args); i++) {
+					args[i] = scr->readUint16LE();
+				}
+				script->subIdx = args[0];
+				script->subMax = args[1];
+			}
+			return true;
 		case 0xF010:
 		case 0xF200:
 		case 0xFDA8:
 		case 0xFE98:
 		case 0xFF88:
 		case 0xFF10:
-			continue;
 		case 0xFFFF:
-			continue;
 		case 0x0190:
 		case 0x1070:
 		case 0x1340:
@@ -2161,19 +2169,6 @@ bool ADSInterpreter::run(ADSState *script) {
 		case 0x1510:
 		case 0x1330:
 		case 0x1350:
-			continue;
-
-		case 0x2005: {
-				// play scene.
-				uint16 args[4];
-				for (uint i=0; i<ARRAYSIZE(args); i++) {
-					args[i] = scr->readUint16LE();
-				}
-				script->subIdx = args[0];
-				script->subMax = args[1];
-				debug("  PLAY %s: %u:%u", script->dataPtr->filename, args[0], args[1]);
-			}
-			return true;
 		default:
 			warning("Unimplemented ADS opcode: 0x%04X", code);
 			continue;
