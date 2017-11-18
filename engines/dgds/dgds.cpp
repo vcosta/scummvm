@@ -1961,7 +1961,7 @@ bool TTMInterpreter::run(TTMState *script) {
 			case 0x1310: //?	    i:int   [107]
 
 			default:
-				warning("        unimplemented opcode: 0x%04X", op);
+				warning("Unimplemented .TTM opcode: 0x%04X", op);
 				continue;
 		}
 		break;
@@ -2175,7 +2175,7 @@ bool ADSInterpreter::run(ADSState *script) {
 			}
 			return true;
 		default:
-			warning("    unimplemented opcode: 0x%04X", code);
+			warning("Unimplemented .ADS opcode: 0x%04X", code);
 			continue;
 		}
 		break;
