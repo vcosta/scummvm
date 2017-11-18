@@ -21,8 +21,11 @@
  */
 
 #include "audio/softsynth/emumidi.h"
-#include "sci/sound/drivers/mididriver.h"
-#include "sci/resource.h"
+//#include "sci/sound/drivers/mididriver.h"
+
+#include "common/debug.h"
+#include "common/error.h"
+#include "audio/mididrv.h"
 
 #include "common/debug-channels.h"
 #include "common/file.h"
@@ -33,6 +36,87 @@
 #include "common/util.h"
 
 namespace Sci {
+// Music patches in SCI games:
+// ===========================
+// 1.pat - MT-32 driver music patch
+// 2.pat - Yamaha FB01 driver music patch
+// 3.pat - Adlib driver music patch
+// 4.pat - Casio MT-540 (in earlier SCI0 games)
+// 4.pat - GM driver music patch (in later games that support GM)
+// 7.pat (newer) / patch.200 (older) - Mac driver music patch / Casio CSM-1
+// 9.pat (newer) / patch.005 (older) - Amiga driver music patch
+// 98.pat - Unknown, found in later SCI1.1 games. A MIDI format patch
+// 101.pat - CMS/PCjr driver music patch.
+//           Only later PCjr drivers use this patch, earlier ones don't use a patch
+// bank.001 - older SCI0 Amiga instruments
+#define SCI_MIDI_CHANNEL_NOTES_OFF 0x7B /* all-notes-off for Bn */
+
+
+enum {
+	MIDI_CHANNELS = 16,
+	MIDI_PROP_MASTER_VOLUME = 0
+};
+
+enum SciVersion {
+	SCI_VERSION_0_LATE // KQ4, LSL2, LSL3, SQ3 etc
+};
+
+class MidiPlayer : public MidiDriver_BASE {
+protected:
+	MidiDriver *_driver;
+	int8 _reverb;
+
+public:
+	MidiPlayer(SciVersion version) : _driver(0), _reverb(-1), _version(version) { }
+
+	int open() {
+//		ResourceManager *resMan = g_sci->getResMan();	// HACK
+		return 0;//open(resMan);
+	}
+	virtual void close() { _driver->close(); }
+	virtual void send(uint32 b) { _driver->send(b); }
+	virtual uint32 getBaseTempo() { return _driver->getBaseTempo(); }
+	virtual bool hasRhythmChannel() const = 0;
+	virtual void setTimerCallback(void *timer_param, Common::TimerManager::TimerProc timer_proc) { _driver->setTimerCallback(timer_param, timer_proc); }
+
+	virtual byte getPlayId() const = 0;
+	virtual int getPolyphony() const = 0;
+	virtual int getFirstChannel() const { return 0; }
+	virtual int getLastChannel() const { return 15; }
+
+	virtual void setVolume(byte volume) {
+		if(_driver)
+			_driver->property(MIDI_PROP_MASTER_VOLUME, volume);
+	}
+
+	virtual int getVolume() {
+		return _driver ? _driver->property(MIDI_PROP_MASTER_VOLUME, 0xffff) : 0;
+	}
+
+	virtual void onNewSound() {}
+
+	// Returns the current reverb, or -1 when no reverb is active
+	int8 getReverb() const { return _reverb; }
+	// Sets the current reverb, used mainly in MT-32
+	virtual void setReverb(int8 reverb) { _reverb = reverb; }
+
+	virtual void playSwitch(bool play) {
+		if (!play) {
+			// Send "All Sound Off" on all channels
+			for (int i = 0; i < MIDI_CHANNELS; ++i)
+				_driver->send(0xb0 + i, SCI_MIDI_CHANNEL_NOTES_OFF, 0);
+		}
+	}
+
+protected:
+	SciVersion _version;
+};
+
+
+
+enum kDebugLevels {
+	kDebugLevelSound         = 1 << 7
+};
 
 class MidiDriver_AmigaMac : public MidiDriver_Emulated {
 public:
@@ -585,32 +669,18 @@ int MidiDriver_AmigaMac::open() {
 		}
 		file.close();
 	} else {
-		ResourceManager *resMan = g_sci->getResMan();
-
-		Resource *resource = resMan->findResource(ResourceId(kResourceTypePatch, 7), false); // Mac
-		if (!resource)
-			resource = resMan->findResource(ResourceId(kResourceTypePatch, 9), false);       // Amiga
-
-		if (!resource) {
-			resource = resMan->findResource(ResourceId(kResourceTypePatch, 5), false);       // KQ1/MUMG Amiga
-			if (resource)
-				_isSci1Early = true;
-		}
-
-		// If we have a patch by this point, it's SCI1
-		if (resource)
+	// XXX add patch file.
+		byte *dataPtr=0;
+		uint32 dataSize=0;
+		if (dataPtr) {
 			_isSci1 = true;
-
-		// Check for the SCI0 Mac patch
-		if (!resource)
-			resource = resMan->findResource(ResourceId(kResourceTypePatch, 200), false);
-
-		if (!resource) {
+				//_isSci1Early = true;
+		} else {
 			warning("Could not open patch for Amiga sound driver");
 			return Common::kUnknownError;
 		}
 
-		Common::MemoryReadStream stream(resource->toStream());
+		Common::MemoryReadStream stream(dataPtr, dataSize);
 
 		if (_isSci1) {
 			if (!loadInstrumentsSCI1(stream))
