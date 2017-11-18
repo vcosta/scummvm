@@ -1566,6 +1566,7 @@ struct TTMData {
 
 struct TTMState {
 	const TTMData *dataPtr;
+	uint16 scene;
 	int delay;
 };
 
@@ -1625,17 +1626,18 @@ void TTMInterpreter::unload(TTMData *data) {
 void TTMInterpreter::init(TTMState *state, const TTMData *data) {
 	state->dataPtr = data;
 	state->delay = 0;	
+	state->scene = 0;
 	data->scr->seek(0);
 }
 
-bool TTMInterpreter::run(TTMState *state) {
-	if (!state) return false;
+bool TTMInterpreter::run(TTMState *script) {
+	if (!script) return false;
 
-	Common::SeekableReadStream *scr = state->dataPtr->scr;
+	Common::SeekableReadStream *scr = script->dataPtr->scr;
 	if (!scr) return false;
 	if (scr->pos() >= scr->size()) return false;
 
-	state->delay = 0;
+	script->delay = 0;
 	do {
 		uint16 code;
 		byte count;
@@ -1696,7 +1698,7 @@ bool TTMInterpreter::run(TTMState *state) {
 		switch (op) {
 			case 0x0000:
 				// FINISH:	void
-				goto EXIT;
+				break;
 
 			case 0xf010:
 				// LOAD SCR:	filename:str
@@ -1722,15 +1724,15 @@ bool TTMInterpreter::run(TTMState *state) {
 					}
 				}
 //				resData.copyRectToSurface(scrData, 0, 0, rect);
-				break;
+				continue;
 			case 0xf020:
 				// LOAD BMP:	filename:str
 				Common::strlcpy(bmpNames[id], sval.c_str(), sizeof(bmpNames[id]));
-				break;
+				continue;
 			case 0xf050:
 				// LOAD PAL:	filename:str
 				explode(_vm->_platform, _vm->_rmfName, sval.c_str(), 0);
-				break;
+				continue;
 			case 0xf060:
 				// LOAD SONG:	filename:str
 				if (_vm->_platform == Common::kPlatformAmiga) {
@@ -1742,7 +1744,7 @@ bool TTMInterpreter::run(TTMState *state) {
 				} else {
 //					_vm->playMusic(sval.c_str());
 				}
-				break;
+				continue;
 
 			case 0x1030:
 				// SET BMP:	id:int [-1:n]
@@ -1765,30 +1767,30 @@ bool TTMInterpreter::run(TTMState *state) {
 						}
 					}
 				}
-				break;
+				continue;
 			case 0x1050:
 				// SELECT BMP:	    id:int [0:n]
 				id = ivals[0];
-				break;
+				continue;
 			case 0x1060:
 				// SELECT SCR|PAL:  id:int [0]
 				sid = ivals[0];
-				break;
+				continue;
 			case 0x1090:
 				// SELECT SONG:	    id:int [0]
-				break;
+				continue;
 
 			case 0x4120:
 				// FADE IN:	?,?,?,?:byte
 				g_system->getPaletteManager()->setPalette(palette, 0, 256);
-				break;
+				continue;
 
 			case 0x4110:
 				// FADE OUT:	?,?,?,?:byte
-				g_system->delayMillis(state->delay);
+				g_system->delayMillis(script->delay);
 				g_system->getPaletteManager()->setPalette(blacks, 0, 256);
 				bottomBuffer.fillRect(rect, 0);
-				break;
+				continue;
 
 			// these 3 ops do interaction between the topBuffer (imgData) and the bottomBuffer (scrData) but... it might turn out this uses z values!
 			case 0xa050: {//GFX?	    i,j,k,l:int	[i<k,j<l] // HAPPENS IN INTRO.TTM:INTRO9
@@ -1796,12 +1798,12 @@ bool TTMInterpreter::run(TTMState *state) {
 				resData.blitFrom(bottomBuffer);
 				resData.transBlitFrom(topBuffer);
 				topBuffer.copyFrom(resData);
-				break;
+				continue;
 				}
 			case 0x0020: {//SAVE BG?:    void // OR PERHAPS SWAPBUFFERS ; it makes bmpData persist in the next frames.
 				bottomBuffer.copyFrom(topBuffer);
 				}
-				break;
+				continue;
 			case 0x4200: {
 				// STORE AREA:	x,y,w,h:int [0..n]		; it makes this area of bmpData persist in the next frames.
 				const Common::Rect destRect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
@@ -1809,7 +1811,7 @@ bool TTMInterpreter::run(TTMState *state) {
 				resData.transBlitFrom(topBuffer);
 				bottomBuffer.copyRectToSurface(resData, destRect.left, destRect.top, destRect);
 				}
-				break;
+				continue;
 
 			case 0x0ff0: {
 				// REFRESH:	void
@@ -1832,7 +1834,7 @@ bool TTMInterpreter::run(TTMState *state) {
 				}
 				debug("FLUSH");
 				}
-				goto EXIT;
+				break;
 
 			case 0xa520:
 				//DRAW BMP: x,y:int ; happens once in INTRO.TTM
@@ -1892,13 +1894,15 @@ bool TTMInterpreter::run(TTMState *state) {
 //					bmpData.fillRect(rect, 0);?
 				}
 				}
-				break;
+				continue;
 
 			case 0x1110: {//SET SCENE?:  i:int   [1..n]
 				// DESCRIPTION IN TTM TAGS.
 				debug("SET SCENE: %u", ivals[0]);
+				script->scene = ivals[0];
+
 				if (!_bubbles.empty()) {
-					if (!scumm_stricmp(state->dataPtr->filename, "INTRO.TTM")) {
+					if (!scumm_stricmp(script->dataPtr->filename, "INTRO.TTM")) {
 						switch (ivals[0]) {
 							case 15:	text = _bubbles[3];	break;
 							case 16:	text = _bubbles[4];	break;
@@ -1911,14 +1915,14 @@ bool TTMInterpreter::run(TTMState *state) {
 							case 26:	text = _bubbles[11];	break;
 							default:	text.clear();		break;
 						}
-					} else if (!scumm_stricmp(state->dataPtr->filename, "BIGTV.TTM")) {
+					} else if (!scumm_stricmp(script->dataPtr->filename, "BIGTV.TTM")) {
 						switch (ivals[0]) {
 							case 1:		text = _bubbles[0];	break;
 							case 2:		text = _bubbles[1];	break;
 							case 3:		text = _bubbles[2];	break;
 						}
 					}
-					if (!text.empty()) state->delay += 1500;
+					if (!text.empty()) script->delay += 1500;
 				} else {
 					text.clear();
 				}
@@ -1926,21 +1930,21 @@ bool TTMInterpreter::run(TTMState *state) {
 				scrData.fillRect(rect, 0);
 				bmpData.fillRect(rect, 0);*/
 				}
-				break;
+				continue;
 
 			case 0x4000:
 				//SET WINDOW? x,y,w,h:int	[0..320,0..200]
 				drawWin = Common::Rect(ivals[0], ivals[1], ivals[2], ivals[3]);
-				break;
+				continue;
 
 			case 0xa100:
 				//SET WINDOW? x,y,w,h:int	[0..320,0..200]
 				bmpWin = Common::Rect(ivals[0], ivals[1], ivals[0]+ivals[2], ivals[1]+ivals[3]);
-				break;
+				continue;
 
 			case 0x1020: //DELAY?:	    i:int   [0..n]
-				state->delay += ivals[0]*10;
-				break;
+				script->delay += ivals[0]*10;
+				continue;
 
 			case 0x10a0:
 				// SET SCR|PAL:	    id:int [0]
@@ -1957,9 +1961,10 @@ bool TTMInterpreter::run(TTMState *state) {
 			case 0x1310: //?	    i:int   [107]
 
 			default:
-				debug("        unimplemented opcode: 0x%04X", op);
-				break;
+				warning("        unimplemented opcode: 0x%04X", op);
+				continue;
 		}
+		break;
 	} while (scr->pos() < scr->size());
 
 //	g_system->displayMessageOnOSD(txt.c_str());
@@ -1976,13 +1981,12 @@ bool TTMInterpreter::run(TTMState *state) {
 	font->drawString(dst, txt, 10, 10, w, 2);
 	g_system->unlockScreen();
 #endif
-EXIT:
 	Graphics::Surface *dst;
 	dst = g_system->lockScreen();
 	dst->copyRectToSurface(resData, 0, 0, rect);
 	g_system->unlockScreen();
 	g_system->updateScreen();
-	g_system->delayMillis(state->delay);
+	g_system->delayMillis(script->delay);
 	return true;
 }
 
@@ -2011,6 +2015,7 @@ struct ADSData {
 struct ADSState {
 	const ADSData *dataPtr;
 	uint16 scene;
+	uint16 subIdx, subMax;
 
 	TTMState *scriptStates;
 };
@@ -2088,6 +2093,8 @@ void ADSInterpreter::unload(ADSData *data) {
 void ADSInterpreter::init(ADSState *state, const ADSData *data) {
 	state->dataPtr = data;
 	state->scene = 0;
+	state->subIdx = 0;
+	state->subMax = 0;
 	data->scr->seek(0);
 
 	TTMInterpreter interp(_vm);
@@ -2104,13 +2111,76 @@ void ADSInterpreter::init(ADSState *state, const ADSData *data) {
 bool ADSInterpreter::run(ADSState *script) {
 	TTMInterpreter interp(_vm);
 
-	if (script->scene >= script->dataPtr->count)
-		return false;
-	if (!interp.run(&script->scriptStates[script->scene])) {
-		script->scriptStates[script->scene&1].dataPtr->scr->seek(0);
-		script->scene++;
+	if (script->subMax != 0) {
+		TTMState *state = &script->scriptStates[script->subIdx-1];
+		if (!interp.run(state) || state->scene >= script->subMax)
+			script->subMax = 0;
+		return true;
 	}
-	return true;
+
+	if (!script) return false;
+	Common::SeekableReadStream *scr = script->dataPtr->scr;
+	if (!scr) return false;
+	if (scr->pos() >= scr->size()) return false;
+
+	do {
+		uint16 code;
+		code = scr->readUint16LE();
+
+		if ((code&0xFF00) == 0) {
+			continue;
+		}
+
+		switch (code) {
+		case 0xF010:
+		case 0xF200:
+		case 0xFDA8:
+		case 0xFE98:
+		case 0xFF88:
+		case 0xFF10:
+			continue;
+		case 0xFFFF:
+			continue;
+		case 0x0190:
+		case 0x1070:
+		case 0x1340:
+		case 0x1360:
+		case 0x1370:
+		case 0x1420:
+		case 0x1430:
+		case 0x1500:
+		case 0x1520:
+		case 0x2000:
+		case 0x2010:
+		case 0x2020:
+		case 0x3010:
+		case 0x3020:
+		case 0x30FF:
+		case 0x4000:
+		case 0x4010:
+		case 0x1510:
+		case 0x1330:
+		case 0x1350:
+			continue;
+
+		case 0x2005: {
+				// play scene.
+				uint16 args[4];
+				for (uint i=0; i<ARRAYSIZE(args); i++) {
+					args[i] = scr->readUint16LE();
+				}
+				script->subIdx = args[0];
+				script->subMax = args[1];
+				debug("  PLAY %s: %u:%u", script->dataPtr->filename, args[0], args[1]);
+			}
+			return true;
+		default:
+			warning("    unimplemented opcode: 0x%04X", code);
+			continue;
+		}
+		break;
+	} while (scr->pos() < scr->size());
+	return false;
 }
 
 bool ADSInterpreter::callback(DgdsChunk &chunk) {
@@ -2598,15 +2668,20 @@ Common::Error DgdsEngine::run() {
 	
 	explode(_platform, _rmfName, "S55.SDS", 0);
 
-	ADSInterpreter interp(this);
+	ADSInterpreter interpADS(this);
+	TTMInterpreter interpTTM(this);
 
-	ADSData title1Data, introData;
-	interp.load("TITLE1.ADS", &title1Data);
-	interp.load("INTRO.ADS", &introData);
+	TTMData title1Data, title2Data;
+	ADSData introData;
+	interpTTM.load("TITLE1.TTM", &title1Data);
+	interpTTM.load("TITLE2.TTM", &title2Data);
+	interpADS.load("INTRO.ADS", &introData);
 
-	ADSState title1State, introState;
-	interp.init(&title1State, &title1Data);
-	interp.init(&introState, &introData);
+	TTMState title1State, title2State;
+	ADSState introState;
+	interpTTM.init(&title1State, &title1Data);
+	interpTTM.init(&title2State, &title2Data);
+	interpADS.init(&introState, &introData);
 
 	while (!shouldQuit()) {/*
 		uint w, h;
@@ -2630,8 +2705,9 @@ Common::Error DgdsEngine::run() {
 		}
 
 //		browse(_platform, _rmfName, this);
-		if (!interp.run(&title1State))
-			if (!interp.run(&introState)) return Common::kNoError;
+		if (!interpTTM.run(&title1State))
+			if (!interpTTM.run(&title2State))
+			if (!interpADS.run(&introState)) return Common::kNoError;
 
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
