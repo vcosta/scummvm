@@ -2546,7 +2546,6 @@ void DgdsEngine::playMusic(const char* fileName) {
 		Common::String fname(fileName);
 		Common::replace(fname, ".SNG", ".SX");
 		explode(_platform, _rmfName, fname.c_str(), 0);
-		
 	} else {
 	/*
 		explode(_platform, _rmfName, fileName, 0);

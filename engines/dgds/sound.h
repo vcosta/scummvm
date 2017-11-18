@@ -23,6 +23,7 @@
 #ifndef SCI_SOUND_H
 #define SCI_SOUND_H
 
+
 namespace Dgds {
 // Music patches in SCI games:
 // ===========================
@@ -90,7 +91,7 @@ public:
 	}
 };
 
-	extern MidiPlayer *MidiPlayer_AmigaMac_create();
+extern MidiPlayer *MidiPlayer_AmigaMac_create();
 } // End of namespace Sci
 
 #endif // SCI_SOUND_H
