@@ -53,6 +53,7 @@
 #include "dgds/decompress.h"
 #include "dgds/detection_tables.h"
 #include "dgds/font.h"
+#include "dgds/sound.h"
 
 #include "dgds/dgds.h"
 
@@ -2545,11 +2546,13 @@ void DgdsEngine::playMusic(const char* fileName) {
 		Common::String fname(fileName);
 		Common::replace(fname, ".SNG", ".SX");
 		explode(_platform, _rmfName, fname.c_str(), 0);
+		
 	} else {
+	/*
 		explode(_platform, _rmfName, fileName, 0);
 		if (musicData) {
 			_midiPlayer->play(musicData, musicSize);
-		}
+		}*/
 	}
 }
 #if 0
@@ -2651,9 +2654,16 @@ Common::Error DgdsEngine::run() {
 
 	soundData = 0;
 	musicData = 0;
-
+/*
 	_midiPlayer = new DgdsMidiPlayer();
 	assert(_midiPlayer);
+*/
+	_midiPlayer = Dgds::MidiPlayer_AmigaMac_create();
+	assert(_midiPlayer);
+	if (_midiPlayer && !_midiPlayer->open()) {
+/*		_midiPlayer->setTimerCallback(this, &miditimerCallback)*/;
+	}
+
 
 	memset(palette, 0, 256*3);
 	memset(blacks, 0, 256*3);
@@ -2789,3 +2799,4 @@ Common::Error DgdsEngine::run() {
 }
 
 } // End of namespace Dgds
+
