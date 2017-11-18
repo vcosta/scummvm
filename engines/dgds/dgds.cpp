@@ -1211,6 +1211,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 
 						musicData = (uint8 *)malloc(musicSize);
 						decompress(compression, musicData, musicSize, *stream, stream->size()-stream->pos());
+
 						scount++;
 
 						Common::DumpFile out2;
@@ -1772,7 +1773,7 @@ bool TTMInterpreter::run(TTMState *script) {
 					_vm->stopSfx(channel);
 					_vm->playSfx(fileName, channel, volume);
 				} else {
-//					_vm->playMusic(sval.c_str());
+					_vm->playMusic(sval.c_str());
 				}
 				continue;
 
@@ -2540,9 +2541,15 @@ void DgdsMidiPlayer::stop() {
 void DgdsEngine::playMusic(const char* fileName) {
 	//stopMusic();
 
-	explode(_platform, _rmfName, fileName, 0);
-	if (musicData) {
-		_midiPlayer->play(musicData, musicSize);
+	if (_platform == Common::kPlatformMacintosh) {
+		Common::String fname(fileName);
+		Common::replace(fname, ".SNG", ".SX");
+		explode(_platform, _rmfName, fname.c_str(), 0);
+	} else {
+		explode(_platform, _rmfName, fileName, 0);
+		if (musicData) {
+			_midiPlayer->play(musicData, musicSize);
+		}
 	}
 }
 #if 0
