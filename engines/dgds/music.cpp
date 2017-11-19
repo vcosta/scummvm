@@ -415,8 +415,8 @@ void DgdsMidiPlayer::play(byte *data, uint32 size) {
 	if (parser->loadMusic(data, size)) {
 		parser->setMidiDriver(this);
 		parser->sendInitCommands();
-		parser->setTimerRate(_driver->getBaseTempo());
-		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);/*
+		parser->setTimerRate(_driver->getBaseTempo());/*
+		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);
                 parser->property(MidiParser::mpSendSustainOffOnNotesOff, 1);*/
 		_parser = parser;
 		syncVolume();
