@@ -306,7 +306,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	while (pos[0] != 0xFF) {
 	    byte drv = *pos++;
 
-	    switch(drv) {
+	    switch (drv) {
 		case 0:	    debug("Adlib, Soundblaster");   break;
 		case 7:	    debug("General MIDI");	    break;
 		case 9:	    debug("CMS");		    break;
@@ -338,11 +338,36 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 		uint16 off = read2low(pos) + sci_header;
 		uint16 siz = read2low(pos);
 
-		debug("%06d:%d", off, siz);
+		debugN("  %06d:%d ", off, siz);
 		
-		byte number = data[off];
-		byte voices = data[off+1]&0x0F;
-		debug("#%u: voices: %u", number, voices);
+		bool digital_pcm = false;
+		byte number, voices;
+		if (data[off] == 0xFE && data[off+1] == 0x00) {
+			digital_pcm = true;
+			number = voices = 0;
+		} else {
+			number = data[off];
+			voices = data[off+1]&0x0F;
+		}
+
+		switch (drv) {
+		case 0:	if (digital_pcm)
+				debugN("- Soundblaster");
+			else
+				debugN("- Adlib");
+									break;
+		case 7:		debugN("- General MIDI");		break;
+		case 9:		debugN("- CMS");			break;
+		case 12:	debugN("- MT-32");			break;
+		case 18:	debugN("- PC Speaker");			break;
+		case 19:	debugN("- Tandy 1000");			break;
+		default:	debugN("- Unknown %d", drv);		break;
+		}
+
+		if (digital_pcm)
+			debug(" - PCM");
+		else
+			debug(" - #%u: voices: %u", number, voices);
 
 		trackPtr_[drv][channel] = data + off;
 		trackSiz_[drv][channel] = siz;
@@ -350,9 +375,21 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 		numChannels_[drv] = channel;
 	    }
 
-	    pos++;
-
 	    debug("- Play parts = %d", channel);
+
+	    channel = 0;
+	    while (channel < numChannels_[drv]) {
+		    byte *ptr = trackPtr_[drv][channel];
+		    debug("Header bytes");
+
+		    debug("[%06X]  ", *ptr);
+		    debug("[%02X]  ", *ptr++);
+		    debug("[%02X]  ", *ptr++);
+		    trackPtr_[drv][channel] = ptr;
+		    channel++;
+	    }
+
+	    pos++;
 	}
 	pos++;
 
@@ -363,18 +400,6 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 
 	_ppqn = 1;
 	setTempo(16667);
-
-	byte channel = 0;
-	while (channel < numChannels) {
-		pos = trackPtr[channel];
-		debug("Header bytes");
-
-		debug("[%06X]  ", *pos);
-		debug("[%02X]  ", *pos++);
-		debug("[%02X]  ", *pos++);
-		trackPtr[channel] = pos;
-		channel++;
-	}
 
 	mixChannels();
 
