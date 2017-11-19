@@ -38,6 +38,7 @@
 #include "audio/audiostream.h"
 #include "audio/mixer.h"
 #include "audio/decoders/aiff.h"
+#include "audio/decoders/raw.h"
 
 #include "graphics/palette.h"
 #include "graphics/font.h"
@@ -2261,6 +2262,149 @@ void DgdsEngine::playSfx(const char* fileName, byte channel, byte volume) {
 	}
 }
 
+
+bool DgdsEngine::play(byte *data, uint32 size) {
+	if (!data) return false;
+
+	stopSfx(0);
+
+	byte numChannels_[0xFF];
+	byte **trackPtr_[0xFF];
+	uint16 *trackSiz_[0xFF];
+
+	byte *pos = data;
+
+        uint32 sci_header = 0;
+	if (READ_LE_UINT16(data) == 0x0084) sci_header = 2;
+
+	pos += sci_header;
+	if (pos[0] == 0xF0) {
+	    debug("SysEx transfer = %d bytes", pos[1]);
+	    pos += 2;
+	    pos += 6;
+	}
+
+	bool track_pcm;
+	track_pcm = false;
+
+	while (pos[0] != 0xFF) {
+	    byte drv = *pos++;
+
+	    switch (drv) {
+		case 0:	    debug("Adlib, Soundblaster");   break;
+		case 7:	    debug("General MIDI");	    break;
+		case 9:	    debug("CMS");		    break;
+		case 12:    debug("MT-32");		    break;
+		case 18:    debug("PC Speaker");	    break;
+		case 19:    debug("Tandy 1000, PS/1");	    break;
+		default:    debug("Unknown %d", drv);	    break;
+	    }
+
+	    byte channel;
+
+	    channel = 0;
+	    for (byte *ptr = pos; *ptr != 0xFF; ptr += 6)
+		    channel++;
+
+	    numChannels_[drv] = channel;
+	    trackPtr_[drv] = new byte*[channel];
+	    trackSiz_[drv] = new uint16[channel];
+
+	    channel = 0;
+	    while (pos[0] != 0xFF) {
+		pos++;
+
+		if (pos[0] != 0) {
+		    debug("%06ld: unknown track arg1 = %d", pos-data, pos[0]);
+		}
+		pos++;
+
+		uint16 off = READ_LE_UINT16(pos) + sci_header;
+		pos += 2;
+		uint16 siz = READ_LE_UINT16(pos);
+		pos += 2;
+
+		debugN("  %06d:%d ", off, siz);
+		
+		debug("Header bytes");
+		debug("[%06X]  ", data[off]);
+		debug("[%02X]  ", data[off+0]);
+		debug("[%02X]  ", data[off+1]);
+
+		bool digital_pcm = false;
+		if (READ_LE_UINT16(&data[off]) == 0x00FE) {
+			digital_pcm = true;
+		}
+
+		switch (drv) {
+		case 0:	if (digital_pcm) {
+				debugN("- Soundblaster");
+				track_pcm = true;
+			} else {
+				debugN("- Adlib");
+			}						break;
+		case 7:		debugN("- General MIDI");		break;
+		case 9:		debugN("- CMS");			break;
+		case 12:	debugN("- MT-32");			break;
+		case 18:	debugN("- PC Speaker");			break;
+		case 19:	debugN("- Tandy 1000");			break;
+		default:	debugN("- Unknown %d", drv);		break;
+		}
+
+		if (digital_pcm) {
+			off += 2;
+			uint16 rate, length, first, last;
+			rate = READ_LE_UINT16(&data[off]);
+
+			length = READ_LE_UINT16(&data[off+2]);
+			first = READ_LE_UINT16(&data[off+4]);
+			last = READ_LE_UINT16(&data[off+6]);
+			off += 8;
+
+			off += first;
+			siz = length;
+			debug(" - Digital PCM: %u Hz, [%u]=%u:%u",
+				rate, length, first, last);
+		} else {
+			byte number, voices;
+			number = data[off];
+			voices = data[off+1]&0x0F;
+			off += 2;
+			siz -= 2;
+			debug(" - #%u: voices: %u", number, voices);
+		}
+
+		trackPtr_[drv][channel] = data + off;
+		trackSiz_[drv][channel] = siz;
+		channel++;
+		numChannels_[drv] = channel;
+	    }
+
+	    debug("- Play parts = %d", channel);
+
+	    pos++;
+	}
+	pos++;
+
+	if (!track_pcm) {
+		return false;
+	}
+
+	// select Soundblaster. (remember to free this memory!)
+	byte volume = 255;
+	byte channel = 0;
+	Channel *ch = &_channels[channel];
+
+	int rate;
+	rate = 11200;
+
+	Audio::AudioStream *input =
+		Audio::makeRawStream(trackPtr_[0][0], trackSiz_[0][0],
+		rate, Audio::FLAG_UNSIGNED, DisposeAfterUse::NO);
+	_mixer->playStream(Audio::Mixer::kSFXSoundType, &ch->handle, input, -1, volume);
+	return true;
+}
+
 void DgdsEngine::stopSfx(byte channel) {
 	if (_mixer->isSoundHandleActive(_channels[channel].handle)) {
 	    _mixer->stopHandle(_channels[channel].handle);
@@ -2282,6 +2426,7 @@ void DgdsEngine::playMusic(const char* fileName) {
 		explode(_platform, _rmfName, fileName, 0);
 		if (musicData) {
 			_midiPlayer->play(musicData, musicSize);
+			play(musicData, musicSize);
 		}
 	}
 }

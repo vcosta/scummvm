@@ -407,7 +407,6 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 
 	mixChannels();
 
-//	free(data);
 	_init = _tracks[0];
 	_numTracks = 1;
 

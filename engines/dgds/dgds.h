@@ -59,6 +59,8 @@ public:
         void playSfx(const char* fileName, byte channel, byte volume);
         void stopSfx(byte channel);
 
+	bool play(byte *data, uint32 size);
+
 	void playMusic(const char* fileName);
 
         Common::SeekableReadStream *createReadStream(const char *fileName);
