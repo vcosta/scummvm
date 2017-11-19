@@ -2429,13 +2429,10 @@ Common::Error DgdsEngine::run() {
 	Common::Event ev;
 
 //	browseInit(_platform, _rmfName, this);
-	explode(_platform, _rmfName, "DRAGON.FNT", 0);
-	
-	explode(_platform, _rmfName, "S55.SDS", 0);
-
 	ADSInterpreter interpADS(this);
 	TTMInterpreter interpTTM(this);
 
+#if 1
 	TTMData title1Data, title2Data;
 	ADSData introData;
 	interpTTM.load("TITLE1.TTM", &title1Data);
@@ -2447,6 +2444,17 @@ Common::Error DgdsEngine::run() {
 	interpTTM.init(&title1State, &title1Data);
 	interpTTM.init(&title2State, &title2Data);
 	interpADS.init(&introState, &introData);
+
+	explode(_platform, _rmfName, "DRAGON.FNT", 0);
+	explode(_platform, _rmfName, "S55.SDS", 0);
+#else
+	ADSData introData;
+	interpADS.load("TITLE.ADS", &introData);
+	ADSState introState;
+	interpADS.init(&introState, &introData);
+
+	explode(_platform, _rmfName, "CHINA.FNT", 0);
+#endif
 
 	while (!shouldQuit()) {/*
 		uint w, h;
@@ -2470,9 +2478,14 @@ Common::Error DgdsEngine::run() {
 		}
 
 //		browse(_platform, _rmfName, this);
+
+#if 1
 		if (!interpTTM.run(&title1State))
 			if (!interpTTM.run(&title2State))
 			if (!interpADS.run(&introState)) return Common::kNoError;
+#else
+		if (!interpADS.run(&introState)) return Common::kNoError;
+#endif
 
 //		explode(_platform, _rmfName, "4X5.FNT", 0);
 //		explode(_platform, _rmfName, "P6X6.FNT", 0);
