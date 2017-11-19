@@ -313,7 +313,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 		case 12:    debug("MT-32");		    break;
 		case 18:    debug("PC Speaker");	    break;
 		case 19:    debug("Tandy 1000, PS/1");	    break;
-		default:    debug("Unknown (%u)", drv);    break;
+		default:    debug("Unknown %d", drv);	    break;
 	    }
 
 	    byte channel;
