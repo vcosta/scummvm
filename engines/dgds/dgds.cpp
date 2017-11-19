@@ -707,13 +707,12 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 			/*
 			 debug(">> %u:%u", stream->pos(), file->pos());*/
 
-			Common::DumpFile out;
-
-			if (stream) {
+			if (resource == -1) {
 				uint siz = stream->size();
 				byte *dest = new byte[siz];
 				Common::String cname = Common::String::format("%s:%s", name, chunk.id);
 
+				Common::DumpFile out;
 				if (!out.open(cname)) {
 					debug("Couldn't write to %s", cname.c_str());
 				} else {
@@ -1156,14 +1155,14 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						stream->read(musicData, musicSize);
 						scount++;
 
-						Common::DumpFile out2;
-						if (musicSize) {
+						if (resource == -1) {
 							Common::String cname = Common::String::format("%s:%u%s", name, scount, ".SND");
-							if (!out2.open(cname)) {
+							Common::DumpFile out;
+							if (!out.open(cname)) {
 								debug("Couldn't write to %s", cname.c_str());
 							} else {
-								out2.write(musicData, musicSize);
-								out2.close();
+								out.write(musicData, musicSize);
+								out.close();
 							}
 						}
 					} else if (chunk.isSection(ID_INF)) {
@@ -1213,14 +1212,14 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 
 						scount++;
 
-						Common::DumpFile out2;
-						if (musicSize) {
+						if (resource == -1) {
 							Common::String cname = Common::String::format("%s:%u%s", name, scount, ".SND");
-							if (!out2.open(cname)) {
+							Common::DumpFile out;
+							if (!out.open(cname)) {
 								debug("Couldn't write to %s", cname.c_str());
 							} else {
-								out2.write(musicData, musicSize);
-								out2.close();
+								out.write(musicData, musicSize);
+								out.close();
 							}
 						}
 
@@ -1423,7 +1422,6 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 }
 
 static void explode(Common::Platform platform, const char *indexName, const char *fileName, int resource) {
-/*
 	if (fileName) {
 		Common::File file;
 		if (file.open(fileName)) {
@@ -1432,7 +1430,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			return;
 		}	
 	}
-*/
+
 	Common::File index, volume;
 	Common::SeekableSubReadStream *file;
 	if (index.open(indexName)) {
@@ -1489,12 +1487,9 @@ static void explode(Common::Platform platform, const char *indexName, const char
 
 				file = new Common::SeekableSubReadStream(&volume, volume.pos(), volume.pos()+fileSize, DisposeAfterUse::NO);
 
-				if (!fileName) {
+				if (resource == -1) {
+					char *buf = new char[fileSize];
 					Common::DumpFile out;
-					char *buf;
-
-					buf = new char[fileSize];
-
 					if (!out.open(name)) {
 						debug("Couldn't write to %s", name);
 					} else {
