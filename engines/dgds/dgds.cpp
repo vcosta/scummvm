@@ -1423,15 +1423,18 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 }
 
 static void explode(Common::Platform platform, const char *indexName, const char *fileName, int resource) {
-	Common::File index, volume;
-	Common::SeekableSubReadStream *file;
 /*
-	if (fileName && volume.open(fileName)) {
-		parseFile(platform, volume, fileName, resource);
-		volume.close();
-		return;
+	if (fileName) {
+		Common::File file;
+		if (file.open(fileName)) {
+			parseFile(platform, file, fileName, resource);
+			file.close();
+			return;
+		}	
 	}
 */
+	Common::File index, volume;
+	Common::SeekableSubReadStream *file;
 	if (index.open(indexName)) {
 		byte salt[4];
 		uint16 nvolumes;
