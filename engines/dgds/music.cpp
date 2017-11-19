@@ -166,19 +166,19 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 }
 
 
-byte MidiParser_DGDS::midiGetNextChannel(uint16 *_trackPos, uint32 *_trackTimer, long ticker) {
+byte MidiParser_DGDS::midiGetNextChannel(uint16 *trackPos, uint32 *trackTimer, long ticker) {
 	byte curr = 0xFF;
-	long closest = ticker + 1000000, next = 0;
+	uint32 closest = ticker + 1000000, next = 0;
 
-	for (int i = 0; i < numChannels; i++) {
-		if (_trackTimer[i] ==  0xFFFFFFFF) // channel ended
+	for (byte i = 0; i < numChannels; i++) {
+		if (trackTimer[i] ==  0xFFFFFFFF) // channel ended
 			continue;
-		if (_trackPos[i] >= trackSiz[i])
+		if (trackPos[i] >= trackSiz[i])
 			continue;
-		next = trackPtr[i][_trackPos[i]]; // when the next event should occur
+		next = trackPtr[i][trackPos[i]]; // when the next event should occur
 		if (next == 0xF8) // 0xF8 means 240 ticks delay
 			next = 240;
-		next += _trackTimer[i];
+		next += trackTimer[i];
 		if (next < closest) {
 			curr = i;
 			closest = next;
@@ -188,8 +188,8 @@ byte MidiParser_DGDS::midiGetNextChannel(uint16 *_trackPos, uint32 *_trackTimer,
 	return curr;
 }
 
-inline bool MidiParser_DGDS::validateNextRead(uint i, uint16 *_trackPos) {
-	if (trackSiz[i] <= _trackPos[i]) {
+inline bool MidiParser_DGDS::validateNextRead(uint i, uint16 *trackPos) {
+	if (trackSiz[i] <= trackPos[i]) {
 		warning("Unexpected end. Music may sound wrong due to game resource corruption");
 		return false;
 	} else {
@@ -197,72 +197,72 @@ inline bool MidiParser_DGDS::validateNextRead(uint i, uint16 *_trackPos) {
 	}
 }
 
-static const byte nMidiParams[] = { 2, 2, 2, 2, 1, 1, 2, 0 };
+static const byte commandLengths[] = { 2, 2, 2, 2, 1, 1, 2, 0 };
 
 void MidiParser_DGDS::mixChannels() {
 	int totalSize = 0;
 
-	uint16 _trackPos[128];
-	uint32 _trackTimer[128];
+	uint16 trackPos[128];
+	uint32 trackTimer[128];
 	byte _prev[128];
-	for (int i = 0; i < numChannels; i++) {
-		_trackTimer[i] = 0;
+	for (byte i = 0; i < numChannels; i++) {
+		trackTimer[i] = 0;
 		_prev[i] = 0;
-		_trackPos[i] = 0;
+		trackPos[i] = 0;
 		totalSize += trackSiz[i];
 	}
 
-	byte *outData = (byte*)malloc(totalSize * 2);
-	_tracks[0] = outData;
+	byte *output = (byte*)malloc(totalSize * 2);
+	_tracks[0] = output;
 
 	uint32 ticker = 0;
-	byte channelNr, curDelta;
+	byte channel, curDelta;
 	byte midiCommand = 0, midiParam, globalPrev = 0;
 	uint32 newDelta;
 
-	while ((channelNr = midiGetNextChannel(_trackPos, _trackTimer, ticker)) != 0xFF) { // there is still an active channel
-		if (!validateNextRead(channelNr, _trackPos))
+	while ((channel = midiGetNextChannel(trackPos, trackTimer, ticker)) != 0xFF) { // there is still an active channel
+		if (!validateNextRead(channel, trackPos))
 			goto end;
-		curDelta = trackPtr[channelNr][_trackPos[channelNr]++];
-		_trackTimer[channelNr] += (curDelta == 0xF8 ? 240 : curDelta); // when the command is supposed to occur
+		curDelta = trackPtr[channel][trackPos[channel]++];
+		trackTimer[channel] += (curDelta == 0xF8 ? 240 : curDelta); // when the command is supposed to occur
 		if (curDelta == 0xF8)
 			continue;
-		newDelta = _trackTimer[channelNr] - ticker;
+		newDelta = trackTimer[channel] - ticker;
 		ticker += newDelta;
 
-		if (!validateNextRead(channelNr, _trackPos))
+		if (!validateNextRead(channel, trackPos))
 			goto end;
-		midiCommand = trackPtr[channelNr][_trackPos[channelNr]++];
+		midiCommand = trackPtr[channel][trackPos[channel]++];
 		if (midiCommand != 0xFC) {
 			// Write delta
 			while (newDelta > 240) {
-				*outData++ = 0xF8;
+				*output++ = 0xF8;
 				newDelta -= 240;
 			}
-			*outData++ = (byte)newDelta;
+			*output++ = (byte)newDelta;
 		}
 		// Write command
 		switch (midiCommand) {
 		case 0xF0: // sysEx
-			*outData++ = midiCommand;
+			*output++ = midiCommand;
 			do {
-				if (!validateNextRead(channelNr, _trackPos))
+				if (!validateNextRead(channel, trackPos))
 					goto end;
-				midiParam = trackPtr[channelNr][_trackPos[channelNr]++];
-				*outData++ = midiParam;
+				midiParam = trackPtr[channel][trackPos[channel]++];
+				*output++ = midiParam;
 			} while (midiParam != 0xF7);
 			break;
 		case 0xFC: // end of channel
-			_trackTimer[channelNr] = 0xFFFFFFFF;
+			trackTimer[channel] = 0xFFFFFFFF;
 			break;
 		default: // MIDI command
 			if (midiCommand & 0x80) {
-				if (!validateNextRead(channelNr, _trackPos))
+				if (!validateNextRead(channel, trackPos))
 					goto end;
-				midiParam = trackPtr[channelNr][_trackPos[channelNr]++];
+				midiParam = trackPtr[channel][trackPos[channel]++];
 			} else {// running status
 				midiParam = midiCommand;
-				midiCommand = _prev[channelNr];
+				midiCommand = _prev[channel];
 			}
 
 			// remember which channel got used for channel remapping
@@ -270,21 +270,21 @@ void MidiParser_DGDS::mixChannels() {
 			//_channelUsed[midiChannel] = true;
 
 			if (midiCommand != globalPrev)
-				*outData++ = midiCommand;
-			*outData++ = midiParam;
-			if (nMidiParams[(midiCommand >> 4) - 8] == 2) {
-				if (!validateNextRead(channelNr, _trackPos))
+				*output++ = midiCommand;
+			*output++ = midiParam;
+			if (commandLengths[(midiCommand >> 4) - 8] == 2) {
+				if (!validateNextRead(channel, trackPos))
 					goto end;
-				*outData++ = trackPtr[channelNr][_trackPos[channelNr]++];
+				*output++ = trackPtr[channel][trackPos[channel]++];
 			}
-			_prev[channelNr] = midiCommand;
+			_prev[channel] = midiCommand;
 			globalPrev = midiCommand;
 			break;
 		}
 	}
 
 end:
-	_last = outData;
+	_last = output;
 }
 
 
@@ -356,6 +356,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	}
 	pos++;
 
+	// select MT-32. (remember to free this memory later)
 	numChannels = numChannels_[12];
 	trackPtr = trackPtr_[12];
 	trackSiz = trackSiz_[12];
