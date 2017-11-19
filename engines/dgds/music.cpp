@@ -202,9 +202,9 @@ static const byte commandLengths[] = { 2, 2, 2, 2, 1, 1, 2, 0 };
 void MidiParser_DGDS::mixChannels() {
 	int totalSize = 0;
 
-	uint16 trackPos[128];
-	uint32 trackTimer[128];
-	byte _prev[128];
+	uint16 trackPos[0xFF];
+	uint32 trackTimer[0xFF];
+	byte _prev[0xFF];
 	for (byte i = 0; i < numChannels; i++) {
 		trackTimer[i] = 0;
 		_prev[i] = 0;
@@ -294,7 +294,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	byte *pos = data;
 
         uint32 sci_header = 0;
-	if (data[0] == 0x84 && data[1] == 0x00) sci_header = 2;
+	if (READ_LE_UINT16(data) == 0x0084) sci_header = 2;
 
 	pos += sci_header;
 	if (pos[0] == 0xF0) {
@@ -341,13 +341,8 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 		debugN("  %06d:%d ", off, siz);
 		
 		bool digital_pcm = false;
-		byte number, voices;
-		if (data[off] == 0xFE && data[off+1] == 0x00) {
+		if (READ_LE_UINT16(&data[off]) == 0x00FE) {
 			digital_pcm = true;
-			number = voices = 0;
-		} else {
-			number = data[off];
-			voices = data[off+1]&0x0F;
 		}
 
 		switch (drv) {
@@ -364,10 +359,16 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 		default:	debugN("- Unknown %d", drv);		break;
 		}
 
-		if (digital_pcm)
-			debug(" - PCM");
-		else
+		if (digital_pcm) {
+			uint16 freq;
+			freq = READ_LE_UINT16(&data[off+2]);
+			debug(" - Digital PCM: %u Hz", freq);
+		} else {
+			byte number, voices;
+			number = data[off];
+			voices = data[off+1]&0x0F;
 			debug(" - #%u: voices: %u", number, voices);
+		}
 
 		trackPtr_[drv][channel] = data + off;
 		trackSiz_[drv][channel] = siz;
