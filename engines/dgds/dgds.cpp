@@ -2285,8 +2285,17 @@ public:
 class MidiParser_DGDS : public MidiParser {
 protected:
 	byte *_init;
-	byte *_last;
-
+	byte *_last[128];
+	byte *_number;
+	byte *_voices;
+	byte _channels;
+	
+	uint16 _curPos[128];
+	long _time[128];
+	byte _prev[128];
+	uint16 _size[128];
+	
+	/*time, prev, curPos*/
 protected:
 	void parseNextEvent(EventInfo &info);
 
@@ -2294,10 +2303,28 @@ public:
 	MidiParser_DGDS();
 	~MidiParser_DGDS();
 
+	void sendInitCommands();
+	
 	bool loadMusic(byte *data, uint32 size);
+
+	bool validateNextRead(uint i);
+	byte midiGetNextChannel(long ticker);
+	void midiMixChannels();
 };
 
-MidiParser_DGDS::MidiParser_DGDS() : _init(0), _last(0) {
+MidiParser_DGDS::MidiParser_DGDS() : _init(0) {
+	memset(_last, 0, sizeof(_last));
+
+	memset(_curPos, 0, sizeof(_curPos));
+	memset(_time, 0, sizeof(_time));
+	memset(_prev, 0, sizeof(_prev));
+	memset(_size, 0, sizeof(_size));
+}
+
+void MidiParser_DGDS::sendInitCommands() {
+	/*for (int i = 0; i < _channels; ++i) {
+	}*/
+	sendToDriver(0xB0 | _number[_activeTrack], 0x4B, _voices[_activeTrack]);
 }
 
 MidiParser_DGDS::~MidiParser_DGDS() {
@@ -2305,7 +2332,7 @@ MidiParser_DGDS::~MidiParser_DGDS() {
 }
 
 void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
-	if (_position._playPos >= _last) {
+	if (_position._playPos >= _last[_activeTrack]) {
 		// fake an end-of-track meta event
 		info.delta = 0;
 		info.event = 0xFF;
@@ -2332,28 +2359,28 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 
 	_position._runningStatus = info.event;
 	switch (info.command()) {
+	case 0x9: 
+		info.basic.param1 = *_position._playPos++;
+		info.basic.param2 = *_position._playPos++;
+		if (info.basic.param2 == 0) {
+			// NoteOn with param2==0 is a NoteOff
+			info.event = info.channel() | 0x80;
+		}
+		info.length = 0;
+		break;
+
 	case 0xC:
 	case 0xD:
 		info.basic.param1 = *_position._playPos++;
 		info.basic.param2 = 0;
 		break;
 
-	case 0xB:
-		info.basic.param1 = *_position._playPos++;
-		info.basic.param2 = *_position._playPos++;
-		info.length = 0;
-		break;
-
 	case 0x8:
-	case 0x9: 
 	case 0xA:
+	case 0xB:
 	case 0xE:
 		info.basic.param1 = *_position._playPos++;
 		info.basic.param2 = *_position._playPos++;
-		if (info.command() == 0x9 && info.basic.param2 == 0) {
-			// NoteOn with param2==0 is a NoteOff
-			info.event = info.channel() | 0x80;
-		}
 		info.length = 0;
 		break;
 
@@ -2397,14 +2424,135 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 	}
 }
 
-bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
+
+byte MidiParser_DGDS::midiGetNextChannel(long ticker) {
+	byte curr = 0xFF;
+	long closest = ticker + 1000000, next = 0;
+
+	for (int i = 0; i < _channels; i++) {
+		if (_time[i] == -1) // channel ended
+			continue;
+		if (_curPos[i] >= _size[i])
+			continue;
+		next = _tracks[i][_curPos[i]]; // when the next event should occur
+		if (next == 0xF8) // 0xF8 means 240 ticks delay
+			next = 240;
+		next += _time[i];
+		if (next < closest) {
+			curr = i;
+			closest = next;
+		}
+	}
+
+	return curr;
+}
+
+inline bool MidiParser_DGDS::validateNextRead(uint i) {
+	if (_size[i] <= _curPos[i]) {
+		warning("Unexpected end. Music may sound wrong due to game resource corruption");
+		return false;
+	}
+	return true;
+}
+
+static const int nMidiParams[] = { 2, 2, 2, 2, 1, 1, 2, 0 };
+
+void MidiParser_DGDS::midiMixChannels() {
+	int totalSize = 0;
+
+	for (int i = 0; i < _channels; i++) {
+		_time[i] = 0;
+		_prev[i] = 0;
+		_curPos[i] = 0;
+		totalSize += _size[i];
+	}
+
+	byte *outData = (byte*)malloc(totalSize * 2);
+	_init = outData;
+
+	long ticker = 0;
+	byte channelNr, curDelta;
+	byte midiCommand = 0, midiParam, globalPrev = 0;
+	long newDelta;
+
+	while ((channelNr = midiGetNextChannel(ticker)) != 0xFF) { // there is still an active channel
+		if (!validateNextRead(channelNr))
+			goto end;
+		curDelta = _tracks[channelNr][_curPos[channelNr]++];
+		_time[channelNr] += (curDelta == 0xF8 ? 240 : curDelta); // when the command is supposed to occur
+		if (curDelta == 0xF8)
+			continue;
+		newDelta = _time[channelNr] - ticker;
+		ticker += newDelta;
+
+		if (!validateNextRead(channelNr))
+			goto end;
+		midiCommand = _tracks[channelNr][_curPos[channelNr]++];
+		if (midiCommand != 0xFC) {
+			// Write delta
+			while (newDelta > 240) {
+				*outData++ = 0xF8;
+				newDelta -= 240;
+			}
+			*outData++ = (byte)newDelta;
+		}
+		// Write command
+		switch (midiCommand) {
+		case 0xF0: // sysEx
+			*outData++ = midiCommand;
+			do {
+				if (!validateNextRead(channelNr))
+					goto end;
+				midiParam = _tracks[channelNr][_curPos[channelNr]++];
+				*outData++ = midiParam;
+			} while (midiParam != 0xF7);
+			break;
+		case 0xFC: // end of channel
+			_time[channelNr] = -1;
+			break;
+		default: // MIDI command
+			if (midiCommand & 0x80) {
+				if (!validateNextRead(channelNr))
+					goto end;
+				midiParam = _tracks[channelNr][_curPos[channelNr]++];
+			} else {// running status
+				midiParam = midiCommand;
+				midiCommand = _prev[channelNr];
+			}
+
+			// remember which channel got used for channel remapping
+			byte midiChannel = midiCommand & 0xF;
+			//_channelUsed[midiChannel] = true;
+
+			if (midiCommand != globalPrev)
+				*outData++ = midiCommand;
+			*outData++ = midiParam;
+			if (nMidiParams[(midiCommand >> 4) - 8] == 2) {
+				if (!validateNextRead(channelNr))
+					goto end;
+				*outData++ = _tracks[channelNr][_curPos[channelNr]++];
+			}
+			_prev[channelNr] = midiCommand;
+			globalPrev = midiCommand;
+		}
+	}
+
+end:
+	// Insert stop event
+	*outData++ = 0;    // Delta
+	*outData++ = 0xFF; // Meta event
+	*outData++ = 0x2F; // End of track (EOT)
+	*outData++ = 0x00;
+	*outData++ = 0x00;
+}
+
+
+bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	unloadMusic();
 
 	_init = data;
-	_last = _init+size;
 
-	uint32 len;
-	uint32 totalSize;
+	uint32 total;
 
 	byte *pos = data;
 
@@ -2420,20 +2568,22 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 
 	_numTracks = 0;
 	while (pos[0] != 0xFF) {
-	    int idx = *pos++;
+	    int type = *pos++;
 
-	    switch(idx) {
+	    switch(type) {
 		case 0:	    debug("Adlib, Soundblaster");   break;
 		case 7:	    debug("General MIDI");	    break;
 		case 9:	    debug("CMS");		    break;
 		case 12:    debug("MT-32");		    break;
 		case 18:    debug("PC Speaker");	    break;
 		case 19:    debug("Tandy 1000, PS/1");	    break;
-		default:    debug("Unknown: %u", idx);	    break;
+		default:    debug("Unknown: %u", type);    break;
 	    }
 
-	    int tracksRead = 0;
-	    totalSize = 0;
+	    int channels = 0;
+	    total = 0;
+	    _number = new byte[16];
+	    _voices = new byte[16];
 	    while (pos[0] != 0xFF) {
 		pos++;
 
@@ -2442,47 +2592,62 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 		}
 		pos++;
 
-		int off = read2low(pos) + sci_header;
-		len = read2low(pos);
-		totalSize += len;
+		uint16 off = read2low(pos) + sci_header;
+		uint16 siz = read2low(pos);
+		total += siz;
 
-		debug("%06d:%d", off, len);
+		debug("%06d:%d", off, siz);
+		
+		byte number = data[off];
+		byte voices = data[off+1]&0x0F;
+		debug("#%02u: voices: %u", number, voices);
 
-		_tracks[_numTracks++] = data+off;
+		if (type == 12 && number != 9) {
+			_number[_numTracks] = number;
+			_voices[_numTracks] = voices;
 
-		if (_numTracks > ARRAYSIZE(_tracks)) {
-		    warning("Can only handle %d tracks but was handed %d", (int)ARRAYSIZE(_tracks), _numTracks);
-		    return false;
+			_tracks[_numTracks] = data + off;
+			_last[_numTracks] = _tracks[_numTracks] + siz;
+			_size[_numTracks] = siz;
+			_numTracks++;
+
+			if (_numTracks > ARRAYSIZE(_tracks)) {
+			    warning("Can only handle %d tracks but was handed %d", (int)ARRAYSIZE(_tracks), _numTracks);
+			    return false;
+			}
 		}
 
-		tracksRead++;
+		channels++;
+	    }
+
+	    if (type == 12) {
+		    _channels = channels;
 	    }
 
 	    pos++;
 
-	    debug("- Play parts = %d", tracksRead);
+	    debug("- Play parts = %d", channels);
 	}
 	pos++;
 
 	_ppqn = 1;
 	setTempo(16667);
 
-	totalSize = 0;
 	int tracksRead = 0;
 	while (tracksRead < _numTracks) {
 		pos = _tracks[tracksRead];
 		debug("Header bytes");
 
-		debug("[%06d]  ", *pos);
-		debug("[%02d]  ", *pos++);
-		debug("[%02d]  ", *pos++);
-
-		_tracks[tracksRead] += 2;
-
-		totalSize += len;
+		debug("[%06X]  ", *pos);
+		debug("[%02X]  ", *pos++);
+		debug("[%02X]  ", *pos++);
+		_tracks[tracksRead] = pos;
 		tracksRead++;
 	}
 
+	midiMixChannels();
+	_tracks[0] = _init;
+	_numTracks = 1;
 	// Note that we assume the original data passed in
 	// will persist beyond this call, i.e. we do NOT
 	// copy the data to our own buffer. Take warning....
@@ -2491,7 +2656,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 	return true;
 }
 
-MidiParser *createParser_DGDS() { return new MidiParser_DGDS; }
+MidiParser_DGDS *createParser_DGDS() { return new MidiParser_DGDS; }
 
 DgdsMidiPlayer::DgdsMidiPlayer() {
 	MidiPlayer::createDriver();
@@ -2513,12 +2678,15 @@ void DgdsMidiPlayer::play(byte *data, uint32 size) {
 	stop();
 	if (!data) return;
 
-	MidiParser *parser = createParser_DGDS();
+	MidiParser_DGDS *parser = createParser_DGDS();
 	if (parser->loadMusic(data, size)) {
 		parser->setTrack(0);
 		parser->setMidiDriver(this);
+		parser->sendInitCommands();
 		parser->setTimerRate(_driver->getBaseTempo());
+		/*
 		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);
+                parser->property(MidiParser::mpSendSustainOffOnNotesOff, 1);*/
 
 		_parser = parser;
 		syncVolume();
