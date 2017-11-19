@@ -303,6 +303,9 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	    pos += 6;
 	}
 
+	bool track_mt32;
+	track_mt32 = false;
+
 	while (pos[0] != 0xFF) {
 	    byte drv = *pos++;
 
@@ -346,14 +349,15 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 		}
 
 		switch (drv) {
-		case 0:	if (digital_pcm)
+		case 0:	if (digital_pcm) {
 				debugN("- Soundblaster");
-			else
+			} else {
 				debugN("- Adlib");
-									break;
+			}						break;
 		case 7:		debugN("- General MIDI");		break;
 		case 9:		debugN("- CMS");			break;
-		case 12:	debugN("- MT-32");			break;
+		case 12:	debugN("- MT-32");
+				track_mt32 = true;			break;
 		case 18:	debugN("- PC Speaker");			break;
 		case 19:	debugN("- Tandy 1000");			break;
 		default:	debugN("- Unknown %d", drv);		break;
@@ -394,19 +398,21 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	}
 	pos++;
 
-	// select MT-32. (remember to free this memory later)
+	if (!track_mt32) return false;
+
+	// select MT-32. (remember to free this memory!)
 	numChannels = numChannels_[12];
 	trackPtr = trackPtr_[12];
 	trackSiz = trackSiz_[12];
-
-	_ppqn = 1;
-	setTempo(16667);
 
 	mixChannels();
 
 //	free(data);
 	_init = _tracks[0];
 	_numTracks = 1;
+
+	_ppqn = 1;
+	setTempo(16667);
 
 	// Note that we assume the original data passed in
 	// will persist beyond this call, i.e. we do NOT
