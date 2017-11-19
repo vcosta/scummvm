@@ -34,9 +34,6 @@ class MidiParser_DGDS : public MidiParser {
 protected:
 	byte *_init;
 	byte *_last_;
-	byte *_last[128];
-	byte *_number;
-	byte *_voices;
 	byte _channels;
 	uint16 _size[128];
 
@@ -56,17 +53,11 @@ public:
 	void mixChannels();
 };
 
-MidiParser_DGDS::MidiParser_DGDS() : _init(0) {
-	memset(_last, 0, sizeof(_last));
+MidiParser_DGDS::MidiParser_DGDS() : _init(0), _last_(0) {
 	memset(_size, 0, sizeof(_size));
-	_last_=0;
 }
 
 void MidiParser_DGDS::sendInitCommands() {
-	/*
-	for (int i = 0; i < _channels; ++i) {
-		sendToDriver(0xB0 | _number[i], 0x4B, _voices[i]);
-	}*/
 }
 
 MidiParser_DGDS::~MidiParser_DGDS() {
@@ -324,8 +315,6 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 
 	    int channels = 0;
 	    total = 0;
-	    _number = new byte[16];
-	    _voices = new byte[16];
 	    while (pos[0] != 0xFF) {
 		pos++;
 
@@ -345,11 +334,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 		debug("#%02u: voices: %u", number, voices);
 
 		if (type == 12 && number != 9) {
-			_number[_numTracks] = number;
-			_voices[_numTracks] = voices;
-
 			_tracks[_numTracks] = data + off;
-			_last[_numTracks] = _tracks[_numTracks] + siz;
 			_size[_numTracks] = siz;
 			_numTracks++;
 
