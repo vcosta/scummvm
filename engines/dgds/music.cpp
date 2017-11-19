@@ -213,7 +213,7 @@ void MidiParser_DGDS::mixChannels() {
 	}
 
 	byte *outData = (byte*)malloc(totalSize * 2);
-	_init = outData;
+	_tracks[0] = outData;
 
 	uint32 ticker = 0;
 	byte channelNr, curDelta;
@@ -290,8 +290,6 @@ end:
 
 bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	unloadMusic();
-
-	_init = data;
 
 	byte *pos = data;
 
@@ -379,8 +377,10 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 
 	mixChannels();
 
-	_tracks[0] = _init;
+	free(data);
+	_init = _tracks[0];
 	_numTracks = 1;
+
 	// Note that we assume the original data passed in
 	// will persist beyond this call, i.e. we do NOT
 	// copy the data to our own buffer. Take warning....
@@ -416,8 +416,7 @@ void DgdsMidiPlayer::play(byte *data, uint32 size) {
 		parser->setMidiDriver(this);
 		parser->sendInitCommands();
 		parser->setTimerRate(_driver->getBaseTempo());
-		/*
-		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);
+		parser->property(MidiParser::mpCenterPitchWheelOnUnload, 1);/*
                 parser->property(MidiParser::mpSendSustainOffOnNotesOff, 1);*/
 		_parser = parser;
 		syncVolume();
