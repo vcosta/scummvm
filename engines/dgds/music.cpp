@@ -34,9 +34,14 @@ class MidiParser_DGDS : public MidiParser {
 protected:
 	byte *_init;
 	byte *_last;
-	byte _channels;
-	byte *track_ptr[128];
-	uint16 track_size[128];
+
+	byte numChannels;
+	byte **trackPtr;
+	uint16 *trackSiz;
+
+	byte numChannels_[0xFF];
+	byte **trackPtr_[0xFF];
+	uint16 *trackSiz_[0xFF];
 
 protected:
 	void parseNextEvent(EventInfo &info);
@@ -55,8 +60,9 @@ public:
 };
 
 MidiParser_DGDS::MidiParser_DGDS() : _init(0), _last(0) {
-	memset(track_ptr, 0, sizeof(track_ptr));
-	memset(track_size, 0, sizeof(track_size));
+	memset(numChannels_, 0, sizeof(numChannels_));
+	memset(trackPtr_, 0, sizeof(trackPtr_));
+	memset(trackSiz_, 0, sizeof(trackSiz_));
 }
 
 void MidiParser_DGDS::sendInitCommands() {
@@ -164,12 +170,12 @@ byte MidiParser_DGDS::midiGetNextChannel(uint16 *_trackPos, uint32 *_trackTimer,
 	byte curr = 0xFF;
 	long closest = ticker + 1000000, next = 0;
 
-	for (int i = 0; i < _channels; i++) {
+	for (int i = 0; i < numChannels; i++) {
 		if (_trackTimer[i] ==  0xFFFFFFFF) // channel ended
 			continue;
-		if (_trackPos[i] >= track_size[i])
+		if (_trackPos[i] >= trackSiz[i])
 			continue;
-		next = track_ptr[i][_trackPos[i]]; // when the next event should occur
+		next = trackPtr[i][_trackPos[i]]; // when the next event should occur
 		if (next == 0xF8) // 0xF8 means 240 ticks delay
 			next = 240;
 		next += _trackTimer[i];
@@ -183,7 +189,7 @@ byte MidiParser_DGDS::midiGetNextChannel(uint16 *_trackPos, uint32 *_trackTimer,
 }
 
 inline bool MidiParser_DGDS::validateNextRead(uint i, uint16 *_trackPos) {
-	if (track_size[i] <= _trackPos[i]) {
+	if (trackSiz[i] <= _trackPos[i]) {
 		warning("Unexpected end. Music may sound wrong due to game resource corruption");
 		return false;
 	} else {
@@ -199,11 +205,11 @@ void MidiParser_DGDS::mixChannels() {
 	uint16 _trackPos[128];
 	uint32 _trackTimer[128];
 	byte _prev[128];
-	for (int i = 0; i < _channels; i++) {
+	for (int i = 0; i < numChannels; i++) {
 		_trackTimer[i] = 0;
 		_prev[i] = 0;
 		_trackPos[i] = 0;
-		totalSize += track_size[i];
+		totalSize += trackSiz[i];
 	}
 
 	byte *outData = (byte*)malloc(totalSize * 2);
@@ -217,7 +223,7 @@ void MidiParser_DGDS::mixChannels() {
 	while ((channelNr = midiGetNextChannel(_trackPos, _trackTimer, ticker)) != 0xFF) { // there is still an active channel
 		if (!validateNextRead(channelNr, _trackPos))
 			goto end;
-		curDelta = track_ptr[channelNr][_trackPos[channelNr]++];
+		curDelta = trackPtr[channelNr][_trackPos[channelNr]++];
 		_trackTimer[channelNr] += (curDelta == 0xF8 ? 240 : curDelta); // when the command is supposed to occur
 		if (curDelta == 0xF8)
 			continue;
@@ -226,7 +232,7 @@ void MidiParser_DGDS::mixChannels() {
 
 		if (!validateNextRead(channelNr, _trackPos))
 			goto end;
-		midiCommand = track_ptr[channelNr][_trackPos[channelNr]++];
+		midiCommand = trackPtr[channelNr][_trackPos[channelNr]++];
 		if (midiCommand != 0xFC) {
 			// Write delta
 			while (newDelta > 240) {
@@ -242,7 +248,7 @@ void MidiParser_DGDS::mixChannels() {
 			do {
 				if (!validateNextRead(channelNr, _trackPos))
 					goto end;
-				midiParam = track_ptr[channelNr][_trackPos[channelNr]++];
+				midiParam = trackPtr[channelNr][_trackPos[channelNr]++];
 				*outData++ = midiParam;
 			} while (midiParam != 0xF7);
 			break;
@@ -253,7 +259,7 @@ void MidiParser_DGDS::mixChannels() {
 			if (midiCommand & 0x80) {
 				if (!validateNextRead(channelNr, _trackPos))
 					goto end;
-				midiParam = track_ptr[channelNr][_trackPos[channelNr]++];
+				midiParam = trackPtr[channelNr][_trackPos[channelNr]++];
 			} else {// running status
 				midiParam = midiCommand;
 				midiCommand = _prev[channelNr];
@@ -269,7 +275,7 @@ void MidiParser_DGDS::mixChannels() {
 			if (nMidiParams[(midiCommand >> 4) - 8] == 2) {
 				if (!validateNextRead(channelNr, _trackPos))
 					goto end;
-				*outData++ = track_ptr[channelNr][_trackPos[channelNr]++];
+				*outData++ = trackPtr[channelNr][_trackPos[channelNr]++];
 			}
 			_prev[channelNr] = midiCommand;
 			globalPrev = midiCommand;
@@ -287,8 +293,6 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 
 	_init = data;
 
-	uint32 total;
-
 	byte *pos = data;
 
         uint32 sci_header = 0;
@@ -301,22 +305,30 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 	    pos += 6;
 	}
 
-	_numTracks = 0;
 	while (pos[0] != 0xFF) {
-	    int type = *pos++;
+	    byte drv = *pos++;
 
-	    switch(type) {
+	    switch(drv) {
 		case 0:	    debug("Adlib, Soundblaster");   break;
 		case 7:	    debug("General MIDI");	    break;
 		case 9:	    debug("CMS");		    break;
 		case 12:    debug("MT-32");		    break;
 		case 18:    debug("PC Speaker");	    break;
 		case 19:    debug("Tandy 1000, PS/1");	    break;
-		default:    debug("Unknown (%u)", type);    break;
+		default:    debug("Unknown (%u)", drv);    break;
 	    }
 
-	    int channels = 0;
-	    total = 0;
+	    byte channel;
+
+	    channel = 0;
+	    for (byte *ptr = pos; *ptr != 0xFF; ptr += 6)
+		    channel++;
+
+	    numChannels_[drv] = channel;
+	    trackPtr_[drv] = new byte*[channel];
+	    trackSiz_[drv] = new uint16[channel];
+
+	    channel = 0;
 	    while (pos[0] != 0xFF) {
 		pos++;
 
@@ -327,54 +339,46 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
 
 		uint16 off = read2low(pos) + sci_header;
 		uint16 siz = read2low(pos);
-		total += siz;
 
 		debug("%06d:%d", off, siz);
 		
 		byte number = data[off];
 		byte voices = data[off+1]&0x0F;
-		debug("#%02u: voices: %u", number, voices);
+		debug("#%u: voices: %u", number, voices);
 
-		if (type == 12 && number != 9) {
-			track_ptr[_numTracks] = data + off;
-			track_size[_numTracks] = siz;
-			_numTracks++;
-
-			if (_numTracks > ARRAYSIZE(track_ptr)) {
-			    warning("Can only handle %d tracks but was handed %d", (int)ARRAYSIZE(track_ptr), _numTracks);
-			    return false;
-			}
-		}
-
-		channels++;
-	    }
-
-	    if (type == 12) {
-		    _channels = channels;
+		trackPtr_[drv][channel] = data + off;
+		trackSiz_[drv][channel] = siz;
+		channel++;
+		numChannels_[drv] = channel;
 	    }
 
 	    pos++;
 
-	    debug("- Play parts = %d", channels);
+	    debug("- Play parts = %d", channel);
 	}
 	pos++;
+
+	numChannels = numChannels_[12];
+	trackPtr = trackPtr_[12];
+	trackSiz = trackSiz_[12];
 
 	_ppqn = 1;
 	setTempo(16667);
 
-	int tracksRead = 0;
-	while (tracksRead < _numTracks) {
-		pos = track_ptr[tracksRead];
+	byte channel = 0;
+	while (channel < numChannels) {
+		pos = trackPtr[channel];
 		debug("Header bytes");
 
 		debug("[%06X]  ", *pos);
 		debug("[%02X]  ", *pos++);
 		debug("[%02X]  ", *pos++);
-		track_ptr[tracksRead] = pos;
-		tracksRead++;
+		trackPtr[channel] = pos;
+		channel++;
 	}
 
 	mixChannels();
+
 	_tracks[0] = _init;
 	_numTracks = 1;
 	// Note that we assume the original data passed in
