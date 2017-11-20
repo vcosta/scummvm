@@ -398,7 +398,7 @@ bool DgdsChunk::readHeader(DgdsParser& ctx) {
 Common::SeekableReadStream* DgdsChunk::decodeStream(DgdsParser& ctx) {
 	byte compression;
 	uint32 unpackSize;
-	Common::SeekableReadStream *ostream = 0;
+	Common::SeekableReadStream *output = 0;
 
 	compression = ctx._file.readByte();
 	unpackSize = ctx._file.readUint32LE();
@@ -407,7 +407,7 @@ Common::SeekableReadStream* DgdsChunk::decodeStream(DgdsParser& ctx) {
 	if (!container) {
 		byte *dest = new byte[unpackSize];
 		decompress(compression, dest, unpackSize, ctx._file, _size);
-		ostream = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
+		output = new Common::MemoryReadStream(dest, unpackSize, DisposeAfterUse::YES);
 		ctx.bytesRead += unpackSize;
 	}
 
@@ -415,19 +415,19 @@ Common::SeekableReadStream* DgdsChunk::decodeStream(DgdsParser& ctx) {
 		id, _size,
 		compressionDescr[compression],
 		unpackSize, (container ? '+' : ' '));
-	return ostream;
+	return output;
 }
 
 Common::SeekableReadStream* DgdsChunk::readStream(DgdsParser& ctx) {
-	Common::SeekableReadStream *ostream = 0;
+	Common::SeekableReadStream *output = 0;
 
 	if (!container) {
-		ostream = new Common::SeekableSubReadStream(&ctx._file, ctx._file.pos(), ctx._file.pos()+_size, DisposeAfterUse::NO);
+		output = new Common::SeekableSubReadStream(&ctx._file, ctx._file.pos(), ctx._file.pos()+_size, DisposeAfterUse::NO);
 		ctx.bytesRead += _size;
 	}
 
 	debug("    %s %u%c", id, _size, (container ? '+' : ' '));
-	return ostream;
+	return output;
 }
 
 /*
