@@ -497,6 +497,33 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
+void convertBitmap(Graphics::Surface& surf, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin) {
+	if (vga.h != 0) {
+		byte *data, *vgap, *binp;
+		data = (byte *)surf.getPixels();
+		vgap = (byte *)vga.getPixels();
+		binp = (byte *)bin.getPixels();
+		for (int i=0, last=w*h; i<last; i+=2) {
+			data[i+0]  = ((vgap[i>>1] & 0xF0)     );
+			data[i+0] |= ((binp[i>>1] & 0xF0) >> 4);
+			data[i+1]  = ((vgap[i>>1] & 0x0F) << 4);
+			data[i+1] |= ((binp[i>>1] & 0x0F)     );
+		}
+	}
+}
+void convertBitmap(Graphics::Surface& surf, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin, Graphics::Surface& ma8) {
+	if (ma8.h != 0) {
+		byte *data, *ma8p;
+		data = (byte *)surf.getPixels();
+		ma8p = (byte *)ma8.getPixels();
+		for (int i=0, last=w*h; i<last; i++) {
+			data[i] = ma8p[i];
+		}
+	} else {
+		convertBitmap(surf, w, h, vga, bin);
+	}
+}
+
 
 PFont *_fntP;
 FFont *_fntF;
@@ -1532,35 +1559,6 @@ int delay = 0;
 Common::Rect drawWin(0, 0, sw, sh);
 
 Common::String text;
-
-void convertBitmap(Graphics::Surface& output, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin) {
-	if (vga.h != 0) {
-		byte *output_;
-		byte *vga_, *bin_;
-		output_ = (byte *)output.getPixels();
-		vga_ = (byte *)vga.getPixels();
-		bin_ = (byte *)bin.getPixels();
-		for (int i=0; i<w*h; i+=2) {
-			output_[i+0]  = ((vga_[i>>1] & 0xF0)     );
-			output_[i+0] |= ((bin_[i>>1] & 0xF0) >> 4);
-			output_[i+1]  = ((vga_[i>>1] & 0x0F) << 4);
-			output_[i+1] |= ((bin_[i>>1] & 0x0F)     );
-		}
-	}
-}
-void convertBitmap(Graphics::Surface& output, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin, Graphics::Surface& ma8) {
-	if (ma8.h != 0) {
-		byte *output_;
-		byte *ma8_;
-		output_ = (byte *)output.getPixels();
-		ma8_ = (byte *)ma8.getPixels();
-		for (int i=0; i<w*h; i++) {
-			output_[i] = ma8_[i];
-		}
-	} else {
-		convertBitmap(output, w, h, vga, bin);
-	}
-}
 
 // TAGS vs UNIQUE TAGS
 // HASHTABLE?
