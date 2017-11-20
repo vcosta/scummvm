@@ -2270,7 +2270,7 @@ void DgdsEngine::stopSfx(byte channel) {
 	}
 }
 
-bool DgdsEngine::play(byte *data, uint32 size) {
+bool DgdsEngine::playPCM(byte *data, uint32 size) {
 	_mixer->stopAll();
 
 	if (!data) return false;
@@ -2325,7 +2325,7 @@ void DgdsEngine::playMusic(const char* fileName) {
 		if ((tracks & TRACK_MT32))
 			_midiPlayer->play(musicData, musicSize);
 		if ((tracks & DIGITAL_PCM))
-			play(musicData, musicSize);
+			playPCM(musicData, musicSize);
 	}
 }
 #if 0
