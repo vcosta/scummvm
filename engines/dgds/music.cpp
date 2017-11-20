@@ -161,7 +161,6 @@ void MidiParser_DGDS::parseNextEvent(EventInfo &info) {
 	}
 }
 
-
 byte MidiParser_DGDS::midiGetNextChannel(uint16 *trackPos, uint32 *trackTimer, long ticker) {
 	byte curr = 0xFF;
 	uint32 closest = ticker + 1000000, next = 0;
@@ -283,7 +282,6 @@ end:
 	_last = output;
 }
 
-
 bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 	unloadMusic();
 
@@ -321,6 +319,7 @@ bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 }
 
 MidiParser_DGDS *createParser_DGDS() { return new MidiParser_DGDS; }
+
 
 DgdsMidiPlayer::DgdsMidiPlayer() {
 	MidiPlayer::createDriver();
