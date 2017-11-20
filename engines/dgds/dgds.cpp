@@ -173,21 +173,20 @@ void DgdsParser::parse(DgdsCallback &callback) {
 
 	DgdsChunk chunk;
 	while (chunk.readHeader(*this)) {
-		chunk._stream = 0;
-
-		if (!chunk.container) {
-			chunk._stream = chunk.isPacked(_ex) ? chunk.decodeStream(*this) : chunk.readStream(*this);
-		}
-
 		bool stop;
-		stop = callback(chunk);
 
-		if (!chunk.container) {
+		chunk._stream = 0;
+		if (chunk.container) {
+			stop = callback(chunk);
+		} else {
+			chunk._stream = chunk.isPacked(_ex) ? chunk.decodeStream(*this) : chunk.readStream(*this);
+
+			stop = callback(chunk);
+
 			int leftover = chunk._stream->size()-chunk._stream->pos();
 			chunk._stream->skip(leftover);
 			delete chunk._stream;
 		}
-
 		if (stop) break;
 	}
 }
