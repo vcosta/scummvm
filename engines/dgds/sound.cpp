@@ -41,7 +41,7 @@ void readHeader(byte* &pos, uint32 &sci_header) {
 }
 
 static inline
-void readTrackHeader(byte* &pos, uint16 &off, uint16 &siz) {
+void readPartHeader(byte* &pos, uint16 &off, uint16 &siz) {
 	pos += 2;
 	off = READ_LE_UINT16(pos);
 	pos += 2;
@@ -50,7 +50,7 @@ void readTrackHeader(byte* &pos, uint16 &off, uint16 &siz) {
 }
 
 static inline
-void skipTrackHeader(byte* &pos) {
+void skipPartHeader(byte* &pos) {
 	pos += 6;
 }
 
@@ -68,7 +68,7 @@ uint32 availableSndTracks(byte *data, uint32 size) {
 
 		while (pos[0] != 0xFF) {
 			uint16 off, siz;
-			readTrackHeader(pos, off, siz);
+			readPartHeader(pos, off, siz);
 			off += sci_header;
 
 			debug("%06d:%d ", off, siz);
@@ -130,14 +130,14 @@ byte loadSndTrack(uint32 track, byte** trackPtr, uint16* trackSiz, byte *data, u
 		byte *ptr;
 
 		part = 0;
-		for (ptr = pos; *ptr != 0xFF; skipTrackHeader(ptr))
+		for (ptr = pos; *ptr != 0xFF; skipPartHeader(ptr))
 			part++;
 
 		if (matchDrv == drv) {
 			part = 0;
 			while (pos[0] != 0xFF) {
 				uint16 off, siz;
-				readTrackHeader(pos, off, siz);
+				readPartHeader(pos, off, siz);
 				off += sci_header;
 
 				trackPtr[part] = data + off;
