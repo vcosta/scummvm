@@ -2262,6 +2262,140 @@ void DgdsEngine::playSfx(const char* fileName, byte channel, byte volume) {
 	}
 }
 
+enum {
+  DIGITAL_PCM	= 1 << 0,
+  TRACK_ADLIB	= 1 << 1,
+  TRACK_GM	= 1 << 2,
+  TRACK_MT32	= 1 << 3
+};
+
+static inline
+void readHeader(byte* &pos, uint32 &sci_header) {
+	sci_header = 0;
+	if (READ_LE_UINT16(pos) == 0x0084) sci_header = 2;
+
+	pos += sci_header;
+	if (pos[0] == 0xF0) {
+		debug("SysEx transfer = %d bytes", pos[1]);
+		pos += 2;
+		pos += 6;
+	}
+}
+
+static inline
+void readTrackHeader(byte* &pos, uint16 &off, uint16 &siz) {
+	pos += 2;
+	off = READ_LE_UINT16(pos);
+	pos += 2;
+	siz = READ_LE_UINT16(pos);
+	pos += 2;
+}
+
+static inline
+void skipTrackHeader(byte* &pos) {
+	pos += 6;
+}
+
+uint32 availableSndTracks(byte *data, uint32 size) {
+	byte *pos = data;
+
+        uint32 sci_header;
+	readHeader(pos, sci_header);
+
+	uint32 tracks = 0;
+	while (pos[0] != 0xFF) {
+		byte drv = *pos++;
+
+		debug("(%d)", drv);
+
+		while (pos[0] != 0xFF) {
+			uint16 off, siz;
+			readTrackHeader(pos, off, siz);
+			off += sci_header;
+
+			debug("%06d:%d ", off, siz);
+
+			debug("Header bytes");
+			debug("[%06X]  ", data[off]);
+			debug("[%02X]  ", data[off+0]);
+			debug("[%02X]  ", data[off+1]);
+
+			bool digital_pcm = false;
+			if (READ_LE_UINT16(&data[off]) == 0x00FE) {
+				digital_pcm = true;
+			}
+
+			switch (drv) {
+			case 0:	if (digital_pcm) {
+					debug("- Soundblaster");
+					tracks |= DIGITAL_PCM;
+				} else {
+					debug("- Adlib");
+					tracks |= TRACK_ADLIB;
+				}					break;
+			case 7:		debug("- General MIDI");
+					tracks |= TRACK_GM;		break;
+			case 9:		debug("- CMS");			break;
+			case 12:	debug("- MT-32");
+					tracks |= TRACK_MT32;		break;
+			case 18:	debug("- PC Speaker");		break;
+			case 19:	debug("- Tandy 1000");		break;
+			default:	debug("- Unknown %d", drv);	break;
+			}
+		}
+
+		pos++;
+	}
+	pos++;
+	return tracks;
+}
+
+byte loadSndTrack(uint32 track, byte** trackPtr, uint16* trackSiz, byte *data, uint32 size) {
+	byte matchDrv;
+	switch (track) {
+	case DIGITAL_PCM:
+	case TRACK_ADLIB: matchDrv = 0;    break;
+	case TRACK_GM:	  matchDrv = 7;    break;
+	case TRACK_MT32:  matchDrv = 12;   break;
+	default:			   return 0;
+	}
+
+	byte *pos = data;
+
+	uint32 sci_header;
+	readHeader(pos, sci_header);
+
+	while (pos[0] != 0xFF) {
+		byte drv = *pos++;
+
+		byte part;
+		byte *ptr;
+
+		part = 0;
+		for (ptr = pos; *ptr != 0xFF; skipTrackHeader(ptr))
+			part++;
+
+		if (matchDrv == drv) {
+			part = 0;
+			while (pos[0] != 0xFF) {
+				uint16 off, siz;
+				readTrackHeader(pos, off, siz);
+				off += sci_header;
+
+				trackPtr[part] = data + off;
+				trackSiz[part] = siz;
+				part++;
+			}
+			debug("- (%d) Play parts = %d", drv, part);
+			return part;
+		} else {
+			pos = ptr;
+		}
+		pos++;
+	}
+	pos++;
+	return 0;
+}
 
 bool DgdsEngine::play(byte *data, uint32 size) {
 	if (!data) return false;
@@ -2425,8 +2559,12 @@ void DgdsEngine::playMusic(const char* fileName) {
 	} else*/ {
 		explode(_platform, _rmfName, fileName, 0);
 		if (musicData) {
-			_midiPlayer->play(musicData, musicSize);
-			play(musicData, musicSize);
+			uint32 tracks;
+			tracks = availableSndTracks(musicData, musicSize);
+			if ((tracks & TRACK_MT32))
+				_midiPlayer->play(musicData, musicSize);
+			if ((tracks & DIGITAL_PCM))
+				play(musicData, musicSize);
 		}
 	}
 }
