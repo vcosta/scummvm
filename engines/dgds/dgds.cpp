@@ -497,13 +497,13 @@ void loadBitmap8(Graphics::Surface& surf, uint16 tw, uint16 th, uint32 toffset, 
 	stream->read(data, uint32(outPitch)*th);
 }
 
-void convertBitmap(Graphics::Surface& surf, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin) {
+void convertBitmap(Graphics::Surface& surf, int size, Graphics::Surface& vga, Graphics::Surface& bin) {
 	if (vga.h != 0) {
 		byte *data, *vgap, *binp;
 		data = (byte *)surf.getPixels();
 		vgap = (byte *)vga.getPixels();
 		binp = (byte *)bin.getPixels();
-		for (int i=0, last=w*h; i<last; i+=2) {
+		for (int i=0; i<size; i+=2) {
 			data[i+0]  = ((vgap[i>>1] & 0xF0)     );
 			data[i+0] |= ((binp[i>>1] & 0xF0) >> 4);
 			data[i+1]  = ((vgap[i>>1] & 0x0F) << 4);
@@ -511,19 +511,17 @@ void convertBitmap(Graphics::Surface& surf, int w, int h, Graphics::Surface& vga
 		}
 	}
 }
-void convertBitmap(Graphics::Surface& surf, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin, Graphics::Surface& ma8) {
+void convertBitmap(Graphics::Surface& surf, int size, Graphics::Surface& vga, Graphics::Surface& bin, Graphics::Surface& ma8) {
 	if (ma8.h != 0) {
 		byte *data, *ma8p;
 		data = (byte *)surf.getPixels();
 		ma8p = (byte *)ma8.getPixels();
-		for (int i=0, last=w*h; i<last; i++) {
+		for (int i=0; i<size; i++)
 			data[i] = ma8p[i];
-		}
 	} else {
-		convertBitmap(surf, w, h, vga, bin);
+		convertBitmap(surf, size, vga, bin);
 	}
 }
-
 
 PFont *_fntP;
 FFont *_fntF;
@@ -1762,7 +1760,7 @@ bool TTMInterpreter::run(TTMState *script) {
 				binData.free();
 				ma8Data.free();
 				explode(_vm->_platform, _vm->_rmfName, scrNames[sid], 0);
-				convertBitmap(bottomBuffer, sw, sh, vgaData, binData, ma8Data);
+				convertBitmap(bottomBuffer, sw*sh, vgaData, binData, ma8Data);
 //				resData.copyRectToSurface(scrData, 0, 0, rect);
 				continue;
 			case 0xf020:
@@ -1795,7 +1793,7 @@ bool TTMInterpreter::run(TTMState *script) {
 				if (bk != -1) {
 					explode(_vm->_platform, _vm->_rmfName, bmpNames[id], bk);
 					bw = _tw; bh = _th;
-					convertBitmap(_bmpData, bw, bh, _vgaData, _binData);
+					convertBitmap(_bmpData, bw*bh, _vgaData, _binData);
 				}
 				continue;
 			case 0x1050:
@@ -1881,7 +1879,7 @@ bool TTMInterpreter::run(TTMState *script) {
 					if (bk != -1) {
 						explode(_vm->_platform, _vm->_rmfName, bmpNames[id], bk);
 						bw = _tw; bh = _th;
-						convertBitmap(_bmpData, bw, bh, _vgaData, _binData);
+						convertBitmap(_bmpData, bw*bh, _vgaData, _binData);
 					} else {
 					    bw = bh = 0;
 					}
