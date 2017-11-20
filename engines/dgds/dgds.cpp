@@ -2263,8 +2263,15 @@ void DgdsEngine::playSfx(const char* fileName, byte channel, byte volume) {
 	}
 }
 
+void DgdsEngine::stopSfx(byte channel) {
+	if (_mixer->isSoundHandleActive(_channels[channel].handle)) {
+	    _mixer->stopHandle(_channels[channel].handle);
+		_channels[channel].stream = 0;
+	}
+}
+
 bool DgdsEngine::play(byte *data, uint32 size) {
-	stopSfx(0);
+	_mixer->stopAll();
 
 	if (!data) return false;
 
@@ -2306,13 +2313,6 @@ bool DgdsEngine::play(byte *data, uint32 size) {
 		_mixer->playStream(Audio::Mixer::kSFXSoundType, &ch->handle, input, -1, volume);
 	}
 	return true;
-}
-
-void DgdsEngine::stopSfx(byte channel) {
-	if (_mixer->isSoundHandleActive(_channels[channel].handle)) {
-	    _mixer->stopHandle(_channels[channel].handle);
-		_channels[channel].stream = 0;
-	}
 }
 
 void DgdsEngine::playMusic(const char* fileName) {
