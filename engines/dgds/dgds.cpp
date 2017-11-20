@@ -2305,30 +2305,6 @@ bool DgdsEngine::play(byte *data, uint32 size) {
 				rate, Audio::FLAG_UNSIGNED, DisposeAfterUse::NO);
 		_mixer->playStream(Audio::Mixer::kSFXSoundType, &ch->handle, input, -1, volume);
 	}
-#if 0
-	if (digital_pcm) {
-		off += 2;
-		uint16 rate, length, first, last;
-		rate = READ_LE_UINT16(&data[off]);
-
-		length = READ_LE_UINT16(&data[off+2]);
-		first = READ_LE_UINT16(&data[off+4]);
-		last = READ_LE_UINT16(&data[off+6]);
-		off += 8;
-
-		off += first;
-		siz = length;
-		debug(" - Digital PCM: %u Hz, [%u]=%u:%u",
-				rate, length, first, last);
-	} else {
-		byte number, voices;
-		number = data[off];
-		voices = data[off+1]&0x0F;
-		off += 2;
-		siz -= 2;
-		debug(" - #%u: voices: %u", number, voices);
-	}
-#endif
 	return true;
 }
 
