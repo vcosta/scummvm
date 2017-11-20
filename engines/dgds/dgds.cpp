@@ -1540,59 +1540,57 @@ Common::String text;
 static
 Common::SeekableReadStream *createReadStream(const char *rmfName, const char *filename) {
 	Common::File index;
+	if (!index.open(rmfName)) return 0;
 
-	if (index.open(rmfName)) {
-		byte salt[4];
-		int32 filehash;
+	byte salt[4];
+	int32 filehash;
 
-		char name[DGDS_FILENAME_MAX+1];
-		int32 hash;
-		uint32 offset;
-		hash = 0;
+	char name[DGDS_FILENAME_MAX+1];
+	uint32 offset;
 
-		index.read(salt, sizeof(salt));
-		filehash = dgdsHash(filename, salt);
+	index.read(salt, sizeof(salt));
+	filehash = dgdsHash(filename, salt);
 
-		uint16 nvolumes;
-		nvolumes = index.readUint16LE();
-		for (uint i=0; i<nvolumes; i++) {
-			index.read(name, sizeof(name));
-			name[DGDS_FILENAME_MAX] = '\0';
-			
-			uint16 nfiles;
-			nfiles = index.readUint16LE();
-			for (uint j=0; j<nfiles; j++) {
-				hash = index.readSint32LE();
-				offset = index.readUint32LE();
-				if (hash == filehash) goto found;
-			}
+	uint16 nvolumes;
+	nvolumes = index.readUint16LE();
+	for (uint i=0; i<nvolumes; i++) {
+		index.read(name, sizeof(name));
+		name[DGDS_FILENAME_MAX] = '\0';
+		
+		uint16 nfiles;
+		nfiles = index.readUint16LE();
+		for (uint j=0; j<nfiles; j++) {
+			int32 hash;
+			hash = index.readSint32LE();
+			offset = index.readUint32LE();
+			if (hash == filehash) goto found;
 		}
-		index.close();
-		return 0;
+	}
+	index.close();
+	return 0;
 
 found:
-		index.close();
+	index.close();
 
-		Common::File *volume = new Common::File;
-		do {
-			if (!volume->open(name))
-				break;
-			volume->seek(offset);
-			volume->read(name, sizeof(name));
-			name[DGDS_FILENAME_MAX] = '\0';
+	Common::File *volume = new Common::File;
+	do {
+		if (!volume->open(name))
+			break;
+		volume->seek(offset);
+		volume->read(name, sizeof(name));
+		name[DGDS_FILENAME_MAX] = '\0';
 
-			uint32 fileSize;
-			fileSize = volume->readUint32LE();
+		uint32 fileSize;
+		fileSize = volume->readUint32LE();
 
-			if (fileSize == 0xFFFFFFFF)
-				break;
-			if (scumm_stricmp(name, filename))
-				break;
-			return new Common::SeekableSubReadStream(volume, volume->pos(), volume->pos()+fileSize, DisposeAfterUse::YES);
-		} while (0);
-		delete volume;
-		return 0;
-	}
+		if (fileSize == 0xFFFFFFFF)
+			break;
+		if (scumm_stricmp(name, filename))
+			break;
+		return new Common::SeekableSubReadStream(volume, volume->pos(), volume->pos()+fileSize, DisposeAfterUse::YES);
+	} while (0);
+
+	delete volume;
 	return 0;
 }
 
