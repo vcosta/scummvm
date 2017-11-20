@@ -1464,10 +1464,10 @@ static void explode(Common::Platform platform, const char *indexName, const char
 			debug(", %d bytes", volume.size());
 
 			for (uint j=0; j<nfiles; j++) {
-				uint32 hash, offset;
-				uint32 fileSize;
+				int32 hash;
+				uint32 offset, fileSize;
 
-				hash = index.readUint32LE();
+				hash = index.readSint32LE();
 				offset = index.readUint32LE();
 
 				volume.seek(offset);
@@ -1476,7 +1476,7 @@ static void explode(Common::Platform platform, const char *indexName, const char
 				fileSize = volume.readUint32LE();
 
 				if (!fileName || scumm_stricmp(name, fileName) == 0)
-					debug("  #%u %s %x=%x %u %u\n  --", j, name, hash, dgdsHash(name, salt), offset, fileSize);
+					debug("  #%u %s 0x%X=0x%X %u %u\n  --", j, name, hash, dgdsHash(name, salt), offset, fileSize);
 
 				if (fileSize == 0xFFFFFFFF) {
 					continue;
