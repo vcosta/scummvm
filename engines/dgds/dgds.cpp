@@ -437,9 +437,9 @@ Common::SeekableReadStream* DgdsChunk::readStream(DgdsParser& ctx) {
   return:
     hash - filename hash
 */
-uint32 dgdsHash(const char *s, byte *idx) {
-	uint32 i, c;
-	uint16 isum, ixor;
+int32 dgdsHash(const char *s, byte *idx) {
+	int32 i, c;
+	int16 isum, ixor;
 	isum = 0;
 	ixor = 0;
 	for (i = 0; s[i]; i++) {
@@ -1540,51 +1540,55 @@ Common::String text;
 static
 Common::SeekableReadStream *createReadStream(const char *rmfName, const char *filename) {
 	Common::File index;
+
 	if (index.open(rmfName)) {
 		byte salt[4];
-		uint16 nvolumes;
+		int32 filehash;
+
+		char name[DGDS_FILENAME_MAX+1];
+		int32 hash;
+		uint32 offset;
+		hash = 0;
 
 		index.read(salt, sizeof(salt));
+		filehash = dgdsHash(filename, salt);
+
+		uint16 nvolumes;
 		nvolumes = index.readUint16LE();
-
 		for (uint i=0; i<nvolumes; i++) {
-			char name[DGDS_FILENAME_MAX+1];
-			uint16 nfiles;
-
 			index.read(name, sizeof(name));
 			name[DGDS_FILENAME_MAX] = '\0';
 			
+			uint16 nfiles;
 			nfiles = index.readUint16LE();
-			
-			Common::File *volume = new Common::File();
-			if (!volume->open(name)) {
-				continue;
-			}
-
 			for (uint j=0; j<nfiles; j++) {
-				uint32 hash, offset;
-				uint32 fileSize;
-
-				hash = index.readUint32LE();
+				hash = index.readSint32LE();
 				offset = index.readUint32LE();
-
-				volume->seek(offset);
-				volume->read(name, sizeof(name));
-				name[DGDS_FILENAME_MAX] = '\0';
-				fileSize = volume->readUint32LE();
-
-				if (fileSize == 0xFFFFFFFF) {
-					continue;
-				}
-
-				if (scumm_stricmp(name, filename)) {
-					volume->skip(fileSize);
-					continue;
-				}
-				return new Common::SeekableSubReadStream(volume, volume->pos(), volume->pos()+fileSize, DisposeAfterUse::YES);
+				if (hash == filehash) goto found;
 			}
-			delete volume;
 		}
+		index.close();
+		return 0;
+
+found:
+		index.close();
+
+		Common::File volume;
+		if (!volume.open(name))
+			return 0;
+
+		volume.seek(offset);
+		volume.read(name, sizeof(name));
+		name[DGDS_FILENAME_MAX] = '\0';
+
+		uint32 fileSize;
+		fileSize = volume.readUint32LE();
+
+		if (fileSize == 0xFFFFFFFF)
+			return 0;
+		if (scumm_stricmp(name, filename))
+			return 0;
+		return volume.readStream(fileSize);
 	}
 	return 0;
 }
