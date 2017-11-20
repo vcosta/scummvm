@@ -1573,22 +1573,25 @@ Common::SeekableReadStream *createReadStream(const char *rmfName, const char *fi
 found:
 		index.close();
 
-		Common::File volume;
-		if (!volume.open(name))
-			return 0;
+		Common::File *volume = new Common::File;
+		do {
+			if (!volume->open(name))
+				break;
+			volume->seek(offset);
+			volume->read(name, sizeof(name));
+			name[DGDS_FILENAME_MAX] = '\0';
 
-		volume.seek(offset);
-		volume.read(name, sizeof(name));
-		name[DGDS_FILENAME_MAX] = '\0';
+			uint32 fileSize;
+			fileSize = volume->readUint32LE();
 
-		uint32 fileSize;
-		fileSize = volume.readUint32LE();
-
-		if (fileSize == 0xFFFFFFFF)
-			return 0;
-		if (scumm_stricmp(name, filename))
-			return 0;
-		return volume.readStream(fileSize);
+			if (fileSize == 0xFFFFFFFF)
+				break;
+			if (scumm_stricmp(name, filename))
+				break;
+			return new Common::SeekableSubReadStream(volume, volume->pos(), volume->pos()+fileSize, DisposeAfterUse::YES);
+		} while (0);
+		delete volume;
+		return 0;
 	}
 	return 0;
 }
