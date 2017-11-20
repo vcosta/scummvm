@@ -23,6 +23,7 @@
 #include "common/debug.h"
 #include "audio/midiparser.h"
 
+#include "dgds/sound.h"
 #include "dgds/music.h"
 
 namespace Dgds {
@@ -35,13 +36,9 @@ protected:
 	byte *_init;
 	byte *_last;
 
-	byte numChannels;
-	byte **trackPtr;
-	uint16 *trackSiz;
-
-	byte numChannels_[0xFF];
-	byte **trackPtr_[0xFF];
-	uint16 *trackSiz_[0xFF];
+	byte numParts;
+	byte *trackPtr[0xFF];
+	uint16 trackSiz[0xFF];
 
 protected:
 	void parseNextEvent(EventInfo &info);
@@ -60,9 +57,8 @@ public:
 };
 
 MidiParser_DGDS::MidiParser_DGDS() : _init(0), _last(0) {
-	memset(numChannels_, 0, sizeof(numChannels_));
-	memset(trackPtr_, 0, sizeof(trackPtr_));
-	memset(trackSiz_, 0, sizeof(trackSiz_));
+	numParts = 0;
+	memset(trackSiz, 0, sizeof(trackSiz));
 }
 
 void MidiParser_DGDS::sendInitCommands() {
@@ -170,7 +166,7 @@ byte MidiParser_DGDS::midiGetNextChannel(uint16 *trackPos, uint32 *trackTimer, l
 	byte curr = 0xFF;
 	uint32 closest = ticker + 1000000, next = 0;
 
-	for (byte i = 0; i < numChannels; i++) {
+	for (byte i = 0; i < numParts; i++) {
 		if (trackTimer[i] ==  0xFFFFFFFF) // channel ended
 			continue;
 		if (trackPos[i] >= trackSiz[i])
@@ -205,7 +201,7 @@ void MidiParser_DGDS::mixChannels() {
 	uint16 trackPos[0xFF];
 	uint32 trackTimer[0xFF];
 	byte _prev[0xFF];
-	for (byte i = 0; i < numChannels; i++) {
+	for (byte i = 0; i < numParts; i++) {
 		trackTimer[i] = 0;
 		_prev[i] = 0;
 		trackPos[i] = 0;
@@ -288,122 +284,25 @@ end:
 }
 
 
-bool MidiParser_DGDS::loadMusic(byte *data, uint32 size_) {
+bool MidiParser_DGDS::loadMusic(byte *data, uint32 size) {
 	unloadMusic();
 
-	byte *pos = data;
+	if (!data) return false;
 
-        uint32 sci_header = 0;
-	if (READ_LE_UINT16(data) == 0x0084) sci_header = 2;
+	numParts = loadSndTrack(TRACK_MT32, trackPtr, trackSiz, data, size);
+	if (numParts == 0) return false;
 
-	pos += sci_header;
-	if (pos[0] == 0xF0) {
-	    debug("SysEx transfer = %d bytes", pos[1]);
-	    pos += 2;
-	    pos += 6;
+	for (byte part = 0; part < numParts; part++) {
+		byte *ptr = trackPtr[part];
+
+		byte number, voices;
+		number = (*ptr++);
+		voices = (*ptr++) & 0x0F;
+		debug(" - #%u: voices: %u", number, voices);
+
+		trackPtr[part] += 2;
+		trackSiz[part] -= 2;
 	}
-
-	bool track_mt32;
-	track_mt32 = false;
-
-	while (pos[0] != 0xFF) {
-	    byte drv = *pos++;
-
-	    switch (drv) {
-		case 0:	    debug("Adlib, Soundblaster");   break;
-		case 7:	    debug("General MIDI");	    break;
-		case 9:	    debug("CMS");		    break;
-		case 12:    debug("MT-32");		    break;
-		case 18:    debug("PC Speaker");	    break;
-		case 19:    debug("Tandy 1000, PS/1");	    break;
-		default:    debug("Unknown %d", drv);	    break;
-	    }
-
-	    byte channel;
-
-	    channel = 0;
-	    for (byte *ptr = pos; *ptr != 0xFF; ptr += 6)
-		    channel++;
-
-	    numChannels_[drv] = channel;
-	    trackPtr_[drv] = new byte*[channel];
-	    trackSiz_[drv] = new uint16[channel];
-
-	    channel = 0;
-	    while (pos[0] != 0xFF) {
-		pos++;
-
-		if (pos[0] != 0) {
-		    debug("%06ld: unknown track arg1 = %d", pos-data, pos[0]);
-		}
-		pos++;
-
-		uint16 off = read2low(pos) + sci_header;
-		uint16 siz = read2low(pos);
-
-		debugN("  %06d:%d ", off, siz);
-		
-		bool digital_pcm = false;
-		if (READ_LE_UINT16(&data[off]) == 0x00FE) {
-			digital_pcm = true;
-		}
-
-		switch (drv) {
-		case 0:	if (digital_pcm) {
-				debugN("- Soundblaster");
-			} else {
-				debugN("- Adlib");
-			}						break;
-		case 7:		debugN("- General MIDI");		break;
-		case 9:		debugN("- CMS");			break;
-		case 12:	debugN("- MT-32");
-				track_mt32 = true;			break;
-		case 18:	debugN("- PC Speaker");			break;
-		case 19:	debugN("- Tandy 1000");			break;
-		default:	debugN("- Unknown %d", drv);		break;
-		}
-
-		if (digital_pcm) {
-			uint16 freq;
-			freq = READ_LE_UINT16(&data[off+2]);
-			debug(" - Digital PCM: %u Hz", freq);
-		} else {
-			byte number, voices;
-			number = data[off];
-			voices = data[off+1]&0x0F;
-			debug(" - #%u: voices: %u", number, voices);
-		}
-
-		trackPtr_[drv][channel] = data + off;
-		trackSiz_[drv][channel] = siz;
-		channel++;
-		numChannels_[drv] = channel;
-	    }
-
-	    debug("- Play parts = %d", channel);
-
-	    channel = 0;
-	    while (channel < numChannels_[drv]) {
-		    byte *ptr = trackPtr_[drv][channel];
-		    debug("Header bytes");
-
-		    debug("[%06X]  ", *ptr);
-		    debug("[%02X]  ", *ptr++);
-		    debug("[%02X]  ", *ptr++);
-		    trackPtr_[drv][channel] = ptr;
-		    channel++;
-	    }
-
-	    pos++;
-	}
-	pos++;
-
-	if (!track_mt32) return false;
-
-	// select MT-32. (remember to free this memory!)
-	numChannels = numChannels_[12];
-	trackPtr = trackPtr_[12];
-	trackSiz = trackSiz_[12];
 
 	mixChannels();
 
