@@ -1533,10 +1533,39 @@ Common::Rect drawWin(0, 0, sw, sh);
 
 Common::String text;
 
+void convertBitmap(Graphics::Surface& output, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin) {
+	if (vga.h != 0) {
+		byte *output_;
+		byte *vga_, *bin_;
+		output_ = (byte *)output.getPixels();
+		vga_ = (byte *)vga.getPixels();
+		bin_ = (byte *)bin.getPixels();
+		for (int i=0; i<w*h; i+=2) {
+			output_[i+0]  = ((vga_[i>>1] & 0xF0)     );
+			output_[i+0] |= ((bin_[i>>1] & 0xF0) >> 4);
+			output_[i+1]  = ((vga_[i>>1] & 0x0F) << 4);
+			output_[i+1] |= ((bin_[i>>1] & 0x0F)     );
+		}
+	}
+}
+void convertBitmap(Graphics::Surface& output, int w, int h, Graphics::Surface& vga, Graphics::Surface& bin, Graphics::Surface& ma8) {
+	if (ma8.h != 0) {
+		byte *output_;
+		byte *ma8_;
+		output_ = (byte *)output.getPixels();
+		ma8_ = (byte *)ma8.getPixels();
+		for (int i=0; i<w*h; i++) {
+			output_[i] = ma8_[i];
+		}
+	} else {
+		convertBitmap(output, w, h, vga, bin);
+	}
+}
+
 // TAGS vs UNIQUE TAGS
 // HASHTABLE?
 
-uint32 lookupFile(const char *rmfName, const char* filename, char* volname) {
+uint32 lookupVolume(const char *rmfName, const char* filename, char* volname) {
 	Common::File index;
 	if (!index.open(rmfName)) return 0xFFFFFFFF;
 
@@ -1571,7 +1600,7 @@ static
 Common::SeekableReadStream *createReadStream(const char *rmfName, const char *filename) {
 	char volname[DGDS_FILENAME_MAX+1];
 	uint32 offset;
-	offset = lookupFile(rmfName, filename, volname);
+	offset = lookupVolume(rmfName, filename, volname);
 	if (offset == 0xFFFFFFFF)
 		return 0;
 
@@ -1721,16 +1750,6 @@ bool TTMInterpreter::run(TTMState *script) {
 		}
 		debug(" ");
 
-		byte *vgaData_;
-		byte *binData_;
-		byte *ma8Data_;
-
-		byte *scrData_;
-		byte *_bmpData_;
-
-		scrData_ = (byte *)bottomBuffer.getPixels();
-		_bmpData_ = (byte *)_bmpData.getPixels();
-
 		Common::Rect bmpWin(0, 0, sw, sh);
 
 		switch (op) {
@@ -1745,22 +1764,7 @@ bool TTMInterpreter::run(TTMState *script) {
 				binData.free();
 				ma8Data.free();
 				explode(_vm->_platform, _vm->_rmfName, scrNames[sid], 0);
-
-				if (ma8Data.h != 0) {
-					ma8Data_ = (byte *)ma8Data.getPixels();
-					for (int i=0; i<sw*sh; i++) {
-						scrData_[i] = ma8Data_[i];
-					}
-				} else if (vgaData.h != 0) {
-					vgaData_ = (byte *)vgaData.getPixels();
-					binData_ = (byte *)binData.getPixels();
-					for (int i=0; i<sw*sh; i+=2) {
-						scrData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-						scrData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-						scrData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-						scrData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
-					}
-				}
+				convertBitmap(bottomBuffer, sw, sh, vgaData, binData, ma8Data);
 //				resData.copyRectToSurface(scrData, 0, 0, rect);
 				continue;
 			case 0xf020:
@@ -1792,18 +1796,8 @@ bool TTMInterpreter::run(TTMState *script) {
 				_binData.free();
 				if (bk != -1) {
 					explode(_vm->_platform, _vm->_rmfName, bmpNames[id], bk);
-
-					if (_vgaData.h != 0) {
-						bw = _tw; bh = _th;
-						vgaData_ = (byte *)_vgaData.getPixels();
-						binData_ = (byte *)_binData.getPixels();
-						for (int i=0; i<bw*bh; i+=2) {
-							_bmpData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-							_bmpData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-							_bmpData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-							_bmpData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
-						}
-					}
+					bw = _tw; bh = _th;
+					convertBitmap(_bmpData, bw, bh, _vgaData, _binData);
 				}
 				continue;
 			case 0x1050:
@@ -1888,18 +1882,8 @@ bool TTMInterpreter::run(TTMState *script) {
 					id = ivals[3];
 					if (bk != -1) {
 						explode(_vm->_platform, _vm->_rmfName, bmpNames[id], bk);
-
-						if (_vgaData.h != 0) {
-							bw = _tw; bh = _th;
-							vgaData_ = (byte *)_vgaData.getPixels();
-							binData_ = (byte *)_binData.getPixels();
-							for (int i=0; i<bw*bh; i+=2) {
-								_bmpData_[i+0]  = ((vgaData_[i>>1] & 0xF0)     );
-								_bmpData_[i+0] |= ((binData_[i>>1] & 0xF0) >> 4);
-								_bmpData_[i+1]  = ((vgaData_[i>>1] & 0x0F) << 4);
-								_bmpData_[i+1] |= ((binData_[i>>1] & 0x0F)     );
-							}
-						}
+						bw = _tw; bh = _th;
+						convertBitmap(_bmpData, bw, bh, _vgaData, _binData);
 					} else {
 					    bw = bh = 0;
 					}
@@ -1918,7 +1902,7 @@ bool TTMInterpreter::run(TTMState *script) {
 					const int rows = clippedDestRect.height();
 					const int columns = clippedDestRect.width();
 
-					byte *src = _bmpData_ + croppedBy.y * bw + croppedBy.x;
+					byte *src = (byte *)_bmpData.getPixels() + croppedBy.y * bw + croppedBy.x;
 					byte *ptr = (byte *)topBuffer.getBasePtr(clippedDestRect.left, clippedDestRect.top);
 					for (int i=0; i<rows; ++i) {
 						for (int j=0; j<columns; ++j) {
