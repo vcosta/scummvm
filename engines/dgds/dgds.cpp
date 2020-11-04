@@ -809,159 +809,45 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 						debug("    S%d.SDS", idx);
 
 
-						// gross hack to grep the strings.
 						_bubbles.clear();
+						while (stream->pos() < stream->size()) {
+							byte op;
 
-						bool inside = false;
-						Common::String txt;
-						while (1) {
-							char buf[4];
-							stream->read(buf, sizeof(buf));
-							if (stream->pos() >= stream->size()) break;
-							if (Common::isPrint(buf[0]) && Common::isPrint(buf[1]) && Common::isPrint(buf[2]) && Common::isPrint(buf[3])) {
-								inside = true;
-							}
-							stream->seek(-3, SEEK_CUR);
+							op = stream->readByte();
+							if (op == 0x4) {
+								uint16 op0, op1, op2;
 
-							if (inside) {
-								if (buf[0] == '\0') {
-									// here's where we do a clever thing. we want Pascal like strings.
-									uint16 pos = txt.size()+1;
-									stream->seek(-pos-2, SEEK_CUR);
-									uint16 len = stream->readUint16LE();
-									stream->seek(pos, SEEK_CUR);
+								stream->seek(-1, SEEK_CUR);
+								op0 = stream->readUint16LE();
+								op1 = stream->readUint16LE();
+								op2 = stream->readUint16LE();
 
-									// gotcha!
-									if (len == pos) {
-										if (resource == 0) _bubbles.push_back(txt);
-										debug("    \"%s\"", txt.c_str());
+								debug("0x%X 0x%X 0x%X", op0, op1, op2);
+								if (op0 == 0x4 && op1 == 0x3 && op2 == 0x0) {
+									uint16 unk0, unk1, unk2;
+									uint16 count;
+
+									unk0 = stream->readUint16LE();
+									unk1 = stream->readUint16LE();
+									unk2 = stream->readUint16LE();
+									debug(" %d %d %d", unk0, unk1, unk2);
+
+									count = stream->readUint16LE();
+									Common::String str;
+									for (uint16 k=0; k<count; k++) {
+										byte ch;
+										ch = stream->readByte();
+										str += ch;
 									}
-									// let's hope the string wasn't shorter than 4 chars...
-									txt.clear();
-									inside = false;
+									_bubbles.push_back(Common::String(str.c_str()));
+									debug(" \"%s\"", str.c_str());
 								} else {
-									txt += buf[0];
+									stream->seek(-5, SEEK_CUR);
 								}
-							}
-
-						}
-#if 0
-						idx = stream->readUint16LE();
-						debug("    %d", idx);
-
-						idx = stream->readUint16LE();
-						debug("    %d", idx);
-
-						uint16 count;
-						while (1) {
-							uint16 code;
-							code = stream->readUint16LE();
-							count = stream->readUint16LE();
-							idx = stream->readUint16LE();
-
-							debugN("\tOP: 0x%8.8x %2u %2u\n", code, count, idx);
-
-							uint16 pitch = (count+1)&(~1); // align to word.
-							if ((stream->pos()+pitch) >= stream->size()) break;
-
-							if (code == 0 && count == 0) break;
-
-							stream->skip(pitch);
-						}
-
-						Common::String sval;
-						byte ch;
-
-						do {
-							ch = stream->readByte();
-							sval += ch;
-						} while (ch != 0);
-
-						debug("\"%s\"", sval.c_str());
-							/*
-						Common::String txt;
-						txt += Common::String::format("OP: 0x%4.4x %2u ", op, count);
-						if (count == 0x0F) {
-							byte ch[2];
-
-							do {
-								ch[0] = ttm->readByte();
-								ch[1] = ttm->readByte();
-								sval += ch[0];
-								sval += ch[1];
-							} while (ch[0] != 0 && ch[1] != 0);
-
-							debugN("\"%s\"", sval.c_str());
-							txt += "\"" + sval + "\"";
-						} else {
-							int16 ival;
-
-							for (byte k=0; k<count; k++) {
-								ival = ttm->readSint16LE();
-								ivals[k] = ival;
-
-								if (k == 0) {
-									debugN("%d", ival);
-									txt += Common::String::format("%d", ival);
-								} else {
-									debugN(", %d", ival);
-									txt += Common::String::format(", %d", ival);
-								}
+							} else {
+								//debug("0x%X", op);
 							}
 						}
-*/
-#endif
-#if 0
-						// probe for the .ADS name. are these shorts?
-						uint count;
-						count = 0;
-						while (1) {
-							uint16 x;
-							x = stream->readUint16LE();
-							if ((x & 0xFF00) != 0)
-								break;
-							debug("      %u: %u|0x%4.4X", count++, x, x);
-						}
-						stream->seek(-2, SEEK_CUR);
-
-						// .ADS name.
-						Common::String ads;
-						byte ch;
-						while ((ch = stream->readByte()))
-							ads += ch;
-						debug("    %s", ads.c_str());
-
-						stream->hexdump(6);
-						stream->skip(6);
-
-						int w, h;
-
-						w = stream->readSint16LE();
-						h = stream->readSint16LE();
-						debug("    %dx%d", w, h);
-
-						// probe for the strings. are these shorts?
-						count = 0;
-						while (1) {
-							uint16 x;
-							x = stream->readUint16LE();
-							if ((x & 0xFF00) != 0)
-								break;
-							if (stream->pos() >= stream->size()) break;
-							debug("      %u: %u|0x%4.4X", count++, x, x);
-						}
-						stream->seek(-4, SEEK_CUR);
-						// here we are.
-
-						uint16 len;
-						len = stream->readSint16LE();
-						Common::String txt;
-						for (uint16 j=0; j<len; j++) {
-							ch = stream->readByte();
-							txt += ch;
-							debug("      \"%s\"", txt.c_str());
-						}
-#endif
 					}
 					break;
 				case EX_TTM:
@@ -2511,8 +2397,8 @@ Common::Error DgdsEngine::run() {
 //		browse(_platform, _rmfName, this);
 
 #if 1
-		if (!interpTTM.run(&title1State))
-			if (!interpTTM.run(&title2State))
+/*		if (!interpTTM.run(&title1State))
+			if (!interpTTM.run(&title2State))*/
 			if (!interpADS.run(&introState)) return Common::kNoError;
 #else
 		if (!interpADS.run(&introState)) return Common::kNoError;
