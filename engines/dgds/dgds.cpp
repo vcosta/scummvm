@@ -845,7 +845,7 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 									stream->seek(-5, SEEK_CUR);
 								}
 							} else {
-								//debug("0x%X", op);
+								debug("0x%X '%c'", op, Common::isPrint(op) ? op : ' ');
 							}
 						}
 					}
@@ -1510,7 +1510,15 @@ Common::SeekableReadStream *createReadStream(const char *rmfName, const char *fi
 
 struct TTMData {
 	char filename[13];
+
 	Common::SeekableReadStream *scr;
+	Common::String ver;
+
+	void init(const char *filename_) {
+		Common::strlcpy(filename, filename_, sizeof(filename));
+		scr = 0;
+		ver.clear();
+	}
 };
 
 struct TTMState {
@@ -1548,9 +1556,9 @@ bool TTMInterpreter::load(const char *filename, TTMData *scriptData) {
 		return false;
 	}
 
-	memset(scriptData, 0, sizeof(*scriptData));
 	_scriptData = scriptData;
 	_filename = filename;
+	_scriptData->init(_filename);
 
         Common::Functor1Mem< DgdsChunk &, bool, TTMInterpreter > c(this, &TTMInterpreter::callback);
 	DgdsParser dgds(*stream, _filename);
@@ -1558,7 +1566,6 @@ bool TTMInterpreter::load(const char *filename, TTMData *scriptData) {
 
 	delete stream;
 
-	Common::strlcpy(_scriptData->filename, filename, sizeof(_scriptData->filename));
 	_scriptData = 0;
 	_filename = 0;
 	return true;
@@ -1569,7 +1576,7 @@ void TTMInterpreter::unload(TTMData *data) {
 		return;
 	delete data->scr;
 
-	data->scr = 0;
+	data->init("");
 }
 
 void TTMInterpreter::init(TTMState *state, const TTMData *data) {
@@ -1857,11 +1864,11 @@ bool TTMInterpreter::run(TTMState *script) {
 			case 0xa530:	// CHINA
 				// DRAW BMP4:	x,y,tile-id,bmp-id:int	[-n,+n] (CHINA)
 				// arguments similar to DRAW BMP but it draws the same BMP multiple times with radial simmetry? you can see this in the Dynamix logo star.
-			case 0x0110: //PURGE IMGS?  void
+
+			case 0x0110: //PURGE BMPs?  void
 			case 0x0080: //DRAW BG:	    void
 			case 0x1100: //?	    i:int   [9]
-			case 0x1300: //?	    i:int   [72,98,99,100,107]
-
+			case 0x1300: //?	    i:int   [72,98,99,100,107] XPTO
 			case 0x1310: //?	    i:int   [107]
 
 			default:
@@ -1895,9 +1902,10 @@ bool TTMInterpreter::run(TTMState *script) {
 }
 
 bool TTMInterpreter::callback(DgdsChunk &chunk) {
+	Common::SeekableReadStream *stream = chunk._stream;
 	switch (chunk._id) {
 	case MKTAG24('T','T','3'):
-		_scriptData->scr = chunk._stream->readStream(chunk._stream->size());
+		_scriptData->scr = stream->readStream(stream->size());
 		break;
 	default:
 		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._id), chunk._size, _filename);
@@ -1914,6 +1922,16 @@ struct ADSData {
 	TTMData *scriptDatas;
 
 	Common::SeekableReadStream *scr;
+	Common::String ver;
+
+	void init(const char *filename_) {
+		Common::strlcpy(filename, filename_, sizeof(filename));
+		count = 0;
+		names = 0;
+		scriptDatas = 0;
+		scr = 0;
+		ver.clear();
+	}
 };
 
 struct ADSState {
@@ -1953,9 +1971,9 @@ bool ADSInterpreter::load(const char *filename, ADSData *scriptData) {
 		return false;
 	}
 
-	memset(scriptData, 0, sizeof(*scriptData));
 	_scriptData = scriptData;
 	_filename = filename;
+	_scriptData->init(_filename);
 
         Common::Functor1Mem< DgdsChunk &, bool, ADSInterpreter > c(this, &ADSInterpreter::callback);
 	DgdsParser dgds(*stream, _filename);
@@ -1973,7 +1991,6 @@ bool ADSInterpreter::load(const char *filename, ADSData *scriptData) {
 	for (uint16 i = _scriptData->count; i--; )
 		interp.load(_scriptData->names[i], &_scriptData->scriptDatas[i]);
 
-	Common::strlcpy(_scriptData->filename, filename, sizeof(_scriptData->filename));
 	_scriptData = 0;
 	_filename = 0;
 	return true;
@@ -1988,10 +2005,7 @@ void ADSInterpreter::unload(ADSData *data) {
 	delete data->scriptDatas;
 	delete data->scr;
 
-	data->count = 0;
-	data->names = 0;
-	data->scriptDatas = 0;
-	data->scr = 0;
+	data->init("");
 }
 
 void ADSInterpreter::init(ADSState *state, const ADSData *data) {
@@ -2036,14 +2050,16 @@ bool ADSInterpreter::run(ADSState *script) {
 		}
 
 		switch (code) {
-		case 0x2005: {
-				// play scene.
+		case 0x2005:
+			// ADD_TTM
+			{
 				uint16 args[4];
 				for (uint i=0; i<ARRAYSIZE(args); i++) {
 					args[i] = scr->readUint16LE();
 				}
 				script->subIdx = args[0];
 				script->subMax = args[1];
+				debug("ADS:OP %x %d %d %d %d", code, args[0], args[1], args[2], args[3]);
 			}
 			return true;
 		case 0xF010:
@@ -2083,11 +2099,13 @@ bool ADSInterpreter::run(ADSState *script) {
 }
 
 bool ADSInterpreter::callback(DgdsChunk &chunk) {
+	Common::SeekableReadStream *stream = chunk._stream;
 	switch (chunk._id) {
 	case MKTAG24('A','D','S'):
 		break;
 	case MKTAG24('R','E','S'): {
-		uint16 count = chunk._stream->readUint16LE();
+	   	/* numbered list of used TTM resources. */
+		uint16 count = stream->readUint16LE();
 		char **strs = new char *[count];
 		assert(strs);
 
@@ -2097,10 +2115,10 @@ bool ADSInterpreter::callback(DgdsChunk &chunk) {
 			byte c = 0;
 			uint16 idx;
 			
-			idx = chunk._stream->readUint16LE();
+			idx = stream->readUint16LE();
 			assert(idx == (i+1));
 
-			while ((c = chunk._stream->readByte()))
+			while ((c = stream->readByte()))
 				string += c;
 
 			strs[i] = new char[string.size()+1];
@@ -2110,7 +2128,13 @@ bool ADSInterpreter::callback(DgdsChunk &chunk) {
 		}
 		break;
 	case MKTAG24('S','C','R'):
-		_scriptData->scr = chunk._stream->readStream(chunk._stream->size());
+		_scriptData->scr = stream->readStream(stream->size());
+		break;
+	case MKTAG24('V','E','R'): {
+		char version[5];
+		stream->read(version, sizeof(version));
+		_scriptData->ver = Common::String(version);
+	        }
 		break;
 	default:
 		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._id), chunk._size, _filename);
@@ -2350,16 +2374,16 @@ Common::Error DgdsEngine::run() {
 	TTMInterpreter interpTTM(this);
 
 #if 1
-	TTMData title1Data, title2Data;
-	ADSData introData;
+//	TTMData title1Data, title2Data;
+	ADSData introData;/*
 	interpTTM.load("TITLE1.TTM", &title1Data);
-	interpTTM.load("TITLE2.TTM", &title2Data);
+	interpTTM.load("TITLE2.TTM", &title2Data);*/
 	interpADS.load("INTRO.ADS", &introData);
 
-	TTMState title1State, title2State;
-	ADSState introState;
+//	TTMState title1State, title2State;
+	ADSState introState;/*
 	interpTTM.init(&title1State, &title1Data);
-	interpTTM.init(&title2State, &title2Data);
+	interpTTM.init(&title2State, &title2Data);*/
 	interpADS.init(&introState, &introData);
 
 	explode(_platform, _rmfName, "DRAGON.FNT", 0);
