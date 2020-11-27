@@ -1904,6 +1904,22 @@ bool TTMInterpreter::run(TTMState *script) {
 bool TTMInterpreter::callback(DgdsChunk &chunk) {
 	Common::SeekableReadStream *stream = chunk._stream;
 	switch (chunk._id) {
+	case MKTAG24('P','A','G'): {
+		uint16 pages;
+		pages = stream->readUint16LE();
+		debug("%u", pages);
+	        }
+		break;
+	case MKTAG24('V','E','R'): {
+		char version[5];
+		stream->read(version, sizeof(version));
+		debug("%s", version);
+	        }
+		break;
+	case MKTAG24('T','A','G'): {
+		readStrings(stream);
+	        }
+		break;
 	case MKTAG24('T','T','3'):
 		_scriptData->scr = stream->readStream(stream->size());
 		break;
@@ -2059,7 +2075,7 @@ bool ADSInterpreter::run(ADSState *script) {
 				}
 				script->subIdx = args[0];
 				script->subMax = args[1];
-				debug("ADS:OP %x %d %d %d %d", code, args[0], args[1], args[2], args[3]);
+				debug("\tAI: 0x%4.4x %d %d %d %d", code, args[0], args[1], args[2], args[3]);
 			}
 			return true;
 		case 0xF010:
@@ -2130,10 +2146,14 @@ bool ADSInterpreter::callback(DgdsChunk &chunk) {
 	case MKTAG24('S','C','R'):
 		_scriptData->scr = stream->readStream(stream->size());
 		break;
+	case MKTAG24('T','A','G'): {
+		readStrings(stream);
+	        }
+		break;
 	case MKTAG24('V','E','R'): {
 		char version[5];
 		stream->read(version, sizeof(version));
-		_scriptData->ver = Common::String(version);
+		debug("%s", version);
 	        }
 		break;
 	default:
