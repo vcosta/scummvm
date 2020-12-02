@@ -211,6 +211,7 @@ DgdsParser::DgdsParser(Common::SeekableReadStream& file, const char *filename) :
 #define ID_SNG	MKTAG24('S','N','G')
 #define ID_TAG	MKTAG24('T','A','G')
 #define ID_TT3	MKTAG24('T','T','3')
+#define ID_TTI	MKTAG24('T','T','I')
 #define ID_VER	MKTAG24('V','E','R')
 #define ID_VGA	MKTAG24('V','G','A')
 #define ID_VQT	MKTAG24('V','Q','T')
@@ -905,6 +906,8 @@ void parseFile(Common::Platform platform, Common::SeekableReadStream& file, cons
 								debug(" ");
 							}
 						}
+					} else if (chunk.isSection(ID_TTI)) {
+						debug("        %u instructions", chunk._size);
 					} else if (chunk.isSection(ID_TAG)) {
 						uint16 count;
 
@@ -1922,6 +1925,9 @@ bool TTMInterpreter::callback(DgdsChunk &chunk) {
 		break;
 	case MKTAG24('T','T','3'):
 		_scriptData->scr = stream->readStream(stream->size());
+		break;
+	case MKTAG24('T','T','I'):
+		debug("%u instructions", chunk._size);
 		break;
 	default:
 		warning("Unexpected chunk '%s' of size %d found in file '%s'", tag2str(chunk._id), chunk._size, _filename);
