@@ -1597,6 +1597,8 @@ bool TTMInterpreter::run(TTMState *script) {
 	if (scr->pos() >= scr->size()) return false;
 
 	script->delay = 0;
+
+	int ki = 0;
 	do {
 		uint16 code;
 		byte count;
@@ -1609,7 +1611,7 @@ bool TTMInterpreter::run(TTMState *script) {
 		count = code & 0x000F;
 		op = code & 0xFFF0;
 
-		debugN("\tOP: 0x%4.4x %2u ", op, count);
+		debugN("\tOP #%4d: 0x%4.4x %2u ", ki, op, count);
 		Common::String txt;
 		txt += Common::String::format("OP: 0x%4.4x %2u ", op, count);
 		if (count == 0x0F) {
@@ -1641,6 +1643,7 @@ bool TTMInterpreter::run(TTMState *script) {
 			}
 		}
 		debug(" ");
+		ki++;
 
 		Common::Rect bmpWin(0, 0, sw, sh);
 
